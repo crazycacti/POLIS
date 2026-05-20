@@ -36,6 +36,15 @@ export function mergePosterQueryForConfigurePreview(
   );
 }
 
+export function mergePosterQueryForAiometadataPattern(posterQueryString: string): string {
+  const parts: string[] = [];
+  const base = posterQueryString.trim();
+  if (base) parts.push(base);
+  parts.push("tmdb_key={tmdb_key}");
+  parts.push("mdblist_key={mdblist_key}");
+  return parts.join("&");
+}
+
 export function mergePosterQueryWithIntegratorAuth(
   posterQueryString: string,
   tmdbAuth?: URLSearchParams,

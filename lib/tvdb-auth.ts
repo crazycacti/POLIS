@@ -17,21 +17,11 @@ export function tvdbAuthToSearchParams(credentials: TvdbCredentials): URLSearchP
   return p;
 }
 
-function resolveTvdbFromRaw(raw: string, explicitPin?: string): TvdbCredentials | null {
-  const parsed = parseTvdbCredentials(raw);
-  if (!parsed) return null;
-  if (!parsed.pin && explicitPin?.trim()) {
-    return { apiKey: parsed.apiKey, pin: explicitPin.trim() };
-  }
-  return parsed;
-}
-
 export function resolveTvdbAuth(request: NextRequest): ResolvedTvdbAuth | null {
   const q = request.nextUrl.searchParams;
   const fromQuery = q.get("tvdb_api_key")?.trim();
-  const queryPin = q.get("tvdb_pin")?.trim();
   if (fromQuery) {
-    const credentials = resolveTvdbFromRaw(fromQuery, queryPin);
+    const credentials = parseTvdbCredentials(fromQuery);
     if (credentials) {
       return { credentials, embedInArtworkUrls: true };
     }
@@ -39,7 +29,7 @@ export function resolveTvdbAuth(request: NextRequest): ResolvedTvdbAuth | null {
 
   const envKey = process.env.TVDB_API_KEY?.trim();
   if (envKey) {
-    const credentials = resolveTvdbFromRaw(envKey, process.env.TVDB_PIN?.trim());
+    const credentials = parseTvdbCredentials(envKey);
     if (credentials) {
       return { credentials, embedInArtworkUrls: false };
     }

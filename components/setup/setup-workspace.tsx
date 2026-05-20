@@ -393,14 +393,7 @@ export function SetupWorkspace(props: {
     props.hasServerTmdb,
     useConfigScopedPreview,
   ]);
-  const patterns = origin
-    ? aiometadataArtPatterns(origin, queryString, userAuthParams, browserArtworkKeys, {
-        hasServerTmdb: props.hasServerTmdb,
-        hasServerMdblist: props.hasServerMdblist,
-        hasServerFanart: props.hasServerFanart,
-        hasServerTvdb: props.hasServerTvdb,
-      })
-    : null;
+  const patterns = origin ? aiometadataArtPatterns(origin, queryString) : null;
   function handleSaveClick() {
     if (!origin) {
       setConfigError("Set POLIS_PUBLIC_URL on the server first.");
@@ -766,14 +759,12 @@ export function SetupWorkspace(props: {
           </SetupPanel>
 
           <SetupPanel
-            title="AIOMetadata patterns"
-            hint="Paste into customPosterUrlPattern, customBackgroundUrlPattern, and customLogoUrlPattern in AIOMetadata."
+            title="AIOMetadata pattern"
+            hint="Paste into customPosterUrlPattern in AIOMetadata. Add matching TMDB and MDBList keys in AIOMetadata API settings; AIO fills {tmdb_key} and {mdblist_key} when fetching posters."
           >
             {patterns ? (
               <div className="space-y-4">
                 <PatternRow label="Poster" value={patterns.posterPattern} />
-                <PatternRow label="Background" value={patterns.backgroundPattern} />
-                <PatternRow label="Logo" value={patterns.logoPattern} />
               </div>
             ) : (
               <p className="text-sm text-zinc-600">Set POLIS_PUBLIC_URL first.</p>

@@ -1,7 +1,7 @@
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
-import { tvdbLogin } from "@/lib/tvdb-client";
+import { tvdbLoginResult } from "@/lib/tvdb-client";
 import { parseTvdbCredentials } from "@/lib/tvdb-credentials";
 
 export type ApiKeyProvider = "tmdb" | "mdblist" | "fanart" | "tvdb";
@@ -109,27 +109,20 @@ export async function validateTvdbKey(raw: string): Promise<ApiKeyValidateResult
   if (!credentials) {
     return {
       ok: false,
-      message:
-        "Enter your TheTVDB API key. User-supported keys need key|PIN (subscriber PIN from your TVDB account).",
+      message: "Enter your TheTVDB API key (8+ characters).",
     };
   }
 
-  try {
-    const token = await tvdbLogin(credentials);
-    if (token) {
-      return { ok: true, message: "TheTVDB key is valid." };
-    }
-    if (!credentials.pin) {
-      return {
-        ok: false,
-        message:
-          "TheTVDB rejected this key. User-supported keys require key|PIN (Dashboard → Account → Subscription).",
-      };
-    }
-    return { ok: false, message: "TheTVDB rejected this key or PIN." };
-  } catch {
+  const result = await tvdbLoginResult(credentials);
+  if (result.ok) {
+    return { ok: true, message: "TheTVDB key is valid." };
+  }
+
+  if (result.message === "network") {
     return { ok: false, message: "Could not reach TheTVDB. Try again." };
   }
+
+  return { ok: false, message: "TheTVDB rejected this API key." };
 }
 
 export async function validateApiKey(

@@ -1,9 +1,4 @@
-import {
-  mergePosterQueryForConfigurePreview,
-  mergePosterQueryWithIntegratorAuth,
-  type IntegratorArtworkKeys,
-  type ServerIntegratorKeyAvailability,
-} from "@/lib/integrator-auth";
+import { mergePosterQueryForAiometadataPattern } from "@/lib/integrator-auth";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { serializePosterQuery } from "@/lib/poster-query";
 
@@ -50,8 +45,6 @@ export function logoArtUrl(publicBase: string, imdbId: string, configId?: string
 
 export type AiometadataPatternSet = {
   posterPattern: string;
-  backgroundPattern: string;
-  logoPattern: string;
 };
 
 export function examplePosterUrl(publicBase: string, imdbId = "tt0111161"): string {
@@ -59,36 +52,14 @@ export function examplePosterUrl(publicBase: string, imdbId = "tt0111161"): stri
   return `${b}/poster/imdb/poster-default/${imdbId}.jpg`;
 }
 
-function tmdbArtworkAuthSuffix(artworkAuth?: URLSearchParams): string {
-  const qs = artworkAuth?.toString().trim();
-  return qs ? `?${qs}` : "";
-}
-
 export function aiometadataArtPatterns(
   publicBase: string,
   posterQueryString: string,
-  artworkAuth?: URLSearchParams,
-  artworkKeys?: IntegratorArtworkKeys,
-  serverKeys?: ServerIntegratorKeyAvailability,
 ): AiometadataPatternSet {
   const b = normalizePublicBase(publicBase);
-  const posterMerged = serverKeys
-    ? mergePosterQueryForConfigurePreview(
-        posterQueryString.trim(),
-        serverKeys,
-        artworkAuth,
-        artworkKeys ?? {},
-      )
-    : mergePosterQueryWithIntegratorAuth(
-        posterQueryString.trim(),
-        artworkAuth,
-        artworkKeys,
-      );
+  const posterMerged = mergePosterQueryForAiometadataPattern(posterQueryString.trim());
   const posterSuffix = posterMerged ? `?${posterMerged}` : "";
-  const artworkAuthSuffix = tmdbArtworkAuthSuffix(artworkAuth);
   return {
     posterPattern: `${b}/poster/imdb/poster-default/{imdb_id}.jpg${posterSuffix}`,
-    backgroundPattern: `${b}/backdrop/imdb/default/{imdb_id}.jpg${artworkAuthSuffix}`,
-    logoPattern: `${b}/logo/imdb/default/{imdb_id}.png${artworkAuthSuffix}`,
   };
 }

@@ -3,6 +3,7 @@ import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-quer
 const NON_OVERLAY_QUERY_KEYS = new Set([
   "polis_r",
   "api_key",
+  "tmdb_key",
   "tmdb_access_token",
   "mdblist_api_key",
   "mdblist_key",

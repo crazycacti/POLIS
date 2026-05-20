@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 
+import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
+
 export type TmdbCredential =
   | { kind: "bearer"; token: string }
   | { kind: "api_key"; key: string };
@@ -45,6 +47,27 @@ export function resolveTmdbAuth(request: NextRequest): ResolvedTmdbAuth | null {
   }
 
   const q = request.nextUrl.searchParams;
+  const tmdbKey = q.get("tmdb_key")?.trim();
+  if (tmdbKey) {
+    const inferred = inferTmdbCredentialParams(tmdbKey);
+    if (inferred.params) {
+      const token = inferred.params.get("tmdb_access_token");
+      if (token) {
+        return {
+          credential: { kind: "bearer", token },
+          embedInArtworkUrls: true,
+        };
+      }
+      const key = inferred.params.get("api_key");
+      if (key) {
+        return {
+          credential: { kind: "api_key", key },
+          embedInArtworkUrls: true,
+        };
+      }
+    }
+  }
+
   const apiKey = q.get("api_key")?.trim();
   if (apiKey) {
     return {

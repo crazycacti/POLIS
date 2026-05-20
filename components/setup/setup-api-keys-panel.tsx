@@ -53,8 +53,8 @@ export const API_KEY_CARDS: ApiKeyCardDef[] = [
     label: "TheTVDB",
     href: "https://thetvdb.com/api-information",
     hrefLabel: "thetvdb.com/api-information",
-    placeholder: "API key, or key|PIN for user-supported keys",
-    envVar: "TVDB_API_KEY (and TVDB_PIN if required)",
+    placeholder: "TheTVDB API key",
+    envVar: "TVDB_API_KEY",
     required: false,
   },
 ];
