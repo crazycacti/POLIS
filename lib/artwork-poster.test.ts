@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { pickTmdbPosterPath } from "@/lib/artwork-poster";
+import { pickTmdbPosterPath, postersHasXxTextless } from "@/lib/artwork-poster";
 import { pickFanartPosterUrl } from "@/lib/fanart-client";
 
 describe("poster artwork selection", () => {
@@ -16,16 +16,39 @@ describe("poster artwork selection", () => {
     expect(path).toBe("/en.jpg");
   });
 
-  test("title logo mode prefers textless posters", () => {
+  test("title logo mode prefers xx textless over null iso", () => {
     const path = pickTmdbPosterPath(
       [
         { file_path: "/en.jpg", iso_639_1: "en" },
+        { file_path: "/neutral.jpg", iso_639_1: null },
         { file_path: "/textless.jpg", iso_639_1: "xx" },
       ],
       "en-US",
       true,
     );
     expect(path).toBe("/textless.jpg");
+  });
+
+  test("postersHasXxTextless is true only for xx iso", () => {
+    expect(
+      postersHasXxTextless([
+        { file_path: "/neutral.jpg", iso_639_1: null },
+        { file_path: "/textless.jpg", iso_639_1: "xx" },
+      ]),
+    ).toBe(true);
+    expect(postersHasXxTextless([{ file_path: "/neutral.jpg", iso_639_1: null }])).toBe(false);
+  });
+
+  test("title logo mode uses titled poster when no xx textless", () => {
+    const path = pickTmdbPosterPath(
+      [
+        { file_path: "/en.jpg", iso_639_1: "en" },
+        { file_path: "/neutral.jpg", iso_639_1: null },
+      ],
+      "en-US",
+      true,
+    );
+    expect(path).toBe("/en.jpg");
   });
 
   test("fanart title logo mode prefers textless assets", () => {

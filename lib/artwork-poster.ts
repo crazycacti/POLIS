@@ -10,7 +10,7 @@ import type {
   PosterArtworkSource,
 } from "@/lib/poster-query";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
-import { fetchUpstream } from "@/lib/upstream-fetch";
+import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import type { ResolvedTitle } from "@/lib/tmdb-resolve";
 import { fetchTvdbSeriesPosterUrl } from "@/lib/tvdb-client";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
@@ -19,19 +19,6 @@ type TmdbImageRow = {
   file_path?: string | null;
   iso_639_1?: string | null;
 };
-
-async function tmdbGetJson(url: URL, credential: TmdbCredential): Promise<unknown> {
-  const target = new URL(url.toString());
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (credential.kind === "api_key") {
-    target.searchParams.set("api_key", credential.key);
-  } else {
-    headers.Authorization = `Bearer ${credential.token}`;
-  }
-  const response = await fetchUpstream(target, { headers, revalidateSeconds: 86400 });
-  if (!response.ok) return null;
-  return response.json();
-}
 
 function isTextlessTmdbPoster(row: TmdbImageRow): boolean {
   return Boolean(row.file_path) && (!row.iso_639_1 || row.iso_639_1 === "xx");
@@ -46,9 +33,10 @@ export function pickTmdbPosterPath(
   const lang = language.split("-")[0]?.toLowerCase() ?? "en";
 
   if (preferTextless) {
-    const textless = posters.find(isTextlessTmdbPoster);
-    if (textless?.file_path) return textless.file_path;
-    return posters.find((p) => p.file_path)?.file_path ?? null;
+    const textless = posters.filter(isTextlessTmdbPoster);
+    const xx = textless.find((p) => p.iso_639_1 === "xx");
+    if (xx?.file_path) return xx.file_path;
+    return pickTmdbPosterPath(posters, language, false);
   }
 
   const localized = posters.find((p) => p.iso_639_1 === lang && p.file_path);
@@ -65,17 +53,34 @@ export function pickTmdbPosterPath(
   return posters.find((p) => p.file_path)?.file_path ?? null;
 }
 
-async function fetchTmdbImagesPosterPath(
+export async function fetchTmdbImagePosters(
   resolved: ResolvedTitle,
   credential: TmdbCredential,
-  language: string,
-  preferTextless: boolean,
-): Promise<string | null> {
+): Promise<TmdbImageRow[]> {
   const kind = resolved.stremioType === "movie" ? "movie" : "tv";
   const url = new URL(`https://api.themoviedb.org/3/${kind}/${resolved.tmdbNumericId}/images`);
-  const raw = await tmdbGetJson(url, credential);
-  if (!raw || typeof raw !== "object") return null;
-  const posters = (raw as { posters?: TmdbImageRow[] }).posters ?? [];
+  const raw = await tmdbApiGet(url, credential);
+  if (!raw || typeof raw !== "object") return [];
+  return (raw as { posters?: TmdbImageRow[] }).posters ?? [];
+}
+
+export function postersHasXxTextless(posters: TmdbImageRow[]): boolean {
+  return posters.some((p) => isTextlessTmdbPoster(p) && p.iso_639_1 === "xx");
+}
+
+export async function tmdbHasXxTextlessPoster(
+  resolved: ResolvedTitle,
+  credential: TmdbCredential,
+): Promise<boolean> {
+  const posters = await fetchTmdbImagePosters(resolved, credential);
+  return postersHasXxTextless(posters);
+}
+
+function pickTmdbImagesPosterPath(
+  posters: TmdbImageRow[],
+  language: string,
+  preferTextless: boolean,
+): string | null {
   return pickTmdbPosterPath(posters, language, preferTextless);
 }
 
@@ -84,13 +89,11 @@ async function resolveTmdbPosterUrl(
   credential: TmdbCredential,
   language: string,
   preferTextless: boolean,
+  tmdbPosters?: TmdbImageRow[] | null,
 ): Promise<string | null> {
-  const tmdbFromImages = await fetchTmdbImagesPosterPath(
-    resolved,
-    credential,
-    language,
-    preferTextless,
-  );
+  const posters =
+    tmdbPosters ?? (await fetchTmdbImagePosters(resolved, credential));
+  const tmdbFromImages = pickTmdbImagesPosterPath(posters, language, preferTextless);
   const tmdbPath = tmdbFromImages ?? resolved.posterPath;
   return tmdbPath ? `https://image.tmdb.org/t/p/w780${tmdbPath}` : null;
 }
@@ -104,6 +107,7 @@ type ArtworkResolveContext = {
   tvdbCredentials: TvdbCredentials | null;
   tvdbId: number | null;
   preferTextlessArtwork: boolean;
+  tmdbPosters?: TmdbImageRow[] | null;
 };
 
 async function resolveFanartUrl(ctx: ArtworkResolveContext): Promise<string | null> {
@@ -136,13 +140,20 @@ async function urlForArtworkSource(
       ctx.credential,
       ctx.language,
       ctx.preferTextlessArtwork,
+      ctx.tmdbPosters,
     );
   }
 
   if (source === "fanart") {
     return (
       (await resolveFanartUrl(ctx)) ??
-      resolveTmdbPosterUrl(ctx.resolved, ctx.credential, ctx.language, ctx.preferTextlessArtwork)
+      resolveTmdbPosterUrl(
+        ctx.resolved,
+        ctx.credential,
+        ctx.language,
+        ctx.preferTextlessArtwork,
+        ctx.tmdbPosters,
+      )
     );
   }
 
@@ -176,6 +187,7 @@ async function urlForArtworkSource(
     ctx.credential,
     ctx.language,
     ctx.preferTextlessArtwork,
+    ctx.tmdbPosters,
   );
 }
 
@@ -214,6 +226,7 @@ export async function resolvePosterImageCandidates(params: {
   tvdbCredentials: TvdbCredentials | null;
   tvdbId: number | null;
   preferTextlessArtwork?: boolean;
+  tmdbPosters?: TmdbImageRow[] | null;
 }): Promise<string[]> {
   const ctx: ArtworkResolveContext = {
     resolved: params.resolved,
@@ -224,6 +237,7 @@ export async function resolvePosterImageCandidates(params: {
     tvdbCredentials: params.tvdbCredentials,
     tvdbId: params.tvdbId,
     preferTextlessArtwork: params.preferTextlessArtwork ?? false,
+    tmdbPosters: params.tmdbPosters,
   };
 
   const urls: string[] = [];
@@ -242,6 +256,7 @@ export async function resolvePosterImageCandidates(params: {
       ctx.credential,
       ctx.language,
       true,
+      ctx.tmdbPosters,
     );
     if (tmdbTextless) {
       urls.unshift(tmdbTextless);

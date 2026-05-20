@@ -1,4 +1,8 @@
-import { resolvePosterImageCandidates } from "@/lib/artwork-poster";
+import {
+  fetchTmdbImagePosters,
+  postersHasXxTextless,
+  resolvePosterImageCandidates,
+} from "@/lib/artwork-poster";
 import { fetchMdblistMediaInfo } from "@/lib/mdblist-client";
 import { overlayUsesMdblist } from "@/lib/overlay-requirements";
 import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/poster-badges";
@@ -36,6 +40,11 @@ export async function renderPosterForImdb(params: {
         })
       : null;
 
+  const tmdbPosters =
+    params.overlay.artwork === "tmdb"
+      ? await fetchTmdbImagePosters(resolved, params.credential)
+      : undefined;
+
   const imageUrls = await resolvePosterImageCandidates({
     resolved,
     imdbId: params.imdbId,
@@ -48,6 +57,7 @@ export async function renderPosterForImdb(params: {
     tvdbCredentials: params.tvdbCredentials,
     tvdbId: resolved.tvdbId,
     preferTextlessArtwork: params.overlay.logoOnPoster,
+    tmdbPosters,
   });
   if (imageUrls.length === 0) return null;
 
@@ -85,6 +95,15 @@ export async function renderPosterForImdb(params: {
     ? buildAgeBadge(mdblist, resolved.certification)
     : null;
 
+  let logoPath: string | null = null;
+  if (params.overlay.logoOnPoster && resolved.logoPath) {
+    if (params.overlay.artwork === "tmdb") {
+      if (postersHasXxTextless(tmdbPosters ?? [])) logoPath = resolved.logoPath;
+    } else {
+      logoPath = resolved.logoPath;
+    }
+  }
+
   return renderPosterJpeg({
     imageUrls,
     overlay: params.overlay,
@@ -96,6 +115,6 @@ export async function renderPosterForImdb(params: {
     trendBadges,
     qualityMarkIds,
     ageBadge,
-    logoPath: params.overlay.logoOnPoster ? resolved.logoPath : null,
+    logoPath,
   });
 }

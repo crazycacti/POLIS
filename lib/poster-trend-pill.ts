@@ -23,10 +23,13 @@ export function scaledTrendFontSize(canvasW: number, configuredTrendFontSize: nu
   );
 }
 
-export function trendPillPadding(fontSize: number): { padX: number; padY: number } {
+export function trendPillPadding(
+  fontSize: number,
+  flushTop = false,
+): { padX: number; padY: number } {
   return {
     padX: Math.round(fontSize * 0.28),
-    padY: Math.round(fontSize * 0.14),
+    padY: Math.round(fontSize * (flushTop ? 0.36 : 0.14)),
   };
 }
 
@@ -56,10 +59,11 @@ export function measureTrendPillBadge(
   badge: PosterPillBadge,
   canvasW: number,
   configuredTrendFontSize: number,
+  flushTop = false,
 ): TrendPillMetrics | null {
   const fontSize = scaledTrendFontSize(canvasW, configuredTrendFontSize);
   const text = badge.text.length <= 24 ? badge.text : `${badge.text.slice(0, 23)}…`;
-  const { padX, padY } = trendPillPadding(fontSize);
+  const { padX, padY } = trendPillPadding(fontSize, flushTop);
   return buildTrendPillGlyphLayout(text, fontSize, padX, padY);
 }
 

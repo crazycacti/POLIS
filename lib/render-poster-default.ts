@@ -95,14 +95,14 @@ export async function renderPosterJpeg(params: {
   );
 
   const hasTrendBadge = trendBadges.length > 0;
-  const trendMetrics =
-    hasTrendBadge && trendBadges[0]
-      ? measureTrendPillBadge(trendBadges[0], w, overlay.trendFontSize)
-      : null;
-  const trendTopActive = trendMetrics != null;
   const ageInTopRight = overlay.ageRating && ageBadge != null;
   const hasQualityTop = qualityMarkIds.length > 0 || ageInTopRight;
-  const centerTrendTop = trendTopActive && !hasQualityTop;
+  const centerTrendTop = hasTrendBadge && !hasQualityTop;
+  const trendMetrics =
+    hasTrendBadge && trendBadges[0]
+      ? measureTrendPillBadge(trendBadges[0], w, overlay.trendFontSize, centerTrendTop)
+      : null;
+  const trendTopActive = trendMetrics != null;
   const centerQualityTop = hasQualityTop && !trendTopActive;
   const trendPadTop = trendPillBoxTop(centerTrendTop, edgePadTop);
 

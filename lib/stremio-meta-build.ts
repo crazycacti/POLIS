@@ -1,5 +1,5 @@
 import { mergePosterQueryWithIntegratorAuth } from "@/lib/integrator-auth";
-import { defaultPosterQueryString } from "@/lib/poster-query";
+import { defaultPosterQueryString, parsePosterOverlayQuery } from "@/lib/poster-query";
 import { backdropArtUrl, logoArtUrl, posterArtUrl } from "@/lib/polis-urls";
 import type { StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import type { ResolvedTitle } from "@/lib/tmdb-resolve";
@@ -68,6 +68,7 @@ export function buildStremioMetaRecord(
     posterQueryString?.trim() || defaultPosterQueryString(),
     artworkAuth,
   );
+  const overlay = parsePosterOverlayQuery(new URLSearchParams(qs));
 
   const out: Record<string, unknown> = {
     id: resolved.imdbId,
@@ -137,7 +138,7 @@ export function buildStremioMetaRecord(
     out.background = backdropArtUrl(publicBase, resolved.imdbId, configId);
   }
 
-  if (resolved.logoPath) {
+  if (resolved.logoPath && !overlay.logoOnPoster) {
     out.logo = logoArtUrl(publicBase, resolved.imdbId, configId);
   }
 

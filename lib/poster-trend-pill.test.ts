@@ -5,6 +5,7 @@ import {
   measureTrendPillBadge,
   trendPillBoxTop,
   trendPillFlushTopPath,
+  trendPillPadding,
 } from "@/lib/poster-trend-pill";
 
 const hasFonts = getOverlayFont(700) != null;
@@ -24,5 +25,11 @@ describe("poster trend pill", () => {
     const path = trendPillFlushTopPath(10, 0, 120, 40);
     expect(path.startsWith("M 10 0 H 130")).toBe(true);
     expect(path.includes("A ")).toBe(true);
+  });
+
+  test("flush top padding is taller than default trend padding", () => {
+    const flush = trendPillPadding(45, true);
+    const normal = trendPillPadding(45, false);
+    expect(flush.padY).toBeGreaterThan(normal.padY);
   });
 });
