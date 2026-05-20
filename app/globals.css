@@ -1,0 +1,398 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --aurora-primary: #00d4ff;
+  --aurora-secondary: #7c3aed;
+  --aurora-neon-blue: #0099cc;
+  --aurora-background: #000000;
+  --aurora-surface: #0a0a0a;
+  --aurora-surface-elevated: #121212;
+  --aurora-text: #ffffff;
+  --aurora-text-secondary: #a0a0a0;
+  --aurora-border: #333333;
+  --aurora-glow: 0 0 15px rgba(0, 153, 204, 0.2);
+}
+
+@layer base {
+  html {
+    @apply scroll-smooth antialiased;
+  }
+  body {
+    @apply min-h-[100dvh] bg-black text-white;
+    background:
+      radial-gradient(ellipse 120% 80% at 50% -20%, rgba(0, 212, 255, 0.08), transparent),
+      radial-gradient(ellipse 80% 50% at 100% 50%, rgba(124, 58, 237, 0.06), transparent),
+      #000;
+  }
+}
+
+@layer components {
+  .polis-logo-mark {
+    display: inline-block;
+    aspect-ratio: 2 / 1;
+    background-color: currentColor;
+    -webkit-mask-image: url(/logo.png);
+    mask-image: url(/logo.png);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  .polis-btn {
+    @apply inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200;
+    background: rgba(0, 153, 204, 0.18);
+    color: var(--aurora-text);
+    border: 1px solid var(--aurora-neon-blue);
+  }
+  .polis-btn:hover {
+    box-shadow: var(--aurora-glow);
+  }
+  .polis-btn-glow {
+    @apply relative inline-flex items-center justify-center overflow-hidden rounded-full px-6 py-3 text-sm font-semibold text-white transition-shadow duration-300;
+    background: rgba(0, 153, 204, 0.22);
+    border: 1px solid rgba(0, 212, 255, 0.45);
+  }
+  .polis-btn-glow::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(
+      120deg,
+      transparent 30%,
+      rgba(0, 212, 255, 0.55) 50%,
+      transparent 70%
+    );
+    background-size: 200% 100%;
+    animation: polis-shimmer 3.5s linear infinite;
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+  .polis-btn-glow:hover {
+    box-shadow: 0 0 24px rgba(0, 212, 255, 0.25);
+  }
+  .polis-card {
+    @apply rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-6 backdrop-blur-sm;
+  }
+  .polis-input {
+    @apply w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 outline-none transition-shadow;
+  }
+  .polis-input:focus {
+    @apply ring-2 ring-cyan-600/40;
+  }
+  .polis-select {
+    @apply polis-input;
+  }
+  .polis-tab {
+    @apply rounded-full border border-transparent px-4 py-2 text-sm font-medium text-zinc-500 transition-colors;
+  }
+  .polis-tab:hover {
+    @apply text-zinc-300;
+  }
+  .polis-tab-active {
+    @apply border-cyan-800/60 bg-cyan-950/50 text-cyan-100;
+  }
+  .polis-tab-locked {
+    @apply cursor-not-allowed opacity-40;
+  }
+  .polis-tab-locked:hover {
+    @apply text-zinc-500;
+  }
+  .polis-tab-tooltip-wrap {
+    @apply relative inline-block;
+  }
+  .polis-tab-tooltip {
+    @apply pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-zinc-700/90 bg-zinc-900 px-3 py-2 text-left text-xs leading-snug text-zinc-200 opacity-0 shadow-xl transition-opacity duration-150;
+  }
+  .polis-tab-tooltip-wrap:hover .polis-tab-tooltip,
+  .polis-tab-tooltip-wrap:focus-within .polis-tab-tooltip {
+    @apply opacity-100;
+  }
+  .polis-toggle-row {
+    @apply flex cursor-pointer items-center justify-between gap-4;
+  }
+  .polis-switch {
+    --switch-width: 46px;
+    --switch-height: 24px;
+    --switch-bg: rgb(82, 82, 91);
+    --switch-checked-bg: rgb(8, 145, 178);
+    --switch-offset: calc((var(--switch-height) - var(--circle-diameter)) / 2);
+    --switch-transition: all 0.2s cubic-bezier(0.27, 0.2, 0.25, 1.51);
+    --circle-diameter: 18px;
+    --circle-bg: #fff;
+    --circle-shadow: 1px 1px 2px rgba(0, 0, 0, 0.35);
+    --circle-checked-shadow: -1px 1px 2px rgba(0, 0, 0, 0.25);
+    --icon-transition: all 0.2s cubic-bezier(0.27, 0.2, 0.25, 1.51);
+    --icon-cross-color: var(--switch-bg);
+    --icon-cross-size: 6px;
+    --icon-checkmark-color: var(--switch-checked-bg);
+    --icon-checkmark-size: 10px;
+    --effect-width: calc(var(--circle-diameter) / 2);
+    --effect-height: calc(var(--effect-width) / 2 - 1px);
+    --effect-bg: var(--circle-bg);
+    --effect-border-radius: 1px;
+    --effect-transition: all 0.2s ease-in-out;
+    display: inline-flex;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .polis-switch--disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+  .polis-switch-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .polis-switch-slider {
+    box-sizing: border-box;
+    width: var(--switch-width);
+    height: var(--switch-height);
+    background: var(--switch-bg);
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    transition: var(--switch-transition);
+  }
+  .polis-switch-slider::before {
+    content: "";
+    position: absolute;
+    width: var(--effect-width);
+    height: var(--effect-height);
+    left: calc(var(--switch-offset) + (var(--effect-width) / 2));
+    background: var(--effect-bg);
+    border-radius: var(--effect-border-radius);
+    transition: var(--effect-transition);
+  }
+  .polis-switch-circle {
+    width: var(--circle-diameter);
+    height: var(--circle-diameter);
+    background: var(--circle-bg);
+    border-radius: inherit;
+    box-shadow: var(--circle-shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--switch-transition);
+    z-index: 1;
+    position: absolute;
+    left: var(--switch-offset);
+  }
+  .polis-switch-icon {
+    position: absolute;
+    height: auto;
+    transition: var(--icon-transition);
+  }
+  .polis-switch-check {
+    width: var(--icon-checkmark-size);
+    color: var(--icon-checkmark-color);
+    transform: scale(0);
+  }
+  .polis-switch-cross {
+    width: var(--icon-cross-size);
+    color: var(--icon-cross-color);
+  }
+  .polis-switch-input:checked + .polis-switch-slider {
+    background: var(--switch-checked-bg);
+  }
+  .polis-switch-input:checked + .polis-switch-slider .polis-switch-check {
+    transform: scale(1);
+  }
+  .polis-switch-input:checked + .polis-switch-slider .polis-switch-cross {
+    transform: scale(0);
+  }
+  .polis-switch-input:checked + .polis-switch-slider::before {
+    left: calc(100% - var(--effect-width) - (var(--effect-width) / 2) - var(--switch-offset));
+  }
+  .polis-switch-input:checked + .polis-switch-slider .polis-switch-circle {
+    left: calc(100% - var(--circle-diameter) - var(--switch-offset));
+    box-shadow: var(--circle-checked-shadow);
+  }
+  .polis-switch-input:focus-visible + .polis-switch-slider {
+    outline: 2px solid rgba(34, 211, 238, 0.45);
+    outline-offset: 2px;
+  }
+  .polis-switch-row {
+    @apply flex items-center justify-between gap-3 text-sm text-zinc-400 sm:col-span-2;
+  }
+  .polis-orb {
+    @apply pointer-events-none absolute rounded-full blur-3xl;
+  }
+  .polis-orb-a {
+    width: 280px;
+    height: 280px;
+    top: 8%;
+    left: 50%;
+    margin-left: -140px;
+    background: rgba(0, 212, 255, 0.12);
+    animation: polis-float 8s ease-in-out infinite;
+  }
+  .polis-orb-b {
+    width: 220px;
+    height: 220px;
+    bottom: 12%;
+    right: 10%;
+    background: rgba(124, 58, 237, 0.1);
+    animation: polis-float 10s ease-in-out infinite reverse;
+  }
+  .polis-hero-mark {
+    @apply relative;
+    filter: drop-shadow(0 0 28px rgba(0, 212, 255, 0.2));
+  }
+  .polis-hero-heading {
+    @apply relative;
+  }
+  .polis-hero-heading::after {
+    content: "";
+    display: block;
+    width: 3rem;
+    height: 1px;
+    margin: 0.75rem auto 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(0, 212, 255, 0.45),
+      transparent
+    );
+  }
+  .polis-hero-title {
+    text-shadow: 0 0 40px rgba(0, 212, 255, 0.15);
+  }
+  .polis-hero-expansion {
+    max-width: 20rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .polis-poster-frame {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  .polis-poster-frame:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0, 153, 204, 0.15);
+  }
+  .polis-overlay-details > summary {
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    color: rgb(113 113 122);
+  }
+  .polis-overlay-details > summary:hover {
+    color: rgb(212 212 216);
+  }
+  .polis-overlay-details > summary::-webkit-details-marker {
+    display: none;
+  }
+  .polis-overlay-details > summary::before {
+    content: "▸ ";
+  }
+  .polis-overlay-details[open] > summary::before {
+    content: "▾ ";
+  }
+  .polis-code {
+    @apply rounded-lg border border-aurora-border bg-black/60 px-4 py-3 font-mono text-sm text-zinc-400;
+  }
+  .polis-steps {
+    @apply list-none space-y-4 p-0;
+    counter-reset: polis-step;
+  }
+  .polis-steps > li {
+    @apply relative pl-10 text-sm leading-relaxed text-zinc-400;
+    counter-increment: polis-step;
+  }
+  .polis-steps > li::before {
+    content: counter(polis-step);
+    @apply absolute left-0 top-0 flex h-7 w-7 items-center justify-center rounded-full border border-cyan-600/40 bg-cyan-950/60 text-xs font-semibold text-cyan-300;
+  }
+  .polis-step-title {
+    @apply mb-1 block font-medium text-zinc-200;
+  }
+  .polis-step-body {
+    @apply block text-zinc-500;
+  }
+  .polis-dialog {
+    @apply max-w-[calc(100vw-2rem)] border-0 bg-transparent p-0 text-white;
+  }
+  .polis-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
+  }
+  .polis-dialog-panel {
+    @apply w-full min-w-[min(100%,22rem)] max-w-md rounded-xl border border-zinc-800/80 bg-zinc-950 p-6 shadow-2xl;
+  }
+  .polis-password-strength-segment {
+    transform-origin: left center;
+    transition:
+      background-color 0.35s ease,
+      transform 0.35s ease,
+      opacity 0.35s ease;
+  }
+  .polis-password-strength-segment:not(.bg-zinc-800) {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  .polis-password-strength-segment.bg-zinc-800 {
+    transform: scaleX(0.35);
+    opacity: 0.55;
+  }
+  .polis-catalog-toggle-row {
+    @apply rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2.5;
+  }
+  .polis-catalogs-panel,
+  .polis-catalog-selected-list,
+  .polis-catalog-discover-list,
+  .polis-catalog-custom-lists {
+    overflow-anchor: none;
+  }
+  html:has(.polis-configure-page) {
+    scroll-behavior: auto;
+  }
+  .polis-configure-page {
+    overflow-anchor: none;
+  }
+}
+
+@keyframes polis-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes polis-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}

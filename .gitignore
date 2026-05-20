@@ -1,0 +1,16 @@
+node_modules
+scripts/
+*.tsbuildinfo
+.next
+out
+dist
+.env
+.env*.local
+*.log
+.DS_Store
+.cache/
+assets/fonts/*.ttf
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

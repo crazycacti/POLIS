@@ -1,0 +1,15 @@
+services:
+  polis:
+    container_name: polis
+    image: ghcr.io/crazycacti/polis:latest
+    ports:
+      - "3050:3050"
+    env_file:
+      - .env
+    environment:
+      POLIS_DB_PATH: /app/data/polis.sqlite
+      POLIS_CACHE_DIR: /app/data/cache
+      TMDB_LANGUAGE: en-US
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
