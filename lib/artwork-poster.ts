@@ -95,7 +95,7 @@ async function resolveTmdbPosterUrl(
     tmdbPosters ?? (await fetchTmdbImagePosters(resolved, credential));
   const tmdbFromImages = pickTmdbImagesPosterPath(posters, language, preferTextless);
   const tmdbPath = tmdbFromImages ?? resolved.posterPath;
-  return tmdbPath ? `https://image.tmdb.org/t/p/w780${tmdbPath}` : null;
+  return tmdbPath ? `https://image.tmdb.org/t/p/original${tmdbPath}` : null;
 }
 
 type ArtworkResolveContext = {

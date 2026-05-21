@@ -52,6 +52,9 @@ export type PosterOverlayQuery = {
   trendRank: number | null;
 };
 
+export const FOOTER_PAD_Y_MIN = 12;
+export const FOOTER_PAD_Y_MAX = 85;
+
 export const POSTER_OVERLAY_DEFAULTS: PosterOverlayQuery = {
   genre: true,
   rating: true,
@@ -249,8 +252,12 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
   const legacyFontRaw = clamp(Number(searchParams.get("font") ?? NaN), 16, 56);
   const legacyFont = Number.isFinite(legacyFontRaw) ? legacyFontRaw : null;
   const padX = clamp(Number(searchParams.get("pad_x") ?? NaN), 8, 120);
-  const padY = clamp(Number(searchParams.get("pad_y") ?? NaN), 12, 120);
-  const ratingPadY = clamp(Number(searchParams.get("rating_pad_y") ?? NaN), 12, 120);
+  const padY = clamp(Number(searchParams.get("pad_y") ?? NaN), FOOTER_PAD_Y_MIN, FOOTER_PAD_Y_MAX);
+  const ratingPadY = clamp(
+    Number(searchParams.get("rating_pad_y") ?? NaN),
+    FOOTER_PAD_Y_MIN,
+    FOOTER_PAD_Y_MAX,
+  );
   const lineGap = clamp(Number(searchParams.get("line_gap") ?? NaN), 4, 36);
   const trendRankRaw = clamp(Number(searchParams.get("trend_rank") ?? NaN), 1, 10);
   const trendRank = Number.isFinite(trendRankRaw) ? trendRankRaw : null;
@@ -289,6 +296,18 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     lineGap: Number.isFinite(lineGap) ? lineGap : d.lineGap,
     trendRank,
   };
+}
+
+export function resolveFooterPadBottom(
+  overlay: Pick<PosterOverlayQuery, "genre" | "rating" | "padY" | "ratingPadY">,
+  canvasH: number,
+): number {
+  const floor = Math.round(canvasH * 0.022);
+  const pads: number[] = [];
+  if (overlay.genre) pads.push(overlay.padY);
+  if (overlay.rating) pads.push(overlay.ratingPadY);
+  if (pads.length === 0) return floor;
+  return Math.max(...pads, floor);
 }
 
 export function serializePosterQuery(opts: PosterOverlayQuery): string {

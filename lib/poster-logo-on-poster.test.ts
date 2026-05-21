@@ -41,6 +41,24 @@ describe("poster title logo layout", () => {
     expect(placement.width).toBeLessThanOrEqual(posterLogoMaxWidth(w));
   });
 
+  test("reserves footer band for rating-only row using rating inset", () => {
+    const h = 750;
+    const padBottom = 48;
+    const fs = 38;
+    const ratingMetrics = measureFooterPill("★ 8.2", fs);
+    const bandTop = resolvePosterLogoFooterBandTop({
+      canvasH: h,
+      footerPadBottom: padBottom,
+      genreEnabled: false,
+      ratingEnabled: true,
+      genreMetrics: null,
+      ratingMetrics,
+      genreFooterFs: fs,
+      ratingFooterFs: fs,
+    });
+    expect(bandTop).toBe(posterFooterBandTop(h, padBottom, ratingMetrics.boxH));
+  });
+
   test("reserves footer band when genre or rating toggle is on", () => {
     const h = 750;
     const padBottom = 20;
@@ -91,6 +109,60 @@ describe("poster title logo layout", () => {
       gridCell: 7,
     });
     expect(placement.top + placement.height).toBe(bandTop - gap);
+  });
+
+  test("logo moves up when footer inset increases", () => {
+    const h = 750;
+    const w = 500;
+    const fs = 38;
+    const gap = posterLogoAboveFooterGap(h);
+    const genreMetrics = measureFooterPill("Drama", fs);
+    const lowPad = 20;
+    const highPad = 60;
+    const lowBand = resolvePosterLogoFooterBandTop({
+      canvasH: h,
+      footerPadBottom: lowPad,
+      genreEnabled: true,
+      ratingEnabled: false,
+      genreMetrics,
+      ratingMetrics: null,
+      genreFooterFs: fs,
+      ratingFooterFs: fs,
+    })!;
+    const highBand = resolvePosterLogoFooterBandTop({
+      canvasH: h,
+      footerPadBottom: highPad,
+      genreEnabled: true,
+      ratingEnabled: false,
+      genreMetrics,
+      ratingMetrics: null,
+      genreFooterFs: fs,
+      ratingFooterFs: fs,
+    })!;
+    const logoH = 60;
+    const lowTop = computePosterLogoPlacement({
+      canvasW: w,
+      canvasH: h,
+      logoW: 400,
+      logoH,
+      footerBandTop: lowBand,
+      padBottom: lowPad,
+      padX: 24,
+      gap,
+      gridCell: 7,
+    }).top;
+    const highTop = computePosterLogoPlacement({
+      canvasW: w,
+      canvasH: h,
+      logoW: 400,
+      logoH,
+      footerBandTop: highBand,
+      padBottom: highPad,
+      padX: 24,
+      gap,
+      gridCell: 7,
+    }).top;
+    expect(highTop).toBeLessThan(lowTop);
   });
 
   test("logo uses bottom inset when no footer band", () => {

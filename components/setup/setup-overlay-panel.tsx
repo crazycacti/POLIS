@@ -12,8 +12,31 @@ import {
 } from "@/components/setup/setup-overlay-controls";
 import { SetupPanel } from "@/components/setup/setup-ui";
 import type { GenreMode, PosterOverlayQuery, RatingStyle } from "@/lib/poster-query";
-import { overlayStyleMatchesDefaults, resetOverlayStyleToDefaults } from "@/lib/poster-query";
+import {
+  FOOTER_PAD_Y_MAX,
+  FOOTER_PAD_Y_MIN,
+  overlayStyleMatchesDefaults,
+  resetOverlayStyleToDefaults,
+} from "@/lib/poster-query";
 import type { RatingSource } from "@/lib/ratings";
+
+function setGenreFooterPad(
+  setOverlay: Dispatch<SetStateAction<PosterOverlayQuery>>,
+  padY: number,
+) {
+  setOverlay((o) =>
+    o.genre && o.rating ? { ...o, padY, ratingPadY: padY } : { ...o, padY },
+  );
+}
+
+function setRatingFooterPad(
+  setOverlay: Dispatch<SetStateAction<PosterOverlayQuery>>,
+  ratingPadY: number,
+) {
+  setOverlay((o) =>
+    o.genre && o.rating ? { ...o, padY: ratingPadY, ratingPadY } : { ...o, ratingPadY },
+  );
+}
 
 const RATING_SOURCES: { value: RatingSource; label: string }[] = [
   { value: "average", label: "Average" },
@@ -85,9 +108,9 @@ export function SetupOverlayPanel(props: {
             />
             <SetupOverlayRange
               label="Bottom inset"
-              max={120}
-              min={10}
-              onChange={(padY) => setOverlay((o) => ({ ...o, padY }))}
+              max={FOOTER_PAD_Y_MAX}
+              min={FOOTER_PAD_Y_MIN}
+              onChange={(padY) => setGenreFooterPad(setOverlay, padY)}
               value={overlay.padY}
             />
           </>
@@ -157,9 +180,9 @@ export function SetupOverlayPanel(props: {
             />
             <SetupOverlayRange
               label="Bottom inset"
-              max={120}
-              min={10}
-              onChange={(ratingPadY) => setOverlay((o) => ({ ...o, ratingPadY }))}
+              max={FOOTER_PAD_Y_MAX}
+              min={FOOTER_PAD_Y_MIN}
+              onChange={(ratingPadY) => setRatingFooterPad(setOverlay, ratingPadY)}
               value={overlay.ratingPadY}
             />
           </>

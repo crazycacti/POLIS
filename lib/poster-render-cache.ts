@@ -144,6 +144,7 @@ export async function renderPosterForImdbCached(params: {
         mdblistApiKey: params.mdblistApiKey,
         fanartApiKey: params.fanartApiKey,
         tvdbCredentials: params.tvdbCredentials,
+        configId: params.configId,
       }),
     );
     if (!image) return null;

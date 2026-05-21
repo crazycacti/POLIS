@@ -5,6 +5,7 @@ import {
   type PolisCatalogDefinition,
 } from "@/lib/polis-catalogs";
 import { formatPolisManifestName } from "@/lib/polis-config-label";
+import { POLIS_ADDON_VERSION } from "@/lib/polis-renderer";
 import { normalizePublicBase } from "@/lib/polis-urls";
 
 export type PolisManifestKind = "meta" | "full";
@@ -53,7 +54,7 @@ export function buildPolisManifest(
 
   return {
     id: configId ? `org.polis.${configId}` : defaultId,
-    version: "0.1.2",
+    version: POLIS_ADDON_VERSION,
     name: displayName,
     description,
     resources: [...resources],

@@ -5,7 +5,7 @@ import { fetchUpstream } from "@/lib/upstream-fetch";
 
 import { trendPillFillsFromRegion } from "@/lib/poster-overlay-colors";
 import type { PosterPillBadge } from "@/lib/poster-badges";
-import type { PosterOverlayQuery } from "@/lib/poster-query";
+import { resolveFooterPadBottom, type PosterOverlayQuery } from "@/lib/poster-query";
 import { ratingDisplayColor } from "@/lib/rating-colors";
 import type { RatingSource } from "@/lib/ratings";
 import { compositeTopRightCluster, type QualityMarkId } from "@/lib/poster-quality-marks";
@@ -88,11 +88,7 @@ export async function renderPosterJpeg(params: {
   const edgePadX = Math.max(overlay.padX, Math.round(w * 0.028));
   const genrePadX = Math.max(8, edgePadX - 12);
   const edgePadTop = Math.max(8, Math.round(h * 0.014));
-  const footerPadBottom = Math.max(
-    overlay.padY,
-    overlay.ratingPadY,
-    Math.round(h * 0.022),
-  );
+  const footerPadBottom = resolveFooterPadBottom(overlay, h);
 
   const hasTrendBadge = trendBadges.length > 0;
   const ageInTopRight = overlay.ageRating && ageBadge != null;

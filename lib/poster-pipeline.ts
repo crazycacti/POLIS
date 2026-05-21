@@ -1,8 +1,9 @@
 import {
   fetchTmdbImagePosters,
   postersHasXxTextless,
-  resolvePosterImageCandidates,
 } from "@/lib/artwork-poster";
+import { getPosterBaseBufferCached } from "@/lib/poster-artwork-cache";
+import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
 import { fetchMdblistMediaInfo } from "@/lib/mdblist-client";
 import { overlayUsesMdblist } from "@/lib/overlay-requirements";
 import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/poster-badges";
@@ -25,9 +26,28 @@ export async function renderPosterForImdb(params: {
   mdblistApiKey: string | null;
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
+  configId?: string | null;
 }): Promise<Buffer | null> {
   const resolved = await resolveTitleForArtwork(params.imdbId, params.credential, params.language);
   if (!resolved) return null;
+
+  const baseBuffer = await getPosterBaseBufferCached({
+    imdbId: params.imdbId,
+    overlay: params.overlay,
+    resolved,
+    credential: params.credential,
+    language: params.language,
+    fanartApiKey: params.fanartApiKey,
+    tvdbCredentials: params.tvdbCredentials,
+    configId: params.configId ?? null,
+    integratorFingerprint: integratorCacheFingerprint({
+      credential: params.credential,
+      mdblistApiKey: params.mdblistApiKey,
+      fanartApiKey: params.fanartApiKey,
+      tvdbCredentials: params.tvdbCredentials,
+    }),
+  });
+  if (!baseBuffer) return null;
 
   const needsMdblist = overlayUsesMdblist(params.overlay);
 
@@ -44,22 +64,6 @@ export async function renderPosterForImdb(params: {
     params.overlay.artwork === "tmdb"
       ? await fetchTmdbImagePosters(resolved, params.credential)
       : undefined;
-
-  const imageUrls = await resolvePosterImageCandidates({
-    resolved,
-    imdbId: params.imdbId,
-    credential: params.credential,
-    language: params.language,
-    artworkSource: params.overlay.artwork,
-    artworkMovie: params.overlay.artworkMovie,
-    artworkFallback: params.overlay.artworkFallback,
-    fanartApiKey: params.fanartApiKey,
-    tvdbCredentials: params.tvdbCredentials,
-    tvdbId: resolved.tvdbId,
-    preferTextlessArtwork: params.overlay.logoOnPoster,
-    tmdbPosters,
-  });
-  if (imageUrls.length === 0) return null;
 
   const scores: RatingScores = mergeRatingScores(mdblist?.ratings ?? {}, resolved.voteAverage);
   const ratingStyle = params.overlay.ratingStyle === "votes" ? "score" : params.overlay.ratingStyle;
@@ -105,7 +109,7 @@ export async function renderPosterForImdb(params: {
   }
 
   return renderPosterJpeg({
-    imageUrls,
+    imageBuffer: baseBuffer,
     overlay: params.overlay,
     genreNames: resolved.genreNames,
     ratingLabel,

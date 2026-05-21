@@ -1,3 +1,4 @@
+import { formatGenreDisplayName } from "@/lib/genre-display";
 import {
   buildTrendPillGlyphLayout,
   measureOverlayText,
@@ -184,7 +185,7 @@ export function footerPillBox(
 }
 
 export function normalizeGenreLabel(genreNames: string[], mode: "first" | "top3"): string | null {
-  const list = genreNames.map((g) => g.trim()).filter(Boolean);
+  const list = genreNames.map((g) => formatGenreDisplayName(g)).filter(Boolean);
   if (list.length === 0) return null;
   if (mode === "top3") {
     return list

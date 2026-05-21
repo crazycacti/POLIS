@@ -40,7 +40,7 @@ describe("poster footer pill layout", () => {
   });
 
   test("normalizeGenreLabel joins top3 with middle dots", () => {
-    expect(normalizeGenreLabel(["Action", "Adventure", "Sci-Fi"], "top3")).toBe(
+    expect(normalizeGenreLabel(["Action", "Adventure", "Science Fiction"], "top3")).toBe(
       "Action · Adventure · Sci-Fi",
     );
   });
