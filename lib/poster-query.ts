@@ -231,6 +231,15 @@ function parseGridCell(searchParams: URLSearchParams): GridCell {
   return POSTER_OVERLAY_DEFAULTS.gridCell;
 }
 
+export function syncFooterPadsWhenBothEnabled(
+  overlay: PosterOverlayQuery,
+): PosterOverlayQuery {
+  if (!overlay.genre || !overlay.rating) return overlay;
+  const pad = Math.max(overlay.padY, overlay.ratingPadY);
+  if (overlay.padY === pad && overlay.ratingPadY === pad) return overlay;
+  return { ...overlay, padY: pad, ratingPadY: pad };
+}
+
 export function parseColorParam(raw: string | null, fallback: string): string {
   if (!raw) return fallback;
   const s = raw.trim().toLowerCase();
@@ -262,7 +271,7 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
   const trendRankRaw = clamp(Number(searchParams.get("trend_rank") ?? NaN), 1, 10);
   const trendRank = Number.isFinite(trendRankRaw) ? trendRankRaw : null;
 
-  return {
+  const parsed: PosterOverlayQuery = {
     genre: searchParams.get("genre") !== "0",
     rating: searchParams.get("rating") !== "0",
     trendTags: searchParams.has("trend")
@@ -296,6 +305,7 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     lineGap: Number.isFinite(lineGap) ? lineGap : d.lineGap,
     trendRank,
   };
+  return syncFooterPadsWhenBothEnabled(parsed);
 }
 
 export function resolveFooterPadBottom(
@@ -311,37 +321,38 @@ export function resolveFooterPadBottom(
 }
 
 export function serializePosterQuery(opts: PosterOverlayQuery): string {
+  const synced = syncFooterPadsWhenBothEnabled(opts);
   const p = new URLSearchParams();
-  p.set("genre", opts.genre ? "1" : "0");
-  p.set("rating", opts.rating ? "1" : "0");
-  p.set("trend", opts.trendTags ? "1" : "0");
-  p.set("quality", opts.qualityTags ? "1" : "0");
-  p.set("age", opts.ageRating ? "1" : "0");
-  p.set("logo", opts.logoOnPoster ? "1" : "0");
-  p.set("rating_src", opts.ratingSource);
-  p.set("artwork", opts.artwork);
-  if (opts.artwork === "tvdb") {
-    p.set("artwork_movie", opts.artworkMovie);
+  p.set("genre", synced.genre ? "1" : "0");
+  p.set("rating", synced.rating ? "1" : "0");
+  p.set("trend", synced.trendTags ? "1" : "0");
+  p.set("quality", synced.qualityTags ? "1" : "0");
+  p.set("age", synced.ageRating ? "1" : "0");
+  p.set("logo", synced.logoOnPoster ? "1" : "0");
+  p.set("rating_src", synced.ratingSource);
+  p.set("artwork", synced.artwork);
+  if (synced.artwork === "tvdb") {
+    p.set("artwork_movie", synced.artworkMovie);
   }
-  p.set("artwork_fb", opts.artworkFallback);
-  p.set("genre_mode", opts.genreMode);
-  p.set("rating_style", opts.ratingStyle);
-  p.set("rating_colors", opts.ratingColors ? "1" : "0");
-  p.set("layout", opts.layout);
-  p.set("grid", String(opts.gridCell));
-  p.set("genre_color", serializeColorParam(opts.genreColor));
-  p.set("rating_color", serializeColorParam(opts.ratingColor));
-  p.set("genre_font", String(opts.genreFontSize));
-  p.set("rating_font", String(opts.ratingFontSize));
-  p.set("font", String(opts.ratingFontSize));
-  p.set("trend_font", String(opts.trendFontSize));
-  p.set("mark_font", String(opts.qualityMarkSize));
-  p.set("pad_x", String(opts.padX));
-  p.set("pad_y", String(opts.padY));
-  p.set("rating_pad_y", String(opts.ratingPadY));
-  p.set("line_gap", String(opts.lineGap));
-  if (opts.trendRank != null) {
-    p.set("trend_rank", String(opts.trendRank));
+  p.set("artwork_fb", synced.artworkFallback);
+  p.set("genre_mode", synced.genreMode);
+  p.set("rating_style", synced.ratingStyle);
+  p.set("rating_colors", synced.ratingColors ? "1" : "0");
+  p.set("layout", synced.layout);
+  p.set("grid", String(synced.gridCell));
+  p.set("genre_color", serializeColorParam(synced.genreColor));
+  p.set("rating_color", serializeColorParam(synced.ratingColor));
+  p.set("genre_font", String(synced.genreFontSize));
+  p.set("rating_font", String(synced.ratingFontSize));
+  p.set("font", String(synced.ratingFontSize));
+  p.set("trend_font", String(synced.trendFontSize));
+  p.set("mark_font", String(synced.qualityMarkSize));
+  p.set("pad_x", String(synced.padX));
+  p.set("pad_y", String(synced.padY));
+  p.set("rating_pad_y", String(synced.ratingPadY));
+  p.set("line_gap", String(synced.lineGap));
+  if (synced.trendRank != null) {
+    p.set("trend_rank", String(synced.trendRank));
   }
   return p.toString();
 }

@@ -5,6 +5,8 @@ import {
   parsePosterOverlayQuery,
   POSTER_OVERLAY_DEFAULTS,
   resolveFooterPadBottom,
+  serializePosterQuery,
+  syncFooterPadsWhenBothEnabled,
 } from "@/lib/poster-query";
 
 describe("resolveFooterPadBottom", () => {
@@ -62,6 +64,51 @@ describe("resolveFooterPadBottom", () => {
       rating: false,
     };
     expect(resolveFooterPadBottom(overlay, h)).toBe(floor);
+  });
+});
+
+describe("syncFooterPadsWhenBothEnabled", () => {
+  test("aligns pad_y and rating_pad_y to max when both footer lines are on", () => {
+    const overlay = {
+      ...POSTER_OVERLAY_DEFAULTS,
+      genre: true,
+      rating: true,
+      padY: 16,
+      ratingPadY: 72,
+    };
+    const synced = syncFooterPadsWhenBothEnabled(overlay);
+    expect(synced.padY).toBe(72);
+    expect(synced.ratingPadY).toBe(72);
+  });
+
+  test("leaves pads unchanged when only one footer line is on", () => {
+    const overlay = {
+      ...POSTER_OVERLAY_DEFAULTS,
+      genre: true,
+      rating: false,
+      padY: 16,
+      ratingPadY: 72,
+    };
+    const synced = syncFooterPadsWhenBothEnabled(overlay);
+    expect(synced.padY).toBe(16);
+    expect(synced.ratingPadY).toBe(72);
+  });
+
+  test("parse and serialize normalize mismatched footer insets", () => {
+    const parsed = parsePosterOverlayQuery(
+      new URLSearchParams("genre=1&rating=1&pad_y=20&rating_pad_y=55"),
+    );
+    expect(parsed.padY).toBe(55);
+    expect(parsed.ratingPadY).toBe(55);
+    const qs = serializePosterQuery({
+      ...POSTER_OVERLAY_DEFAULTS,
+      genre: true,
+      rating: true,
+      padY: 20,
+      ratingPadY: 55,
+    });
+    expect(qs).toContain("pad_y=55");
+    expect(qs).toContain("rating_pad_y=55");
   });
 });
 
