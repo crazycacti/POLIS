@@ -24,6 +24,8 @@ export type StremioCatalogMeta = {
 };
 
 const TMDB_DISCOVER_PAGE_SIZE = 20;
+const TMDB_CATALOG_PAGE_SIZE = TMDB_DISCOVER_PAGE_SIZE;
+const TMDB_EXACT_SKIP_LIMIT = 200;
 const TMDB_EXTERNAL_ID_CONCURRENCY = 10;
 const TMDB_EXTERNAL_IDS_TTL_SEC = 30 * 24 * 60 * 60;
 
@@ -181,11 +183,15 @@ async function fetchTmdbCatalogMetas(params: {
 
   const metas: StremioCatalogMeta[] = [];
   const isTrendingCatalog = def.provider.list === "trending";
-  let globalOffset = skip;
+  // Clients send skip as the number of titles received; TMDB repeats rows and some lack an IMDb id.
+  const exactSkip = skip <= TMDB_EXACT_SKIP_LIMIT;
+  let titlesToSkip = exactSkip ? skip : 0;
+  let globalOffset = exactSkip ? 0 : skip;
   let tmdbPage = Math.floor(globalOffset / TMDB_DISCOVER_PAGE_SIZE) + 1;
   let offsetInPage = globalOffset % TMDB_DISCOVER_PAGE_SIZE;
+  const seen = new Set<string>();
 
-  while (metas.length < STREMIO_CATALOG_PAGE_SIZE) {
+  while (metas.length < TMDB_CATALOG_PAGE_SIZE) {
     const url = isTrendingCatalog
       ? tmdbTrendingUrl(stremioType, language, tmdbPage)
       : new URL(`https://api.themoviedb.org/3${path}`);
@@ -221,9 +227,14 @@ async function fetchTmdbCatalogMetas(params: {
     globalOffset += slice.length;
 
     for (const meta of resolved) {
-      if (!meta) continue;
+      if (!meta || seen.has(meta.id)) continue;
+      seen.add(meta.id);
+      if (titlesToSkip > 0) {
+        titlesToSkip -= 1;
+        continue;
+      }
       metas.push(meta);
-      if (metas.length >= STREMIO_CATALOG_PAGE_SIZE) break;
+      if (metas.length >= TMDB_CATALOG_PAGE_SIZE) break;
     }
 
     const totalPages = raw?.total_pages ?? tmdbPage;
