@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { pickTmdbPosterPath, postersHasXxTextless } from "@/lib/artwork-poster";
+import { pickTmdbPosterPath } from "@/lib/artwork-poster";
 import { pickFanartPoster } from "@/lib/fanart-client";
 
 describe("poster artwork selection", () => {
@@ -27,16 +27,6 @@ describe("poster artwork selection", () => {
       true,
     );
     expect(path).toBe("/textless.jpg");
-  });
-
-  test("postersHasXxTextless is true only for xx iso", () => {
-    expect(
-      postersHasXxTextless([
-        { file_path: "/neutral.jpg", iso_639_1: null },
-        { file_path: "/textless.jpg", iso_639_1: "xx" },
-      ]),
-    ).toBe(true);
-    expect(postersHasXxTextless([{ file_path: "/neutral.jpg", iso_639_1: null }])).toBe(false);
   });
 
   test("title logo mode falls back to a no-language poster when no xx textless", () => {

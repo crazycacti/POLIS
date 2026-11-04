@@ -70,18 +70,6 @@ export async function fetchTmdbImagePosters(
   return (raw as { posters?: TmdbImageRow[] }).posters ?? [];
 }
 
-export function postersHasXxTextless(posters: TmdbImageRow[]): boolean {
-  return posters.some((p) => isTextlessTmdbPoster(p) && p.iso_639_1 === "xx");
-}
-
-export async function tmdbHasXxTextlessPoster(
-  resolved: ResolvedTitle,
-  credential: TmdbCredential,
-): Promise<boolean> {
-  const posters = await fetchTmdbImagePosters(resolved, credential);
-  return postersHasXxTextless(posters);
-}
-
 function pickTmdbImagesPosterPath(
   posters: TmdbImageRow[],
   language: string,

@@ -333,28 +333,12 @@ export async function resolveTitleForArtwork(
 ): Promise<ResolvedTitle | null> {
   const hit = knownHit ?? (await findTmdbTitle(imdbId, credential, language));
   if (!hit) return null;
-  const find: FindResponse =
-    hit.stremioType === "movie" ? { movie_results: [{ id: hit.tmdbId }] } : { tv_results: [{ id: hit.tmdbId }] };
-
-  const movieHit = find.movie_results?.[0];
-  if (movieHit) {
-    const detailsUrl = new URL(`https://api.themoviedb.org/3/movie/${movieHit.id}`);
-    setArtworkAppends(detailsUrl, language, "release_dates,credits");
-    const detailsRaw = await tmdbApiGet(detailsUrl, credential);
-    if (!detailsRaw) return null;
-    return mapArtworkResolved(imdbId, "movie", movieHit.id, detailsRaw as MovieDetailsJson);
-  }
-
-  const tvHit = find.tv_results?.[0];
-  if (tvHit) {
-    const detailsUrl = new URL(`https://api.themoviedb.org/3/tv/${tvHit.id}`);
-    setArtworkAppends(detailsUrl, language, "content_ratings");
-    const detailsRaw = await tmdbApiGet(detailsUrl, credential);
-    if (!detailsRaw) return null;
-    return mapArtworkResolved(imdbId, "series", tvHit.id, detailsRaw as MovieDetailsJson);
-  }
-
-  return null;
+  const movie = hit.stremioType === "movie";
+  const detailsUrl = new URL(`https://api.themoviedb.org/3/${movie ? "movie" : "tv"}/${hit.tmdbId}`);
+  setArtworkAppends(detailsUrl, language, movie ? "release_dates,credits" : "content_ratings");
+  const detailsRaw = await tmdbApiGet(detailsUrl, credential);
+  if (!detailsRaw) return null;
+  return mapArtworkResolved(imdbId, hit.stremioType, hit.tmdbId, detailsRaw as MovieDetailsJson);
 }
 
 // One details call carries images and external ids, saving a sequential round trip per cold poster.
