@@ -29,6 +29,7 @@ import {
 import { svgFontFamilyAttr, svgOverlayFontDefs } from "@/lib/poster-overlay-font";
 import {
   applyTitleLogoToPosterBuffer,
+  type PrefetchedPosterLogo,
   posterLogoAboveFooterGap,
   resolvePosterLogoFooterBandTop,
 } from "@/lib/poster-logo-on-poster";
@@ -50,6 +51,7 @@ export async function renderPosterJpeg(params: {
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
   logoPath?: string | null;
+  prefetchedLogo?: PrefetchedPosterLogo | null;
 }): Promise<Buffer | null> {
   ensurePolisSharpConfigured();
 
@@ -160,6 +162,7 @@ export async function renderPosterJpeg(params: {
       gap: footerBandTop != null ? posterLogoAboveFooterGap(w) : overlay.lineGap,
       gridCell: overlay.gridCell,
       logoSize: overlay.logoSize,
+      prefetchedLogo: params.prefetchedLogo,
     });
   }
 

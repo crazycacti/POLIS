@@ -5,7 +5,7 @@ import type { PosterPillBadge } from "@/lib/poster-badges";
 import { encodePosterImage } from "@/lib/poster-encode";
 import { normalizeGenreLabel } from "@/lib/poster-footer-pill";
 import { regionBadgeBackground } from "@/lib/poster-overlay-colors";
-import { preparePosterLogoRaster } from "@/lib/poster-logo-on-poster";
+import { preparePosterLogoRaster, type PrefetchedPosterLogo } from "@/lib/poster-logo-on-poster";
 import {
   loadMarkGlyph,
   normalizeQualityMarkIds,
@@ -418,6 +418,7 @@ export async function renderSoftPoster(params: {
   ageBadge: PosterPillBadge | null;
   logoPath: string | null;
   logoAlternates?: string[];
+  prefetchedLogo?: PrefetchedPosterLogo | null;
 }): Promise<Buffer | null> {
   ensurePolisSharpConfigured();
   const { overlay } = params;
@@ -502,7 +503,7 @@ export async function renderSoftPoster(params: {
     const logoPadTop = topBandBottom > 0 ? topBandBottom + Math.round(w * LOGO_GAP_SHARE) : padTop;
 
     const placeLogo = async (path: string) => {
-      const raster = await preparePosterLogoRaster(path, maxLogoW);
+      const raster = await preparePosterLogoRaster(path, maxLogoW, params.prefetchedLogo);
       if (!raster) return null;
       const scale = Math.min(1, maxLogoW / raster.width, maxLogoH / raster.height);
       const logoW = Math.max(1, Math.min(w, Math.round(raster.width * scale)));

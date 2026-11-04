@@ -111,12 +111,24 @@ async function trimLogoTransparentPadding(buf: Buffer): Promise<Buffer> {
   return buf;
 }
 
+export type PrefetchedPosterLogo = { path: string; png: Promise<Buffer | null> };
+
+export function prefetchPosterLogo(logoPath: string): PrefetchedPosterLogo {
+  const png = renderLogoPng(logoPath, "w500");
+  // Marks the rejection handled when the art never needs a logo; awaiting png still throws.
+  png.catch(() => undefined);
+  return { path: logoPath, png };
+}
+
 export async function preparePosterLogoRaster(
   logoPath: string,
   maxWidth: number,
+  prefetched?: PrefetchedPosterLogo | null,
 ): Promise<{ buffer: Buffer; width: number; height: number } | null> {
   ensurePolisSharpConfigured();
-  const raw = await renderLogoPng(logoPath, "w500");
+  const raw = await (prefetched?.path === logoPath
+    ? prefetched.png
+    : renderLogoPng(logoPath, "w500"));
   if (!raw) return null;
 
   const trimmed = await trimLogoTransparentPadding(raw);
@@ -155,9 +167,10 @@ export async function applyTitleLogoToPosterBuffer(params: {
   gap: number;
   gridCell: GridCell;
   logoSize?: LogoSize;
+  prefetchedLogo?: PrefetchedPosterLogo | null;
 }): Promise<Buffer> {
   const maxW = posterLogoMaxWidth(params.canvasW, params.logoSize);
-  const raster = await preparePosterLogoRaster(params.logoPath, maxW);
+  const raster = await preparePosterLogoRaster(params.logoPath, maxW, params.prefetchedLogo);
   if (!raster) return params.baseBuf;
 
   const placement = computePosterLogoPlacement({

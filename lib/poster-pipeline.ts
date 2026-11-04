@@ -2,6 +2,7 @@ import { getPosterBaseBufferCached } from "@/lib/poster-artwork-cache";
 import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
 import { fetchMdblistMediaInfo, type MdblistMediaInfo } from "@/lib/mdblist-client";
 import { overlayUsesMdblist } from "@/lib/overlay-requirements";
+import { prefetchPosterLogo } from "@/lib/poster-logo-on-poster";
 import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/poster-badges";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { renderPosterJpeg } from "@/lib/render-poster-default";
@@ -52,6 +53,9 @@ export async function renderPosterForImdb(params: {
     hit,
   );
   if (!resolved) return null;
+
+  const prefetchedLogo =
+    params.overlay.logoOnPoster && resolved.logoPath ? prefetchPosterLogo(resolved.logoPath) : null;
 
   const base = await getPosterBaseBufferCached({
     imdbId: params.imdbId,
@@ -126,6 +130,7 @@ export async function renderPosterForImdb(params: {
       ageBadge,
       logoPath,
       logoAlternates,
+      prefetchedLogo,
     });
   }
 
@@ -141,5 +146,6 @@ export async function renderPosterForImdb(params: {
     qualityMarkIds,
     ageBadge,
     logoPath,
+    prefetchedLogo,
   });
 }
