@@ -40,7 +40,6 @@ const MARK_TEXT: Partial<Record<QualityMarkId, string>> = {
   "720p": "720p",
   hdr: "HDR",
 };
-// Left to right; when the row is full the last items go first.
 const MARK_ORDER: QualityMarkId[] = ["4k", "1080p", "720p", "dolby", "hdr"];
 const BLUR_BAND = 0.2;
 const SCRIM_BAND = 0.38;
@@ -49,7 +48,6 @@ const BLUR_SIGMA = 0.012;
 const LOGO_SHADOW_SIGMA = 0.012;
 const LOGO_SHADOW_OFFSET = 0.004;
 const LOGO_SHADOW_ALPHA = 0.55;
-// WCAG 1.4.11 asks for 3:1 on meaningful graphics.
 const LOGO_MIN_CONTRAST = 3;
 const LIGHT_LOGO_LUMINANCE = 0.4;
 const LOGO_BACKDROP_PERCENTILE = 0.75;
@@ -66,7 +64,6 @@ const CAPSULE_PAD_X = 0.62;
 const CAPSULE_ALPHA = 0.86;
 const TAB_HEIGHT = 1.95;
 const TAB_RADIUS = 0.34;
-// White text needs 4.5:1, which holds while the fill stays under this luminance.
 const CAPSULE_MAX_LUMINANCE = 0.12;
 const CAPSULE_DARKEN = 0.45;
 const TEXT_PRIMARY = "#ffffff";
@@ -109,7 +106,6 @@ async function softBlurBand(baseBuf: Buffer, w: number, h: number): Promise<{ in
   return { input: band, top, left: 0 };
 }
 
-// Light wordmarks vanish on snow or sky; a soft dark halo keeps them legible without a visible box.
 async function logoShadow(logo: Buffer, w: number): Promise<{ input: Buffer; pad: number }> {
   const pad = Math.ceil(w * LOGO_SHADOW_SIGMA * 3);
   const alpha = await sharp(logo)
@@ -169,7 +165,6 @@ async function sampleLogo(logo: Buffer, base: Buffer, rect: Rect): Promise<LogoS
     sum += logoLum[p]! * a;
     total += a;
   }
-  // Thin letters vanish where the art is locally bright, so a high percentile beats the mean.
   const sorted = Float64Array.from(backdropLum).sort();
   const backdropHigh = sorted[Math.min(count - 1, Math.floor(count * LOGO_BACKDROP_PERCENTILE))] ?? 0;
   return { logoLum, weight, backdropLum, meanLogoLum: total > 0 ? sum / total : 0, backdropHigh };
@@ -179,7 +174,6 @@ function contrastRatio(a: number, b: number): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
-// Share of the logo's ink that clears 3:1 against the art directly behind it, after any scrim.
 export function logoLegibleShare(
   sample: Pick<LogoSample, "logoLum" | "weight" | "backdropLum">,
   scrimAlpha: number,
@@ -205,7 +199,6 @@ export function logoScrimAlpha(logoLum: number, backdropLum: number): number {
 }
 
 function logoScrim(rect: Rect, w: number, h: number, alpha: number): { input: Buffer; top: number; left: number } {
-  // The canvas needs about three sigma beyond the pool so the blur fades out instead of ending in a hard edge.
   const blur = w * LOGO_SCRIM_SIGMA;
   const inset = Math.round(w * LOGO_SCRIM_PAD / 2);
   const pad = inset + Math.ceil(blur * 3);
@@ -227,7 +220,6 @@ function logoScrim(rect: Rect, w: number, h: number, alpha: number): { input: Bu
 async function capsuleFill(base: Buffer, rect: Rect): Promise<string> {
   const { r, g, b } = await regionBadgeBackground(base, rect);
   const lum = pixelLuminance(r, g, b);
-  // Always step below the art so the shape reads even where the art is already dark.
   const target = Math.min(CAPSULE_MAX_LUMINANCE, lum * CAPSULE_DARKEN);
   const k = lum > 0 ? (target / lum) ** (1 / 2.4) : 1;
   return `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${CAPSULE_ALPHA})`;
@@ -244,7 +236,6 @@ function capsuleAt(text: string, fs: number, left: number, centerY: number, maxW
   return { text: fitted, fs, tab: false, rect: { left, top: Math.round(centerY - height / 2), width, height } };
 }
 
-// With the top row free, the flag hangs from the top edge as a centered tab and stays clear of client corner badges.
 function topTabAt(text: string, fs: number, w: number, maxW: number): Capsule | null {
   const padX = Math.round(fs * CAPSULE_PAD_X * 1.3);
   const fitted = fitSoftText(text, fs, 600, maxW - padX * 2);
@@ -301,7 +292,6 @@ function itemsCapsuleWidth(items: TopItem[], scale: number, fs: number): number 
   return Math.round(content + gaps + fs * scale * CAPSULE_PAD_X * 2);
 }
 
-// One row at one height: shrink the type a little, then drop the lowest marks, never wrap.
 export function fitTopRow(params: {
   label: string | null;
   items: TopItem[];
@@ -454,11 +444,9 @@ export async function renderSoftPoster(params: {
   const drawLogo = overlay.logoOnPoster && params.logoPath != null;
   const layers: OverlayOptions[] = [];
   if (drawLogo) {
-    // Blurring titled art smears its own wordmark, so only textless art gets the blur band.
     if (params.artTextless) layers.push(await softBlurBand(baseBuf, w, h));
   }
   if (hasFooter || drawLogo) {
-    // The ring and capsules carry their own fills, so without a logo the shade only softens the edge.
     const strength = drawLogo ? 1 : 0.55;
     const scrimH = Math.round(h * SCRIM_BAND);
     layers.push({
@@ -522,7 +510,6 @@ export async function renderSoftPoster(params: {
       return { logo, rect, scrimAlpha, share: logoLegibleShare(sample, scrimAlpha) };
     };
 
-    // Some wordmarks are dark or two-tone by design; when the top pick fades into the art, try the next one.
     let chosen: Awaited<ReturnType<typeof placeLogo>> = null;
     for (const path of [params.logoPath, ...(params.logoAlternates ?? [])]) {
       const candidate = await placeLogo(path);

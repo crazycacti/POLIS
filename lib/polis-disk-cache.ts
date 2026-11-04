@@ -176,7 +176,6 @@ async function removeCacheFile(file: string): Promise<boolean> {
   }
 }
 
-// Past the max age a file is orphaned by a revision bump or unused; hard-linked aliases count once toward the cap.
 export async function sweepPolisDiskCache(now = Date.now()): Promise<{ removed: number }> {
   const files = await listCacheFiles(polisCacheRoot());
   const maxAgeMs = cacheMaxAgeMs();

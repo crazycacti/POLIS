@@ -86,7 +86,6 @@ function mdblistRowsForCatalogType(
   return [];
 }
 
-// A rolling pool: a slow request holds one slot instead of stalling a whole batch.
 export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,

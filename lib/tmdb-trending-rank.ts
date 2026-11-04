@@ -2,7 +2,6 @@ import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import type { TmdbFindHit } from "@/lib/tmdb-resolve";
 
-// Trending moves through the day; a few hours keeps the rank current without a call per poster.
 export const TMDB_TRENDING_TTL_SEC = 3 * 60 * 60;
 export const MAX_TREND_RANK = 10;
 

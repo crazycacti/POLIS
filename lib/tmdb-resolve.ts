@@ -341,7 +341,6 @@ export async function resolveTitleForArtwork(
   return mapArtworkResolved(imdbId, hit.stremioType, hit.tmdbId, detailsRaw as MovieDetailsJson);
 }
 
-// One details call carries images and external ids, saving a sequential round trip per cold poster.
 function setArtworkAppends(url: URL, language: string, appends: string): void {
   const primary = language.split("-")[0]?.trim().toLowerCase() || "en";
   url.searchParams.set("language", language);

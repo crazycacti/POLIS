@@ -16,7 +16,6 @@ import type { ResolvedTitle } from "@/lib/tmdb-resolve";
 import { fetchTvdbSeriesPoster } from "@/lib/tvdb-client";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
-// Posters render at 500x750, so the 780 px rendition is enough and far smaller than the original.
 const TMDB_POSTER_BASE_URL = "https://image.tmdb.org/t/p/w780";
 
 type TmdbImageRow = {
@@ -191,7 +190,6 @@ async function urlForArtworkSource(
   );
 }
 
-// One failing provider (timeout, HTML error page, schema drift) must not block the next source.
 async function urlForArtworkSourceSafe(
   source: PosterArtworkSource | PosterArtworkFallback | PosterArtworkMovieSource,
   ctx: ArtworkResolveContext,

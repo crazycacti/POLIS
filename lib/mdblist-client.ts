@@ -198,7 +198,6 @@ export async function fetchMdblistMediaInfo(params: {
   const modernResult = await fetchMdblistModernPayload(params);
   const modern = modernResult.payload ? parseMdblistMediaInfo(modernResult.payload) : null;
   if (modern) return modern;
-  // Auth, quota and server errors would fail the legacy host too and only spend more quota.
   if (modernResult.status === 429 || modernResult.status >= 500) {
     throw new Error(`MDBList returned HTTP ${modernResult.status}`);
   }

@@ -33,7 +33,6 @@ type MemoryEntry = { base: PosterBase; at: number };
 
 const memory = new Map<string, MemoryEntry>();
 const BASE_EXT = ".jpg";
-// The textless flag decides whether a title logo may be drawn, so it is kept in the file name.
 const TEXTLESS_BASE_EXT = ".textless.jpg";
 
 function posterArtworkMemoryMax(): number | null {

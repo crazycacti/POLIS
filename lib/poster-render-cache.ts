@@ -34,7 +34,6 @@ const DEFAULT_POSTER_DISK_TTL_SEC = 7 * 24 * 60 * 60;
 const STALE_RETRY_BACKOFF_MS = 10 * 60 * 1000;
 const STALE_BACKOFF_MAX_KEYS = 5_000;
 
-// After a failed refresh, keep serving the stale file for a while instead of retrying upstream per request.
 const staleBackoffUntil = new Map<string, number>();
 
 function inStaleBackoff(cacheKey: string): boolean {
@@ -83,7 +82,6 @@ export function posterRenderCacheKey(params: PosterCacheKeyParams): string {
   return posterCacheKeyParts(params, String(POLIS_RENDERER_REVISION), false);
 }
 
-// The last render whatever the renderer revision or trending rank, served while a new one renders.
 export function posterLatestAliasKey(params: PosterCacheKeyParams): string {
   return posterCacheKeyParts(params, "latest", true);
 }
@@ -133,7 +131,6 @@ function memoryHit(cacheKey: string): Buffer | null {
   return hit.image;
 }
 
-// The rank joins the cache key, so a poster re-renders when its place in today's trending list changes.
 async function withLiveTrendRank(params: {
   imdbId: string;
   overlay: PosterOverlayQuery;

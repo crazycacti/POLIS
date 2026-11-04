@@ -32,7 +32,6 @@ export async function renderPosterForImdb(params: {
   if (!hit) return null;
 
   const needsMdblist = overlayUsesMdblist(params.overlay);
-  // Ratings only need the IMDb id and type, so fetch them while details and artwork load.
   const mdblistPromise: Promise<MdblistMediaInfo | null> =
     params.mdblistApiKey && needsMdblist
       ? fetchMdblistMediaInfo({

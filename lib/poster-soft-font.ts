@@ -44,7 +44,6 @@ function loadInterSubsets(weight: SoftFontWeight): opentype.Font[] {
   return fonts;
 }
 
-// Inter ships as per-script subsets; DejaVu covers characters they lack.
 function glyphFor(ch: string, weight: SoftFontWeight): { font: opentype.Font; glyph: opentype.Glyph } | null {
   for (const font of loadInterSubsets(weight)) {
     const glyph = font.charToGlyph(ch);
