@@ -548,7 +548,7 @@ export function SetupWorkspace(props: {
   }
 
   return (
-    <div className="polis-configure-page mx-auto max-w-4xl px-4 pb-16 pt-8 sm:px-6">
+    <div className="polis-configure-page mx-auto max-w-5xl px-4 pb-16 pt-8 sm:px-6">
       <SetupPasswordDialog
         error={passwordDialogError}
         isNewProfile={!configId}

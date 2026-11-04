@@ -1,5 +1,12 @@
 "use client";
 
+import { useState } from "react";
+
+import {
+  ClientPreview,
+  ClientPreviewTabs,
+  type ClientPreviewView,
+} from "@/components/setup/setup-client-previews";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
 
 export function SetupPreviewSidebar(props: {
@@ -11,6 +18,7 @@ export function SetupPreviewSidebar(props: {
   hasPreviewCredential: boolean;
 }) {
   const { displaySrc, isLoading, loadFailed } = usePreloadedPosterSrc(props.livePreviewSrc);
+  const [view, setView] = useState<ClientPreviewView>("poster");
   const waitingForPreview = Boolean(props.livePreviewSrc) && !displaySrc && !loadFailed;
   const showPoster = Boolean(displaySrc) && !loadFailed;
 
@@ -25,7 +33,7 @@ export function SetupPreviewSidebar(props: {
         : "Add TMDB key on API keys tab");
 
   return (
-    <aside className="w-full shrink-0 lg:sticky lg:top-4 lg:z-10 lg:w-[min(220px,28vw)]">
+    <aside className="order-first w-full shrink-0 lg:order-none lg:sticky lg:top-4 lg:z-10 lg:w-[min(300px,30vw)]">
       <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-4 backdrop-blur-xs">
         <p className="mb-4 text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
           Live preview
@@ -45,33 +53,39 @@ export function SetupPreviewSidebar(props: {
           ) : null}
         </label>
 
-        <div className="polis-poster-frame relative overflow-hidden rounded-lg">
-          {showPoster ? (
-            <>
-              <img
-                alt="Live poster preview"
-                className={`h-auto w-full object-cover transition-opacity duration-200 ${isLoading ? "opacity-50" : "opacity-100"}`}
-                decoding="async"
-                height={330}
-                loading="eager"
-                src={displaySrc!}
-                width={220}
-              />
-              {isLoading ? (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30 text-[10px] uppercase tracking-wider text-zinc-400"
-                >
-                  Updating
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <div className="flex aspect-2/3 items-center justify-center bg-zinc-950 px-3 text-center text-[11px] leading-snug text-zinc-600">
-              {liveMessage ?? "Enter a valid IMDb id"}
-            </div>
-          )}
-        </div>
+        <ClientPreviewTabs onChange={setView} value={view} />
+
+        {showPoster && view !== "poster" ? (
+          <ClientPreview src={displaySrc!} view={view} />
+        ) : (
+          <div className="polis-poster-frame relative mx-auto max-w-[220px] overflow-hidden rounded-lg lg:max-w-none">
+            {showPoster ? (
+              <>
+                <img
+                  alt="Live poster preview"
+                  className={`h-auto w-full object-cover transition-opacity duration-200 ${isLoading ? "opacity-50" : "opacity-100"}`}
+                  decoding="async"
+                  height={330}
+                  loading="eager"
+                  src={displaySrc!}
+                  width={220}
+                />
+                {isLoading ? (
+                  <div
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/30 text-[10px] uppercase tracking-wider text-zinc-400"
+                  >
+                    Updating
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex aspect-2/3 items-center justify-center bg-zinc-950 px-3 text-center text-[11px] leading-snug text-zinc-600">
+                {liveMessage ?? "Enter a valid IMDb id"}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );

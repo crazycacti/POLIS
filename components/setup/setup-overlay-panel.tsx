@@ -12,6 +12,7 @@ import {
 } from "@/components/setup/setup-overlay-controls";
 import { SetupPanel } from "@/components/setup/setup-ui";
 import { SetupLogoPosition } from "@/components/setup/setup-logo-position";
+import { SetupStarterLooks } from "@/components/setup/setup-starter-looks";
 import type {
   GenreMode,
   GridCell,
@@ -67,6 +68,7 @@ export function SetupOverlayPanel(props: {
 
   return (
     <SetupPanel title="Overlay options">
+      <SetupStarterLooks onChange={(next) => setOverlay(next)} overlay={overlay} />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/5 pb-4">
         <SetupOverlayField label="Look">
           <select
@@ -90,7 +92,7 @@ export function SetupOverlayPanel(props: {
 
       <SetupOverlayOption
         checked={overlay.genre}
-        label="Genre line"
+        label="Genre"
         onCheckedChange={(genre) => setOverlay((o) => ({ ...o, genre }))}
         customize={
           <>
@@ -140,7 +142,7 @@ export function SetupOverlayPanel(props: {
 
       <SetupOverlayOption
         checked={overlay.rating}
-        label="Rating line"
+        label="Rating"
         onCheckedChange={(rating) => setOverlay((o) => ({ ...o, rating }))}
         customize={
           <>
@@ -186,7 +188,7 @@ export function SetupOverlayPanel(props: {
             ) : null}
             <SetupOverlayColor
               auto={overlay.ratingColor === "auto"}
-              autoLabel="Auto text color"
+              autoLabel={classic ? "Auto text color" : "Ring color follows the score"}
               color={overlay.ratingColor}
               onAutoChange={(auto) =>
                 setOverlay((o) => ({
@@ -197,7 +199,7 @@ export function SetupOverlayPanel(props: {
               onColorChange={(ratingColor) => setOverlay((o) => ({ ...o, ratingColor }))}
             />
             <SetupOverlayRange
-              label="Font size"
+              label={classic ? "Font size" : "Ring size"}
               max={72}
               min={16}
               onChange={(ratingFontSize) => setOverlay((o) => ({ ...o, ratingFontSize }))}
@@ -218,7 +220,7 @@ export function SetupOverlayPanel(props: {
 
       <SetupOverlayOption
         checked={overlay.trendTags}
-        label="Trend tags"
+        label="Trend tag"
         onCheckedChange={(trendTags) => setOverlay((o) => ({ ...o, trendTags }))}
         customize={
           <>
@@ -268,30 +270,30 @@ export function SetupOverlayPanel(props: {
 
       <SetupOverlayOption
         checked={overlay.logoOnPoster}
-        label="Textless art with title logo"
+        label="Title logo"
         onCheckedChange={(logoOnPoster) => setOverlay((o) => ({ ...o, logoOnPoster }))}
         customize={
-          classic ? undefined : (
-            <>
+          <>
+            {classic ? null : (
               <SetupLogoPosition
                 onChange={(gridCell: GridCell) => setOverlay((o) => ({ ...o, gridCell }))}
                 value={overlay.gridCell}
               />
-              <SetupOverlayField label="Size">
-                <select
-                  className="polis-select"
-                  onChange={(e) =>
-                    setOverlay((o) => ({ ...o, logoSize: e.target.value as LogoSize }))
-                  }
-                  value={overlay.logoSize}
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                </select>
-              </SetupOverlayField>
-            </>
-          )
+            )}
+            <SetupOverlayField label="Size">
+              <select
+                className="polis-select"
+                onChange={(e) =>
+                  setOverlay((o) => ({ ...o, logoSize: e.target.value as LogoSize }))
+                }
+                value={overlay.logoSize}
+              >
+                <option value="small">Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+              </select>
+            </SetupOverlayField>
+          </>
         }
       />
     </SetupPanel>
