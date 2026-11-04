@@ -15,7 +15,7 @@ describe("posterRenderCacheKey", () => {
       imdbId: "tt0111161",
       overlayQueryString: serializePosterQuery({
         ...POSTER_OVERLAY_DEFAULTS,
-        genre: true,
+        genre: false,
         rating: true,
       }),
       language: "en-US",

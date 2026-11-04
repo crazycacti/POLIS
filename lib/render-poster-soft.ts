@@ -4,6 +4,7 @@ import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import type { PosterPillBadge } from "@/lib/poster-badges";
 import { encodePosterImage } from "@/lib/poster-encode";
 import { normalizeGenreLabel } from "@/lib/poster-footer-pill";
+import { regionBadgeBackground } from "@/lib/poster-overlay-colors";
 import { preparePosterLogoRaster } from "@/lib/poster-logo-on-poster";
 import { compositeTopRightCluster, type QualityMarkId } from "@/lib/poster-quality-marks";
 import {
@@ -28,13 +29,12 @@ const PAD_TOP = 0.05;
 const RING_DIAMETER = 0.17;
 const RING_STROKE = 0.012;
 const SCORE_FONT = 0.064;
-const GENRE_FONT = 0.058;
+const GENRE_FONT = 0.046;
 const TREND_FONT = 0.048;
 const FOOTER_GAP = 0.04;
 const LOGO_GAP = 0.035;
 const BLUR_BAND = 0.2;
 const SCRIM_BAND = 0.38;
-const TOP_SCRIM_BAND = 0.18;
 const BLUR_SIGMA = 0.012;
 
 const LOGO_WIDTH_SHARE: Record<LogoSize, number> = { small: 0.5, medium: 0.66, large: 0.8 };
@@ -42,10 +42,22 @@ const LOGO_MAX_HEIGHT_SHARE = 0.24;
 const LOGO_SHADOW_SIGMA = 0.012;
 const LOGO_SHADOW_OFFSET = 0.004;
 const LOGO_SHADOW_ALPHA = 0.55;
+// WCAG 1.4.11 asks for 3:1 on meaningful graphics.
+const LOGO_MIN_CONTRAST = 3;
+const LIGHT_LOGO_LUMINANCE = 0.4;
+const LOGO_BACKDROP_PERCENTILE = 0.75;
+const LOGO_SCRIM_MAX_ALPHA = 0.6;
+const LOGO_SCRIM_PAD = 0.06;
+const LOGO_SCRIM_SIGMA = 0.03;
 
 const RING_TRACK = "rgba(255,255,255,0.22)";
+const RING_DISC = "rgba(0,0,0,0.38)";
+const CAPSULE_HEIGHT = 1.85;
+const CAPSULE_PAD_X = 0.62;
+const CAPSULE_ALPHA = 0.86;
+// White text needs 4.5:1, which holds while the fill stays under this luminance.
+const CAPSULE_MAX_LUMINANCE = 0.12;
 const TEXT_PRIMARY = "#ffffff";
-const TEXT_GENRE = "rgba(255,255,255,0.92)";
 
 type Rect = { left: number; top: number; width: number; height: number };
 
@@ -107,6 +119,99 @@ async function logoShadow(logo: Buffer, w: number): Promise<{ input: Buffer; pad
     .png()
     .toBuffer();
   return { input, pad };
+}
+
+function srgbChannelToLinear(c: number): number {
+  const v = c / 255;
+  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+}
+
+function pixelLuminance(r: number, g: number, b: number): number {
+  return 0.2126 * srgbChannelToLinear(r) + 0.7152 * srgbChannelToLinear(g) + 0.0722 * srgbChannelToLinear(b);
+}
+
+async function logoLuminance(logo: Buffer): Promise<number> {
+  const { data } = await sharp(logo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let sum = 0;
+  let weight = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3]! / 255;
+    if (a === 0) continue;
+    sum += pixelLuminance(data[i]!, data[i + 1]!, data[i + 2]!) * a;
+    weight += a;
+  }
+  return weight > 0 ? sum / weight : 0;
+}
+
+// Thin letters vanish where the art is locally bright, so a high percentile beats the mean.
+async function backdropLuminance(base: Buffer, rect: Rect, w: number, h: number): Promise<number> {
+  const width = Math.min(rect.width, w - rect.left);
+  const height = Math.min(rect.height, h - rect.top);
+  if (width <= 0 || height <= 0) return 0;
+  const { data, info } = await sharp(base)
+    .extract({ left: rect.left, top: rect.top, width, height })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const values = new Float64Array(info.width * info.height);
+  for (let i = 0, p = 0; p < values.length; i += info.channels, p++) {
+    values[p] = pixelLuminance(data[i]!, data[i + 1]!, data[i + 2]!);
+  }
+  values.sort();
+  return values[Math.min(values.length - 1, Math.floor(values.length * LOGO_BACKDROP_PERCENTILE))] ?? 0;
+}
+
+export function logoScrimAlpha(logoLum: number, backdropLum: number): number {
+  if (logoLum < LIGHT_LOGO_LUMINANCE) return 0;
+  const maxBackdrop = (logoLum + 0.05) / LOGO_MIN_CONTRAST - 0.05;
+  if (backdropLum <= maxBackdrop) return 0;
+  return Math.min(LOGO_SCRIM_MAX_ALPHA, 1 - Math.max(0, maxBackdrop) / backdropLum);
+}
+
+function logoScrim(rect: Rect, w: number, h: number, alpha: number): { input: Buffer; top: number; left: number } {
+  const pad = Math.round(w * LOGO_SCRIM_PAD);
+  const left = Math.max(0, rect.left - pad);
+  const top = Math.max(0, rect.top - pad);
+  const width = Math.min(w, rect.left + rect.width + pad) - left;
+  const height = Math.min(h, rect.top + rect.height + pad) - top;
+  const inset = Math.round(pad / 2);
+  return {
+    input: Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${(w * LOGO_SCRIM_SIGMA).toFixed(2)}"/></filter><rect x="${inset}" y="${inset}" width="${Math.max(1, width - inset * 2)}" height="${Math.max(1, height - inset * 2)}" rx="${inset}" fill="#000" fill-opacity="${alpha.toFixed(3)}" filter="url(#b)"/></svg>`,
+    ),
+    top,
+    left,
+  };
+}
+
+async function capsuleFill(base: Buffer, rect: Rect): Promise<string> {
+  const { r, g, b } = await regionBadgeBackground(base, rect);
+  const lum = pixelLuminance(r, g, b);
+  const k = lum > CAPSULE_MAX_LUMINANCE ? (CAPSULE_MAX_LUMINANCE / lum) ** (1 / 2.4) : 1;
+  return `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${CAPSULE_ALPHA})`;
+}
+
+type Capsule = { text: string; rect: Rect; fs: number };
+
+function capsuleAt(text: string, fs: number, left: number, centerY: number, maxW: number): Capsule | null {
+  const padX = Math.round(fs * CAPSULE_PAD_X);
+  const fitted = fitSoftText(text, fs, 600, maxW - padX * 2);
+  if (!fitted) return null;
+  const height = Math.round(fs * CAPSULE_HEIGHT);
+  const width = Math.round(measureSoftText(fitted, fs, 600) + padX * 2);
+  return { text: fitted, fs, rect: { left, top: Math.round(centerY - height / 2), width, height } };
+}
+
+async function capsuleSvg(base: Buffer, capsule: Capsule): Promise<string[]> {
+  const { rect, fs, text } = capsule;
+  const fill = await capsuleFill(base, rect);
+  const parts = [
+    `<rect x="${rect.left}" y="${rect.top}" width="${rect.width}" height="${rect.height}" rx="${(rect.height / 2).toFixed(2)}" fill="${fill}"/>`,
+  ];
+  const baseline = rect.top + rect.height / 2 + softCapHeight(fs, 600) / 2;
+  const placed = softTextPath(text, rect.left + Math.round(fs * CAPSULE_PAD_X), baseline, fs, 600);
+  if (placed) parts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
+  return parts;
 }
 
 function logoRect(params: {
@@ -178,34 +283,33 @@ export async function renderSoftPoster(params: {
   const trendFs = Math.round(w * TREND_FONT * trendScale);
 
   const genreRaw = overlay.genre ? normalizeGenreLabel(params.genreNames, overlay.genreMode) : null;
-  const footerH = Math.max(showRing ? ringD : 0, genreRaw ? Math.round(genreFs * 1.3) : 0);
+  const footerH = Math.max(showRing ? ringD : 0, genreRaw ? Math.round(genreFs * CAPSULE_HEIGHT) : 0);
   const hasFooter = footerH > 0;
   const footerCenterY = h - padBottom - footerH / 2;
 
   const trendText = overlay.trendTags ? (params.trendBadges[0]?.text ?? null) : null;
   const ageLabel = overlay.ageRating ? (params.ageBadge?.text ?? null) : null;
 
+  const drawLogo = overlay.logoOnPoster && params.logoPath != null;
   const layers: OverlayOptions[] = [];
-  if (hasFooter || (overlay.logoOnPoster && params.logoPath)) {
+  if (drawLogo) {
     // Blurring titled art smears its own wordmark, so only textless art gets the blur band.
     if (params.artTextless) layers.push(await softBlurBand(baseBuf, w, h));
+  }
+  if (hasFooter || drawLogo) {
+    // The ring and capsules carry their own fills, so without a logo the shade only softens the edge.
+    const strength = drawLogo ? 1 : 0.55;
     const scrimH = Math.round(h * SCRIM_BAND);
     layers.push({
-      input: gradientSvg(w, scrimH, [[0, 0.66], [0.45, 0.28], [1, 0]]),
+      input: gradientSvg(w, scrimH, [[0, 0.66 * strength], [0.45, 0.28 * strength], [1, 0]]),
       top: h - scrimH,
       left: 0,
     });
   }
-  if (trendText) {
-    const topH = Math.round(h * TOP_SCRIM_BAND);
-    layers.push({
-      input: gradientSvg(w, topH, [[0, 0], [1, 0.38]]),
-      top: 0,
-      left: 0,
-    });
-  }
 
-  if (overlay.logoOnPoster && params.logoPath) {
+  const trendCapsule = trendText ? capsuleAt(trendText, trendFs, padX, padTop + Math.round((trendFs * CAPSULE_HEIGHT) / 2), w - padX * 2) : null;
+
+  if (drawLogo && params.logoPath) {
     const maxLogoW = Math.round(w * LOGO_WIDTH_SHARE[overlay.logoSize]);
     const raster = await preparePosterLogoRaster(params.logoPath, maxLogoW);
     if (raster) {
@@ -223,14 +327,20 @@ export async function renderSoftPoster(params: {
         logoH,
         gridCell: overlay.gridCell,
         padX,
-        padTop: trendText ? padTop + Math.round(trendFs * 1.6) : padTop,
+        padTop: trendCapsule ? trendCapsule.rect.top + trendCapsule.rect.height + Math.round(w * LOGO_GAP) : padTop,
         bottomLimit,
       });
       const logo =
         logoW === raster.width && logoH === raster.height
           ? raster.buffer
           : await sharp(raster.buffer).resize({ width: logoW, height: logoH, fit: "fill" }).png().toBuffer();
-      const shadow = await logoShadow(logo, w);
+      const [logoLum, backdropLum, shadow] = await Promise.all([
+        logoLuminance(logo),
+        backdropLuminance(baseBuf, rect, w, h),
+        logoShadow(logo, w),
+      ]);
+      const scrimAlpha = logoScrimAlpha(logoLum, backdropLum);
+      if (scrimAlpha > 0) layers.push(logoScrim(rect, w, h, scrimAlpha));
       layers.push(
         {
           input: shadow.input,
@@ -252,7 +362,7 @@ export async function renderSoftPoster(params: {
     const filled = Math.max(0, Math.min(1, valueTen / 10)) * circumference;
     const color = escapeXml(ringColor(overlay, valueTen, params.ratingColorSource));
     svgParts.push(
-      `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(2)}" fill="none" stroke="${RING_TRACK}" stroke-width="${ringStroke.toFixed(2)}"/>`,
+      `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(2)}" fill="${RING_DISC}" stroke="${RING_TRACK}" stroke-width="${ringStroke.toFixed(2)}"/>`,
       `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(2)}" fill="none" stroke="${color}" stroke-width="${ringStroke.toFixed(2)}" stroke-linecap="round" stroke-dasharray="${filled.toFixed(2)} ${circumference.toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`,
     );
     const label = scoreLabel(valueTen);
@@ -263,18 +373,10 @@ export async function renderSoftPoster(params: {
     genreRight = cx - ringD / 2 - Math.round(w * FOOTER_GAP);
   }
 
-  if (genreRaw) {
-    const text = fitSoftText(genreRaw, genreFs, 600, genreRight - padX);
-    const baseline = footerCenterY + softCapHeight(genreFs, 600) / 2;
-    const placed = text ? softTextPath(text, padX, baseline, genreFs, 600) : null;
-    if (placed) svgParts.push(`<path d="${placed.d}" fill="${TEXT_GENRE}"/>`);
-  }
-
-  if (trendText) {
-    const text = fitSoftText(trendText, trendFs, 600, w - padX * 2);
-    const baseline = padTop + softCapHeight(trendFs, 600);
-    const placed = text ? softTextPath(text, padX, baseline, trendFs, 600) : null;
-    if (placed) svgParts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
+  const genreCapsule = genreRaw ? capsuleAt(genreRaw, genreFs, padX, footerCenterY, genreRight - padX) : null;
+  const capsules = [genreCapsule, trendCapsule].filter((c): c is Capsule => c != null);
+  for (const parts of await Promise.all(capsules.map((c) => capsuleSvg(baseBuf, c)))) {
+    svgParts.push(...parts);
   }
 
   if (svgParts.length > 0) {

@@ -62,7 +62,7 @@ export const FOOTER_PAD_Y_MIN = 12;
 export const FOOTER_PAD_Y_MAX = 85;
 
 export const POSTER_OVERLAY_DEFAULTS: PosterOverlayQuery = {
-  genre: true,
+  genre: false,
   rating: true,
   trendTags: true,
   qualityTags: false,
@@ -290,7 +290,7 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
   const trendRank = Number.isFinite(trendRankRaw) ? trendRankRaw : null;
 
   const parsed: PosterOverlayQuery = {
-    genre: searchParams.get("genre") !== "0",
+    genre: searchParams.has("genre") ? searchParams.get("genre") !== "0" : d.genre,
     rating: searchParams.get("rating") !== "0",
     trendTags: searchParams.has("trend")
       ? searchParams.get("trend") !== "0"

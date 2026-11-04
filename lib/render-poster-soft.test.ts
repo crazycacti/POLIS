@@ -3,7 +3,7 @@ import sharp from "sharp";
 
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import { softFontAvailable } from "@/lib/poster-soft-font";
-import { renderSoftPoster } from "@/lib/render-poster-soft";
+import { logoScrimAlpha, renderSoftPoster } from "@/lib/render-poster-soft";
 
 describe("poster look options", () => {
   test("soft and medium logo are the defaults and survive a round trip", () => {
@@ -51,5 +51,22 @@ describe("renderSoftPoster", () => {
       expect(meta.width).toBe(500);
       expect(meta.height).toBe(750);
     }
+  });
+});
+
+describe("logoScrimAlpha", () => {
+  test("leaves light logos on dark art alone", () => {
+    expect(logoScrimAlpha(0.9, 0.05)).toBe(0);
+  });
+
+  test("darkens bright art behind a white logo enough for 3:1, capped", () => {
+    const alpha = logoScrimAlpha(1, 0.8);
+    expect(alpha).toBeGreaterThan(0);
+    expect(alpha).toBeLessThanOrEqual(0.6);
+    expect(logoScrimAlpha(1, 0.4)).toBeLessThan(alpha);
+  });
+
+  test("never scrims dark logos", () => {
+    expect(logoScrimAlpha(0.1, 0.9)).toBe(0);
   });
 });

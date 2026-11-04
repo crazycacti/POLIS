@@ -121,3 +121,10 @@ describe("parsePosterOverlayQuery footer inset clamp", () => {
     expect(q.ratingPadY).toBe(FOOTER_PAD_Y_MAX);
   });
 });
+
+describe("genre default", () => {
+  test("is off when the url leaves it out and kept when a saved url sets it", () => {
+    expect(parsePosterOverlayQuery(new URLSearchParams()).genre).toBe(false);
+    expect(parsePosterOverlayQuery(new URLSearchParams("genre=1")).genre).toBe(true);
+  });
+});
