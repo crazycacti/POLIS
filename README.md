@@ -1,8 +1,10 @@
-<p align="center">
-  <img src="public/logo.png" alt="POLIS" width="280" />
-</p>
-
-# POLIS
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/logo.png">
+    <source media="(prefers-color-scheme: light)" srcset="public/logo-ink.png">
+    <img src="public/logo-ink.png" alt="POLIS" width="280">
+  </picture>
+</h1>
 
 **Poster Overlay Layer Integration Service** for self-hosted poster overlays with ratings, genre lines, trend tags, and configurable artwork sources.
 
