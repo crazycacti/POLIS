@@ -9,7 +9,6 @@ const VIEWS: { id: ClientPreviewView; label: string }[] = [
   { id: "tv", label: "TV row" },
 ];
 
-// Approximate on-screen poster widths, kept small enough to fit the preview sidebar.
 const PHONE_TILE_PX = 120;
 const RESUME_TILE_PX = 132;
 const TV_TILE_PX = 136;

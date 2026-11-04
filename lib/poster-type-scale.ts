@@ -1,7 +1,6 @@
 import { POSTER_OVERLAY_DEFAULTS, type LogoSize, type PosterOverlayQuery } from "@/lib/poster-query";
 
-// One type scale for every look. Sizes are shares of poster width so they hold from phone rails to TVs,
-// and each font setting scales its text relative to that setting's default.
+// Sizes are shares of poster width so every look keeps its proportions when clients scale the image.
 export const LABEL_TEXT_SHARE = 0.058;
 export const SCORE_TEXT_SHARE = 0.064;
 export const LOGO_WIDTH_SHARE: Record<LogoSize, number> = { small: 0.5, medium: 0.66, large: 0.8 };

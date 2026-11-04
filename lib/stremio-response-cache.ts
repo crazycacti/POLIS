@@ -27,8 +27,7 @@ function catalogsFingerprint(catalogs: PolisCatalogDefinition[] | undefined): st
   return createHash("sha256").update(serializePolisCatalogDefinitions(catalogs)).digest("hex").slice(0, 16);
 }
 
-// Responses embed request-supplied keys in art URLs and depend on the caller's watchlist,
-// so entries built with one caller's credentials must never be served to another.
+// Responses carry the caller's keys and watchlist, so one caller's entries must never reach another.
 export function stremioCredentialFingerprint(
   credential: TmdbCredential | null | undefined,
   mdblistApiKey: string | null | undefined,

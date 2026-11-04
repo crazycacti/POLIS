@@ -15,8 +15,7 @@ function hostMatchesDomain(host: string, domain: string): boolean {
   return host === domain || host.endsWith(`.${domain}`);
 }
 
-// Artwork URLs come from third-party API responses and are fetched server side,
-// so only https URLs on the known image CDNs are allowed.
+// Artwork URLs come from third-party responses and are fetched server side, so only https on known image CDNs.
 export function parseAllowedArtworkUrl(raw: string): URL | null {
   let url: URL;
   try {

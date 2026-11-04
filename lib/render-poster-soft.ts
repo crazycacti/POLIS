@@ -23,7 +23,6 @@ import { ratingDisplayColor } from "@/lib/rating-colors";
 import type { RatingSource } from "@/lib/ratings";
 import { escapeXml } from "@/lib/xml-escape";
 
-// Every size is a share of the poster width so the overlay keeps its proportions when clients scale the image.
 const PAD_X = 0.08;
 const PAD_BOTTOM = 0.055;
 const PAD_TOP = 0.05;
