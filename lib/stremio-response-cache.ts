@@ -6,7 +6,7 @@ import { serializePolisCatalogDefinitions } from "@/lib/polis-catalogs-json";
 import { hashPart } from "@/lib/integrator-cache-fingerprint";
 import { polisCacheScope } from "@/lib/polis-cache-path";
 import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
-import { polisSingleflight } from "@/lib/polis-singleflight";
+import { serveFreshOrStale } from "@/lib/polis-stale-while-revalidate";
 import type { StremioCatalogMeta } from "@/lib/stremio-catalog-fetch";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 
@@ -96,12 +96,13 @@ export function stremioCatalogCacheKey(params: {
 export async function readCachedStremioMeta(
   cacheKey: string,
   configId: string | null,
+  options: { allowStale?: boolean } = {},
 ): Promise<Record<string, unknown> | null> {
   return readPolisDiskJson<Record<string, unknown>>(
     "meta",
     polisCacheScope(configId),
     cacheKey,
-    metaTtlMs(),
+    options.allowStale ? undefined : metaTtlMs(),
   );
 }
 
@@ -116,12 +117,13 @@ export async function writeCachedStremioMeta(
 export async function readCachedStremioCatalog(
   cacheKey: string,
   configId: string | null,
+  options: { allowStale?: boolean } = {},
 ): Promise<StremioCatalogMeta[] | null> {
   const hit = await readPolisDiskJson<{ metas: StremioCatalogMeta[] }>(
     "catalog",
     polisCacheScope(configId),
     cacheKey,
-    catalogTtlMs(),
+    options.allowStale ? undefined : catalogTtlMs(),
   );
   return hit?.metas ?? null;
 }
@@ -139,17 +141,14 @@ export async function getOrBuildStremioMeta(
   configId: string | null,
   build: () => Promise<Record<string, unknown>>,
 ): Promise<Record<string, unknown>> {
-  const cached = await readCachedStremioMeta(cacheKey, configId);
-  if (cached) return cached;
-
-  return polisSingleflight(`meta:${cacheKey}`, async () => {
-    const raced = await readCachedStremioMeta(cacheKey, configId);
-    if (raced) return raced;
-
-    const meta = await build();
-    if (Object.keys(meta).length === 0) return meta;
-    void writeCachedStremioMeta(cacheKey, configId, meta).catch(() => {});
-    return meta;
+  return serveFreshOrStale({
+    key: `meta:${cacheKey}`,
+    label: "meta",
+    readFresh: () => readCachedStremioMeta(cacheKey, configId),
+    readStale: () => readCachedStremioMeta(cacheKey, configId, { allowStale: true }),
+    build,
+    store: (meta) => writeCachedStremioMeta(cacheKey, configId, meta),
+    isStorable: (meta) => Object.keys(meta).length > 0,
   });
 }
 
@@ -158,17 +157,13 @@ export async function getOrBuildStremioCatalog(
   configId: string | null,
   build: () => Promise<StremioCatalogMeta[]>,
 ): Promise<StremioCatalogMeta[]> {
-  const cached = await readCachedStremioCatalog(cacheKey, configId);
-  if (cached) return cached;
-
-  return polisSingleflight(`catalog:${cacheKey}`, async () => {
-    const raced = await readCachedStremioCatalog(cacheKey, configId);
-    if (raced) return raced;
-
-    const metas = await build();
-    if (metas.length > 0) {
-      void writeCachedStremioCatalog(cacheKey, configId, metas).catch(() => {});
-    }
-    return metas;
+  return serveFreshOrStale({
+    key: `catalog:${cacheKey}`,
+    label: "catalog",
+    readFresh: () => readCachedStremioCatalog(cacheKey, configId),
+    readStale: () => readCachedStremioCatalog(cacheKey, configId, { allowStale: true }),
+    build,
+    store: (metas) => writeCachedStremioCatalog(cacheKey, configId, metas),
+    isStorable: (metas) => metas.length > 0,
   });
 }

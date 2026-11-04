@@ -186,50 +186,61 @@ export async function renderPosterForImdbCached(params: {
   }
 
   const flightKey = `poster:${scope}:${cacheKey}`;
-  const rendered = await polisSingleflight(flightKey, async () => {
-    const racedPath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext, ttlMs);
-    if (racedPath) return { source: "disk" as const, path: racedPath };
+  const renderFresh = () =>
+    polisSingleflight(flightKey, async () => {
+      const racedPath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext, ttlMs);
+      if (racedPath) return { source: "disk" as const, path: racedPath };
 
-    const staleFallback = async () => {
-      const stalePath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
-      if (!stalePath) return null;
+      const staleFallback = async () => {
+        const stalePath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
+        if (!stalePath) return null;
+        startStaleBackoff(cacheKey);
+        return { source: "disk" as const, path: stalePath };
+      };
+
+      let degraded = false;
+      let image: Buffer | null;
+      try {
+        image = await withPolisRenderLimit(() =>
+          renderPosterForImdb({
+            imdbId: params.imdbId,
+            overlay,
+            credential: params.credential,
+            language: params.language,
+            mdblistApiKey: params.mdblistApiKey,
+            fanartApiKey: params.fanartApiKey,
+            tvdbCredentials: params.tvdbCredentials,
+            configId: params.configId,
+            onDegraded: () => {
+              degraded = true;
+            },
+          }),
+        );
+      } catch (error) {
+        const stale = await staleFallback();
+        if (!stale) throw error;
+        console.warn(`[polis] poster render failed for ${params.imdbId}, serving stale copy`, error);
+        return stale;
+      }
+      if (!image) return staleFallback();
+      if (degraded) {
+        return (await staleFallback()) ?? { source: "buffer" as const, image };
+      }
+      void writePolisDiskBytes("poster", scope, cacheKey, ext, image).catch(() => {});
+      rememberInMemory(cacheKey, image);
+      return { source: "buffer" as const, image };
+    });
+
+  const stalePath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
+  if (stalePath) {
+    void renderFresh().catch((error) => {
       startStaleBackoff(cacheKey);
-      return { source: "disk" as const, path: stalePath };
-    };
+      console.warn(`[polis] background poster refresh failed for ${params.imdbId}`, error);
+    });
+    return { source: "disk", path: stalePath };
+  }
 
-    let degraded = false;
-    let image: Buffer | null;
-    try {
-      image = await withPolisRenderLimit(() =>
-        renderPosterForImdb({
-          imdbId: params.imdbId,
-          overlay,
-          credential: params.credential,
-          language: params.language,
-          mdblistApiKey: params.mdblistApiKey,
-          fanartApiKey: params.fanartApiKey,
-          tvdbCredentials: params.tvdbCredentials,
-          configId: params.configId,
-          onDegraded: () => {
-            degraded = true;
-          },
-        }),
-      );
-    } catch (error) {
-      const stale = await staleFallback();
-      if (!stale) throw error;
-      console.warn(`[polis] poster render failed for ${params.imdbId}, serving stale copy`, error);
-      return stale;
-    }
-    if (!image) return staleFallback();
-    if (degraded) {
-      return (await staleFallback()) ?? { source: "buffer" as const, image };
-    }
-    void writePolisDiskBytes("poster", scope, cacheKey, ext, image).catch(() => {});
-    rememberInMemory(cacheKey, image);
-    return { source: "buffer" as const, image };
-  });
-
+  const rendered = await renderFresh();
   if (!rendered) return null;
   if (rendered.source === "disk") return rendered;
   return { source: "buffer", image: rendered.image };

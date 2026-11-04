@@ -25,6 +25,7 @@ export type StremioCatalogMeta = {
 
 const TMDB_DISCOVER_PAGE_SIZE = 20;
 const TMDB_EXTERNAL_ID_CONCURRENCY = 10;
+const TMDB_EXTERNAL_IDS_TTL_SEC = 30 * 24 * 60 * 60;
 
 type TmdbTrendingRow = {
   id?: number;
@@ -113,7 +114,9 @@ async function tmdbImdbIdForItem(params: {
   const url = new URL(
     `https://api.themoviedb.org/3/${kind}/${params.tmdbId}/external_ids`,
   );
-  const raw = (await tmdbApiGet(url, params.credential)) as { imdb_id?: string | null } | null;
+  const raw = (await tmdbApiGet(url, params.credential, {
+    ttlSec: TMDB_EXTERNAL_IDS_TTL_SEC,
+  })) as { imdb_id?: string | null } | null;
   const imdb = raw?.imdb_id;
   return typeof imdb === "string" && isImdbId(imdb) ? imdb : null;
 }

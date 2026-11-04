@@ -6,7 +6,7 @@ import path from "node:path";
 import { polisCacheRoot } from "@/lib/polis-cache-path";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 
-function cacheEnabled(): boolean {
+export function polisDiskCacheEnabled(): boolean {
   return process.env.POLIS_CACHE_DISABLE !== "1";
 }
 
@@ -26,7 +26,7 @@ export async function resolvePolisDiskCachePath(
   ext: string,
   ttlMs?: number,
 ): Promise<string | null> {
-  if (!cacheEnabled()) return null;
+  if (!polisDiskCacheEnabled()) return null;
   const file = filePath(namespace, scope, cacheKey, ext);
   try {
     const st = await stat(file);
@@ -60,7 +60,7 @@ export async function writePolisDiskBytes(
   ext: string,
   data: Buffer,
 ): Promise<void> {
-  if (!cacheEnabled()) return;
+  if (!polisDiskCacheEnabled()) return;
   const file = filePath(namespace, scope, cacheKey, ext);
   await ensureParent(file);
   await writeFile(file, data);
@@ -71,7 +71,7 @@ export async function readPolisDiskJson<T>(
   namespace: string,
   scope: string,
   cacheKey: string,
-  ttlMs: number,
+  ttlMs?: number,
 ): Promise<T | null> {
   const raw = await readPolisDiskBytes(namespace, scope, cacheKey, ".json", ttlMs);
   if (!raw) return null;
