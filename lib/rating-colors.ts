@@ -7,7 +7,14 @@ export function ratingDisplayColor(source: RatingSource, valueTen: number): stri
     return valueTen >= 6 ? "#14ae5c" : "#fa320a";
   }
 
-  if (source === "metacritic" || source === "metacriticuser") {
+  // Metacritic colors critic Metascores for film and TV at 61+ and 40+, but user scores at 7.5+ and 5+.
+  if (source === "metacritic") {
+    if (valueTen >= 6.1) return "#6bb83a";
+    if (valueTen >= 4) return "#ffbd3f";
+    return "#ff5d4d";
+  }
+
+  if (source === "metacriticuser") {
     if (valueTen >= 7.5) return "#6bb83a";
     if (valueTen >= 5) return "#ffbd3f";
     return "#ff5d4d";
