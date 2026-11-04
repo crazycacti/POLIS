@@ -20,7 +20,7 @@ POLIS renders posters on demand from IMDb ids (WebP by default), then serves the
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) 1.3+
+- [Bun](https://bun.sh) 1.4.4+
 - TMDB API key 
 - MDBList API key
 

@@ -80,7 +80,7 @@ export async function renderPosterJpeg(params: {
     }
   }
   if (!input) return null;
-  let baseBuf = await sharp(input).resize(500, 750, { fit: "cover", position: "attention" }).toBuffer();
+  let baseBuf: Buffer = await sharp(input).resize(500, 750, { fit: "cover", position: "attention" }).toBuffer();
 
   const meta = await sharp(baseBuf).metadata();
   const w = meta.width ?? 500;

@@ -1,5 +1,6 @@
-import { Github, Heart } from "lucide-react";
+import { Heart } from "lucide-react";
 
+import { GithubMark } from "@/components/github-mark";
 import { POLIS_GITHUB_URL, POLIS_SUPPORT_URL } from "@/lib/site-links";
 
 const iconLinkClass =
@@ -28,7 +29,7 @@ export function SiteSupportLinks({ className = "" }: SiteSupportLinksProps) {
         rel="noopener noreferrer"
         target="_blank"
       >
-        <Github aria-hidden className="h-4 w-4" strokeWidth={2} />
+        <GithubMark className="h-4 w-4" />
       </a>
     </div>
   );

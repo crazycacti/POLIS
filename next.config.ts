@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
   poweredByHeader: false,
+  agentRules: false,
   serverExternalPackages: ["sharp", "opentype.js"],
   logging: {
     incomingRequests: {
