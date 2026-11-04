@@ -1,7 +1,11 @@
 import { posterDiskExtension } from "@/lib/poster-output-format";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { polisCacheScope } from "@/lib/polis-cache-path";
-import { resolvePolisDiskCachePath, writePolisDiskBytes } from "@/lib/polis-disk-cache";
+import {
+  linkPolisDiskCacheAlias,
+  resolvePolisDiskCachePath,
+  writePolisDiskBytes,
+} from "@/lib/polis-disk-cache";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import { withPolisRenderLimit } from "@/lib/polis-render-limit";
@@ -58,26 +62,30 @@ function posterMemoryCacheTtlMs(): number | null {
   return sec != null ? sec * 1000 : null;
 }
 
-export function posterRenderCacheKey(params: {
+type PosterCacheKeyParams = {
   imdbId: string;
   overlayQueryString: string;
   language: string;
   configId: string | null;
   integratorFingerprint?: string;
-}): string {
+};
+
+function posterCacheKeyParts(params: PosterCacheKeyParams, prefix: string, dropTrendRank: boolean): string {
   const overlay = parsePosterOverlayQuery(new URLSearchParams(params.overlayQueryString));
-  const canonicalOverlay = serializePosterQuery(overlay);
+  const canonicalOverlay = serializePosterQuery(dropTrendRank ? { ...overlay, trendRank: null } : overlay);
   const scope = params.configId?.trim() || "_";
   const integrator =
     scope === "_" ? (params.integratorFingerprint?.trim() || "_") : "_";
-  return [
-    String(POLIS_RENDERER_REVISION),
-    scope,
-    integrator,
-    params.language,
-    params.imdbId,
-    canonicalOverlay,
-  ].join("\0");
+  return [prefix, scope, integrator, params.language, params.imdbId, canonicalOverlay].join("\0");
+}
+
+export function posterRenderCacheKey(params: PosterCacheKeyParams): string {
+  return posterCacheKeyParts(params, String(POLIS_RENDERER_REVISION), false);
+}
+
+// The last render whatever the renderer revision or trending rank, served while a new one renders.
+export function posterLatestAliasKey(params: PosterCacheKeyParams): string {
+  return posterCacheKeyParts(params, "latest", true);
 }
 
 export function purgePosterMemoryCacheForConfig(configId: string): void {
@@ -155,7 +163,7 @@ export async function renderPosterForImdbCached(params: {
 }): Promise<PosterCacheResult | null> {
   const overlay = await withLiveTrendRank(params);
   const overlayQueryString = serializePosterQuery(overlay);
-  const cacheKey = posterRenderCacheKey({
+  const keyParams: PosterCacheKeyParams = {
     imdbId: params.imdbId,
     overlayQueryString,
     language: params.language,
@@ -166,7 +174,9 @@ export async function renderPosterForImdbCached(params: {
       fanartApiKey: params.fanartApiKey,
       tvdbCredentials: params.tvdbCredentials,
     }),
-  });
+  };
+  const cacheKey = posterRenderCacheKey(keyParams);
+  const aliasKey = posterLatestAliasKey(keyParams);
   const scope = polisCacheScope(params.configId);
 
   const mem = memoryHit(cacheKey);
@@ -185,6 +195,10 @@ export async function renderPosterForImdbCached(params: {
     return { source: "disk", path: diskPath };
   }
 
+  const findStalePoster = async () =>
+    (await resolvePolisDiskCachePath("poster", scope, cacheKey, ext)) ??
+    (await resolvePolisDiskCachePath("poster", scope, aliasKey, ext));
+
   const flightKey = `poster:${scope}:${cacheKey}`;
   const renderFresh = () =>
     polisSingleflight(flightKey, async () => {
@@ -192,7 +206,7 @@ export async function renderPosterForImdbCached(params: {
       if (racedPath) return { source: "disk" as const, path: racedPath };
 
       const staleFallback = async () => {
-        const stalePath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
+        const stalePath = await findStalePoster();
         if (!stalePath) return null;
         startStaleBackoff(cacheKey);
         return { source: "disk" as const, path: stalePath };
@@ -226,17 +240,21 @@ export async function renderPosterForImdbCached(params: {
       if (degraded) {
         return (await staleFallback()) ?? { source: "buffer" as const, image };
       }
-      void writePolisDiskBytes("poster", scope, cacheKey, ext, image).catch(() => {});
+      void writePolisDiskBytes("poster", scope, cacheKey, ext, image)
+        .then(() => linkPolisDiskCacheAlias("poster", scope, cacheKey, aliasKey, ext))
+        .catch((error) => console.warn(`[polis] poster cache write failed for ${params.imdbId}`, error));
       rememberInMemory(cacheKey, image);
       return { source: "buffer" as const, image };
     });
 
-  const stalePath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
+  const stalePath = await findStalePoster();
   if (stalePath) {
-    void renderFresh().catch((error) => {
-      startStaleBackoff(cacheKey);
-      console.warn(`[polis] background poster refresh failed for ${params.imdbId}`, error);
-    });
+    if (!inStaleBackoff(cacheKey)) {
+      void renderFresh().catch((error) => {
+        startStaleBackoff(cacheKey);
+        console.warn(`[polis] background poster refresh failed for ${params.imdbId}`, error);
+      });
+    }
     return { source: "disk", path: stalePath };
   }
 

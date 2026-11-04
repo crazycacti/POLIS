@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { posterRenderCacheKey } from "@/lib/poster-render-cache";
+import { posterLatestAliasKey, posterRenderCacheKey } from "@/lib/poster-render-cache";
 import { serializePosterQuery, POSTER_OVERLAY_DEFAULTS } from "@/lib/poster-query";
 
 describe("posterRenderCacheKey", () => {
@@ -48,5 +48,23 @@ describe("posterRenderCacheKey", () => {
         configId: "cfg-b",
       }),
     ).not.toBe(base);
+  });
+
+  test("the latest alias ignores the trending rank but not the look", () => {
+    const base = { imdbId: "tt0111161", language: "en-US", configId: "cfg-a" };
+    const ranked = (trendRank: number | null) =>
+      serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, trendRank });
+    expect(posterLatestAliasKey({ ...base, overlayQueryString: ranked(1) })).toBe(
+      posterLatestAliasKey({ ...base, overlayQueryString: ranked(7) }),
+    );
+    expect(posterRenderCacheKey({ ...base, overlayQueryString: ranked(1) })).not.toBe(
+      posterRenderCacheKey({ ...base, overlayQueryString: ranked(7) }),
+    );
+    expect(
+      posterLatestAliasKey({
+        ...base,
+        overlayQueryString: serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, genre: true }),
+      }),
+    ).not.toBe(posterLatestAliasKey({ ...base, overlayQueryString: ranked(null) }));
   });
 });
