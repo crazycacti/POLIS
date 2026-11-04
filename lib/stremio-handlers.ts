@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { getPolisConfig } from "@/lib/polis-config-store";
+import { prewarmCatalogPosters } from "@/lib/poster-prewarm";
 import { polisPublicBaseFromRequest } from "@/lib/public-base";
 import { buildStremioMetaRecord } from "@/lib/stremio-meta-build";
 import { fetchPolisCatalogMetas } from "@/lib/stremio-catalog-fetch";
@@ -181,8 +182,8 @@ async function handleStremioCatalogRequestInner(
       integrator.mdblistApiKey,
     ),
   });
-  const metas = await getOrBuildStremioCatalog(catalogCacheKey, config?.id ?? null, () =>
-    fetchPolisCatalogMetas({
+  const metas = await getOrBuildStremioCatalog(catalogCacheKey, config?.id ?? null, async () => {
+    const built = await fetchPolisCatalogMetas({
       type: rawType,
       catalogId,
       credential: integrator.tmdb?.credential ?? null,
@@ -193,8 +194,10 @@ async function handleStremioCatalogRequestInner(
       posterQueryString: config?.posterQuery,
       catalogDefinitions: config?.catalogs,
       configId: config?.id,
-    }),
-  );
+    });
+    prewarmCatalogPosters(built, publicBase);
+    return built;
+  });
 
   return jsonResponse({ metas }, 300);
 }
