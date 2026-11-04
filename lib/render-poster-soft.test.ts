@@ -3,7 +3,7 @@ import sharp from "sharp";
 
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import { softFontAvailable } from "@/lib/poster-soft-font";
-import { logoScrimAlpha, renderSoftPoster } from "@/lib/render-poster-soft";
+import { logoLegibleShare, logoScrimAlpha, renderSoftPoster } from "@/lib/render-poster-soft";
 
 describe("poster look options", () => {
   test("soft and medium logo are the defaults and survive a round trip", () => {
@@ -68,5 +68,27 @@ describe("logoScrimAlpha", () => {
 
   test("never scrims dark logos", () => {
     expect(logoScrimAlpha(0.1, 0.9)).toBe(0);
+  });
+});
+
+describe("logoLegibleShare", () => {
+  const sample = (logo: number[], backdrop: number[]) => ({
+    logoLum: Float64Array.from(logo),
+    weight: Float64Array.from(logo.map(() => 1)),
+    backdropLum: Float64Array.from(backdrop),
+  });
+
+  test("counts a white logo on dark art as fully legible", () => {
+    expect(logoLegibleShare(sample([1, 1], [0.02, 0.03]), 0)).toBe(1);
+  });
+
+  test("catches the dark half of a two-tone logo on dark art", () => {
+    expect(logoLegibleShare(sample([0.02, 1], [0.03, 0.03]), 0)).toBe(0.5);
+  });
+
+  test("credits the scrim when it darkens bright art", () => {
+    const bright = sample([1], [0.5]);
+    expect(logoLegibleShare(bright, 0)).toBe(0);
+    expect(logoLegibleShare(bright, 0.6)).toBe(1);
   });
 });

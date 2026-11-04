@@ -46,6 +46,7 @@ const LOGO_SHADOW_ALPHA = 0.55;
 const LOGO_MIN_CONTRAST = 3;
 const LIGHT_LOGO_LUMINANCE = 0.4;
 const LOGO_BACKDROP_PERCENTILE = 0.75;
+const LOGO_MIN_LEGIBLE_SHARE = 0.6;
 const LOGO_SCRIM_MAX_ALPHA = 0.6;
 const LOGO_SCRIM_PAD = 0.06;
 const LOGO_SCRIM_SIGMA = 0.03;
@@ -130,35 +131,63 @@ function pixelLuminance(r: number, g: number, b: number): number {
   return 0.2126 * srgbChannelToLinear(r) + 0.7152 * srgbChannelToLinear(g) + 0.0722 * srgbChannelToLinear(b);
 }
 
-async function logoLuminance(logo: Buffer): Promise<number> {
-  const { data } = await sharp(logo).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+type LogoSample = {
+  logoLum: Float64Array;
+  weight: Float64Array;
+  backdropLum: Float64Array;
+  meanLogoLum: number;
+  backdropHigh: number;
+};
+
+async function sampleLogo(logo: Buffer, base: Buffer, rect: Rect): Promise<LogoSample> {
+  const [logoRaw, backRaw] = await Promise.all([
+    sharp(logo).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(base).extract(rect).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+  ]);
+  const count = rect.width * rect.height;
+  const logoLum = new Float64Array(count);
+  const weight = new Float64Array(count);
+  const backdropLum = new Float64Array(count);
+  const bc = backRaw.info.channels;
   let sum = 0;
-  let weight = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    const a = data[i + 3]! / 255;
+  let total = 0;
+  for (let p = 0; p < count; p++) {
+    const i = p * 4;
+    const j = p * bc;
+    backdropLum[p] = pixelLuminance(backRaw.data[j]!, backRaw.data[j + 1]!, backRaw.data[j + 2]!);
+    const a = logoRaw.data[i + 3]! / 255;
     if (a === 0) continue;
-    sum += pixelLuminance(data[i]!, data[i + 1]!, data[i + 2]!) * a;
-    weight += a;
+    logoLum[p] = pixelLuminance(logoRaw.data[i]!, logoRaw.data[i + 1]!, logoRaw.data[i + 2]!);
+    weight[p] = a;
+    sum += logoLum[p]! * a;
+    total += a;
   }
-  return weight > 0 ? sum / weight : 0;
+  // Thin letters vanish where the art is locally bright, so a high percentile beats the mean.
+  const sorted = Float64Array.from(backdropLum).sort();
+  const backdropHigh = sorted[Math.min(count - 1, Math.floor(count * LOGO_BACKDROP_PERCENTILE))] ?? 0;
+  return { logoLum, weight, backdropLum, meanLogoLum: total > 0 ? sum / total : 0, backdropHigh };
 }
 
-// Thin letters vanish where the art is locally bright, so a high percentile beats the mean.
-async function backdropLuminance(base: Buffer, rect: Rect, w: number, h: number): Promise<number> {
-  const width = Math.min(rect.width, w - rect.left);
-  const height = Math.min(rect.height, h - rect.top);
-  if (width <= 0 || height <= 0) return 0;
-  const { data, info } = await sharp(base)
-    .extract({ left: rect.left, top: rect.top, width, height })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const values = new Float64Array(info.width * info.height);
-  for (let i = 0, p = 0; p < values.length; i += info.channels, p++) {
-    values[p] = pixelLuminance(data[i]!, data[i + 1]!, data[i + 2]!);
+function contrastRatio(a: number, b: number): number {
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+// Share of the logo's ink that clears 3:1 against the art directly behind it, after any scrim.
+export function logoLegibleShare(
+  sample: Pick<LogoSample, "logoLum" | "weight" | "backdropLum">,
+  scrimAlpha: number,
+): number {
+  let legible = 0;
+  let total = 0;
+  for (let p = 0; p < sample.weight.length; p++) {
+    const a = sample.weight[p]!;
+    if (a === 0) continue;
+    total += a;
+    if (contrastRatio(sample.logoLum[p]!, sample.backdropLum[p]! * (1 - scrimAlpha)) >= LOGO_MIN_CONTRAST) {
+      legible += a;
+    }
   }
-  values.sort();
-  return values[Math.min(values.length - 1, Math.floor(values.length * LOGO_BACKDROP_PERCENTILE))] ?? 0;
+  return total > 0 ? legible / total : 0;
 }
 
 export function logoScrimAlpha(logoLum: number, backdropLum: number): number {
@@ -255,6 +284,7 @@ export async function renderSoftPoster(params: {
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
   logoPath: string | null;
+  logoAlternates?: string[];
 }): Promise<Buffer | null> {
   ensurePolisSharpConfigured();
   const { overlay } = params;
@@ -311,35 +341,47 @@ export async function renderSoftPoster(params: {
 
   if (drawLogo && params.logoPath) {
     const maxLogoW = Math.round(w * LOGO_WIDTH_SHARE[overlay.logoSize]);
-    const raster = await preparePosterLogoRaster(params.logoPath, maxLogoW);
-    if (raster) {
-      const maxLogoH = Math.round(h * LOGO_MAX_HEIGHT_SHARE);
+    const maxLogoH = Math.round(h * LOGO_MAX_HEIGHT_SHARE);
+    const bottomLimit = hasFooter
+      ? Math.round(footerCenterY - footerH / 2 - w * LOGO_GAP)
+      : h - padBottom;
+    const logoPadTop = trendCapsule
+      ? trendCapsule.rect.top + trendCapsule.rect.height + Math.round(w * LOGO_GAP)
+      : padTop;
+
+    const placeLogo = async (path: string) => {
+      const raster = await preparePosterLogoRaster(path, maxLogoW);
+      if (!raster) return null;
       const scale = Math.min(1, maxLogoW / raster.width, maxLogoH / raster.height);
-      const logoW = Math.max(1, Math.round(raster.width * scale));
-      const logoH = Math.max(1, Math.round(raster.height * scale));
-      const bottomLimit = hasFooter
-        ? Math.round(footerCenterY - footerH / 2 - w * LOGO_GAP)
-        : h - padBottom;
-      const rect = logoRect({
-        w,
-        h,
-        logoW,
-        logoH,
-        gridCell: overlay.gridCell,
-        padX,
-        padTop: trendCapsule ? trendCapsule.rect.top + trendCapsule.rect.height + Math.round(w * LOGO_GAP) : padTop,
-        bottomLimit,
-      });
+      const logoW = Math.max(1, Math.min(w, Math.round(raster.width * scale)));
+      const logoH = Math.max(1, Math.min(h, Math.round(raster.height * scale)));
+      const placed = logoRect({ w, h, logoW, logoH, gridCell: overlay.gridCell, padX, padTop: logoPadTop, bottomLimit });
+      const rect = {
+        ...placed,
+        left: Math.min(placed.left, w - logoW),
+        top: Math.min(placed.top, h - logoH),
+      };
       const logo =
         logoW === raster.width && logoH === raster.height
           ? raster.buffer
           : await sharp(raster.buffer).resize({ width: logoW, height: logoH, fit: "fill" }).png().toBuffer();
-      const [logoLum, backdropLum, shadow] = await Promise.all([
-        logoLuminance(logo),
-        backdropLuminance(baseBuf, rect, w, h),
-        logoShadow(logo, w),
-      ]);
-      const scrimAlpha = logoScrimAlpha(logoLum, backdropLum);
+      const sample = await sampleLogo(logo, baseBuf, rect);
+      const scrimAlpha = logoScrimAlpha(sample.meanLogoLum, sample.backdropHigh);
+      return { logo, rect, scrimAlpha, share: logoLegibleShare(sample, scrimAlpha) };
+    };
+
+    // Some wordmarks are dark or two-tone by design; when the top pick fades into the art, try the next one.
+    let chosen: Awaited<ReturnType<typeof placeLogo>> = null;
+    for (const path of [params.logoPath, ...(params.logoAlternates ?? [])]) {
+      const candidate = await placeLogo(path);
+      if (!candidate) continue;
+      if (!chosen || candidate.share > chosen.share) chosen = candidate;
+      if (candidate.share >= LOGO_MIN_LEGIBLE_SHARE) break;
+    }
+
+    if (chosen) {
+      const { logo, rect, scrimAlpha } = chosen;
+      const shadow = await logoShadow(logo, w);
       if (scrimAlpha > 0) layers.push(logoScrim(rect, w, h, scrimAlpha));
       layers.push(
         {

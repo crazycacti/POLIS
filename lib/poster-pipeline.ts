@@ -16,6 +16,8 @@ import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { findTmdbTitle, resolveTitleForArtwork } from "@/lib/tmdb-resolve";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
+const MAX_LOGO_ALTERNATES = 2;
+
 export async function renderPosterForImdb(params: {
   imdbId: string;
   overlay: PosterOverlayQuery;
@@ -109,6 +111,9 @@ export async function renderPosterForImdb(params: {
 
   const logoPath =
     params.overlay.logoOnPoster && base.textless ? (resolved.logoPath ?? null) : null;
+  const logoAlternates = logoPath
+    ? (resolved.logoPaths ?? []).filter((p) => p !== logoPath).slice(0, MAX_LOGO_ALTERNATES)
+    : [];
 
   if (params.overlay.look === "soft" && softFontAvailable()) {
     return renderSoftPoster({
@@ -122,6 +127,7 @@ export async function renderPosterForImdb(params: {
       qualityMarkIds,
       ageBadge,
       logoPath,
+      logoAlternates,
     });
   }
 

@@ -89,6 +89,7 @@ export type ResolvedTitle = {
   certification: string | null;
   videos: StremioMetaVideo[] | null;
   posterImages?: TmdbPosterImage[];
+  logoPaths?: string[];
 };
 
 export { tmdbApiGet } from "@/lib/tmdb-api-get";
@@ -284,8 +285,11 @@ async function fetchLogoPath(
 }
 
 function pickLogoPath(rawLogos: LogoImageJson[] | undefined): string | null {
+  return rankLogoPaths(rawLogos)[0] ?? null;
+}
+
+export function rankLogoPaths(rawLogos: LogoImageJson[] | undefined): string[] {
   const logos = (rawLogos ?? []).filter((l) => l.file_path?.trim());
-  if (logos.length === 0) return null;
 
   const score = (l: LogoImageJson): number => {
     let s = l.vote_count ?? 0;
@@ -297,7 +301,7 @@ function pickLogoPath(rawLogos: LogoImageJson[] | undefined): string | null {
   };
 
   logos.sort((a, b) => score(b) - score(a));
-  return logos[0]?.file_path ?? null;
+  return logos.map((l) => l.file_path!);
 }
 
 export type TmdbFindHit = { stremioType: "movie" | "series"; tmdbId: number };
@@ -377,5 +381,9 @@ function mapArtworkResolved(
     null,
     null,
   );
-  return { ...resolved, posterImages: d.images?.posters ?? [] };
+  return {
+    ...resolved,
+    posterImages: d.images?.posters ?? [],
+    logoPaths: rankLogoPaths(d.images?.logos),
+  };
 }
