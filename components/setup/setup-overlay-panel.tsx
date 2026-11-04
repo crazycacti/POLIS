@@ -11,7 +11,15 @@ import {
   SetupOverlaySwitch,
 } from "@/components/setup/setup-overlay-controls";
 import { SetupPanel } from "@/components/setup/setup-ui";
-import type { GenreMode, PosterOverlayQuery, RatingStyle } from "@/lib/poster-query";
+import { SetupLogoPosition } from "@/components/setup/setup-logo-position";
+import type {
+  GenreMode,
+  GridCell,
+  LogoSize,
+  PosterLook,
+  PosterOverlayQuery,
+  RatingStyle,
+} from "@/lib/poster-query";
 import {
   FOOTER_PAD_Y_MAX,
   FOOTER_PAD_Y_MIN,
@@ -55,10 +63,21 @@ export function SetupOverlayPanel(props: {
 }) {
   const { overlay, setOverlay } = props;
   const atDefaults = overlayStyleMatchesDefaults(overlay);
+  const classic = overlay.look === "classic";
 
   return (
     <SetupPanel title="Overlay options">
-      <div className="mb-4 flex justify-end border-b border-white/5 pb-4">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/5 pb-4">
+        <SetupOverlayField label="Look">
+          <select
+            className="polis-select"
+            onChange={(e) => setOverlay((o) => ({ ...o, look: e.target.value as PosterLook }))}
+            value={overlay.look}
+          >
+            <option value="soft">Soft</option>
+            <option value="classic">Classic</option>
+          </select>
+        </SetupOverlayField>
         <button
           className="polis-btn px-4 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40"
           disabled={atDefaults}
@@ -106,13 +125,15 @@ export function SetupOverlayPanel(props: {
               onChange={(genreFontSize) => setOverlay((o) => ({ ...o, genreFontSize }))}
               value={overlay.genreFontSize}
             />
-            <SetupOverlayRange
-              label="Bottom inset"
-              max={FOOTER_PAD_Y_MAX}
-              min={FOOTER_PAD_Y_MIN}
-              onChange={(padY) => setGenreFooterPad(setOverlay, padY)}
-              value={overlay.padY}
-            />
+            {classic ? (
+              <SetupOverlayRange
+                label="Bottom inset"
+                max={FOOTER_PAD_Y_MAX}
+                min={FOOTER_PAD_Y_MIN}
+                onChange={(padY) => setGenreFooterPad(setOverlay, padY)}
+                value={overlay.padY}
+              />
+            ) : null}
           </>
         }
       />
@@ -123,19 +144,21 @@ export function SetupOverlayPanel(props: {
         onCheckedChange={(rating) => setOverlay((o) => ({ ...o, rating }))}
         customize={
           <>
-            <SetupOverlayField label="Format">
-              <select
-                className="polis-select"
-                onChange={(e) =>
-                  setOverlay((o) => ({ ...o, ratingStyle: e.target.value as RatingStyle }))
-                }
-                value={overlay.ratingStyle}
-              >
-                <option value="min">Star + score (★ 8.2)</option>
-                <option value="score">Score (8.2)</option>
-                <option value="votes">Score + votes</option>
-              </select>
-            </SetupOverlayField>
+            {classic ? (
+              <SetupOverlayField label="Format">
+                <select
+                  className="polis-select"
+                  onChange={(e) =>
+                    setOverlay((o) => ({ ...o, ratingStyle: e.target.value as RatingStyle }))
+                  }
+                  value={overlay.ratingStyle}
+                >
+                  <option value="min">Star + score (★ 8.2)</option>
+                  <option value="score">Score (8.2)</option>
+                  <option value="votes">Score + votes</option>
+                </select>
+              </SetupOverlayField>
+            ) : null}
             <SetupOverlayField label="Source">
               <select
                 className="polis-select"
@@ -154,11 +177,13 @@ export function SetupOverlayPanel(props: {
                 ))}
               </select>
             </SetupOverlayField>
-            <SetupOverlaySwitch
-              checked={overlay.ratingColors}
-              label="Color-coded by source"
-              onChange={(ratingColors) => setOverlay((o) => ({ ...o, ratingColors }))}
-            />
+            {classic ? (
+              <SetupOverlaySwitch
+                checked={overlay.ratingColors}
+                label="Color-coded by source"
+                onChange={(ratingColors) => setOverlay((o) => ({ ...o, ratingColors }))}
+              />
+            ) : null}
             <SetupOverlayColor
               auto={overlay.ratingColor === "auto"}
               autoLabel="Auto text color"
@@ -178,13 +203,15 @@ export function SetupOverlayPanel(props: {
               onChange={(ratingFontSize) => setOverlay((o) => ({ ...o, ratingFontSize }))}
               value={overlay.ratingFontSize}
             />
-            <SetupOverlayRange
-              label="Bottom inset"
-              max={FOOTER_PAD_Y_MAX}
-              min={FOOTER_PAD_Y_MIN}
-              onChange={(ratingPadY) => setRatingFooterPad(setOverlay, ratingPadY)}
-              value={overlay.ratingPadY}
-            />
+            {classic ? (
+              <SetupOverlayRange
+                label="Bottom inset"
+                max={FOOTER_PAD_Y_MAX}
+                min={FOOTER_PAD_Y_MIN}
+                onChange={(ratingPadY) => setRatingFooterPad(setOverlay, ratingPadY)}
+                value={overlay.ratingPadY}
+              />
+            ) : null}
           </>
         }
       />
@@ -195,10 +222,12 @@ export function SetupOverlayPanel(props: {
         onCheckedChange={(trendTags) => setOverlay((o) => ({ ...o, trendTags }))}
         customize={
           <>
-            <SetupOverlayNote>
-              Pill background is sampled from the poster art. One tag is shown (highest priority
-              match).
-            </SetupOverlayNote>
+            {classic ? (
+              <SetupOverlayNote>
+                Pill background is sampled from the poster art. One tag is shown (highest priority
+                match).
+              </SetupOverlayNote>
+            ) : null}
             <SetupOverlayRange
               label="Font size"
               max={72}
@@ -241,6 +270,29 @@ export function SetupOverlayPanel(props: {
         checked={overlay.logoOnPoster}
         label="Textless art with title logo"
         onCheckedChange={(logoOnPoster) => setOverlay((o) => ({ ...o, logoOnPoster }))}
+        customize={
+          classic ? undefined : (
+            <>
+              <SetupLogoPosition
+                onChange={(gridCell: GridCell) => setOverlay((o) => ({ ...o, gridCell }))}
+                value={overlay.gridCell}
+              />
+              <SetupOverlayField label="Size">
+                <select
+                  className="polis-select"
+                  onChange={(e) =>
+                    setOverlay((o) => ({ ...o, logoSize: e.target.value as LogoSize }))
+                  }
+                  value={overlay.logoSize}
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </SetupOverlayField>
+            </>
+          )
+        }
       />
     </SetupPanel>
   );

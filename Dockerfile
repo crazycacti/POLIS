@@ -29,6 +29,17 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public/poster-marks ./public/poster-marks
 COPY --from=builder /app/public/age-marks ./public/age-marks
 
+COPY --from=builder \
+  /app/node_modules/@fontsource/inter/files/inter-latin-600-normal.woff \
+  /app/node_modules/@fontsource/inter/files/inter-latin-700-normal.woff \
+  /app/node_modules/@fontsource/inter/files/inter-latin-ext-600-normal.woff \
+  /app/node_modules/@fontsource/inter/files/inter-latin-ext-700-normal.woff \
+  /app/node_modules/@fontsource/inter/files/inter-greek-600-normal.woff \
+  /app/node_modules/@fontsource/inter/files/inter-greek-700-normal.woff \
+  /app/node_modules/@fontsource/inter/files/inter-cyrillic-600-normal.woff \
+  /app/node_modules/@fontsource/inter/files/inter-cyrillic-700-normal.woff \
+  /app/assets/fonts/inter/
+
 RUN mkdir -p /app/assets/fonts \
   && cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf /app/assets/fonts/DejaVuSans.ttf \
   && cp /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf /app/assets/fonts/DejaVuSans-Bold.ttf

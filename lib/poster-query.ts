@@ -21,6 +21,10 @@ export type RatingStyle = "min" | "score" | "votes";
 
 export type OverlayLayout = "stack" | "row";
 
+export type PosterLook = "soft" | "classic";
+
+export type LogoSize = "small" | "medium" | "large";
+
 export type GridCell = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export type PosterOverlayQuery = {
@@ -38,6 +42,8 @@ export type PosterOverlayQuery = {
   ratingStyle: RatingStyle;
   ratingColors: boolean;
   layout: OverlayLayout;
+  look: PosterLook;
+  logoSize: LogoSize;
   gridCell: GridCell;
   genreColor: string;
   ratingColor: string;
@@ -70,6 +76,8 @@ export const POSTER_OVERLAY_DEFAULTS: PosterOverlayQuery = {
   ratingStyle: "min",
   ratingColors: false,
   layout: "row",
+  look: "soft",
+  logoSize: "medium",
   gridCell: 7,
   genreColor: "auto",
   ratingColor: "auto",
@@ -96,6 +104,8 @@ const OVERLAY_STYLE_DEFAULT_KEYS = [
   "ratingStyle",
   "ratingColors",
   "layout",
+  "look",
+  "logoSize",
   "gridCell",
   "genreColor",
   "ratingColor",
@@ -204,6 +214,14 @@ function parseLayout(raw: string | null): OverlayLayout {
   return raw === "row" ? "row" : "stack";
 }
 
+function parseLook(raw: string | null): PosterLook {
+  return raw === "classic" ? "classic" : "soft";
+}
+
+function parseLogoSize(raw: string | null): LogoSize {
+  return raw === "small" || raw === "large" ? raw : "medium";
+}
+
 const LEGACY_ANCHOR_TO_GRID: Record<string, GridCell> = {
   tl: 0,
   tc: 1,
@@ -292,6 +310,8 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     ratingStyle: parseRatingStyle(searchParams.get("rating_style")),
     ratingColors: searchParams.get("rating_colors") === "1",
     layout: parseLayout(searchParams.get("layout")),
+    look: parseLook(searchParams.get("look")),
+    logoSize: parseLogoSize(searchParams.get("logo_size")),
     gridCell: parseGridCell(searchParams),
     genreColor: parseColorParam(searchParams.get("genre_color"), d.genreColor),
     ratingColor: parseColorParam(searchParams.get("rating_color"), d.ratingColor),
@@ -339,6 +359,8 @@ export function serializePosterQuery(opts: PosterOverlayQuery): string {
   p.set("rating_style", synced.ratingStyle);
   p.set("rating_colors", synced.ratingColors ? "1" : "0");
   p.set("layout", synced.layout);
+  p.set("look", synced.look);
+  p.set("logo_size", synced.logoSize);
   p.set("grid", String(synced.gridCell));
   p.set("genre_color", serializeColorParam(synced.genreColor));
   p.set("rating_color", serializeColorParam(synced.ratingColor));

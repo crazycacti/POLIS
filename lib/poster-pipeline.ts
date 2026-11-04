@@ -5,6 +5,8 @@ import { overlayUsesMdblist } from "@/lib/overlay-requirements";
 import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/poster-badges";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { renderPosterJpeg } from "@/lib/render-poster-default";
+import { renderSoftPoster } from "@/lib/render-poster-soft";
+import { softFontAvailable } from "@/lib/poster-soft-font";
 import {
   mergeRatingScores,
   resolveRatingDisplay,
@@ -107,6 +109,21 @@ export async function renderPosterForImdb(params: {
 
   const logoPath =
     params.overlay.logoOnPoster && base.textless ? (resolved.logoPath ?? null) : null;
+
+  if (params.overlay.look === "soft" && softFontAvailable()) {
+    return renderSoftPoster({
+      imageBuffer: base.buffer,
+      artTextless: base.textless,
+      overlay: params.overlay,
+      genreNames: resolved.genreNames,
+      ratingValueTen,
+      ratingColorSource,
+      trendBadges,
+      qualityMarkIds,
+      ageBadge,
+      logoPath,
+    });
+  }
 
   return renderPosterJpeg({
     imageBuffer: base.buffer,

@@ -7,6 +7,7 @@ declare module "opentype.js" {
   };
 
   export type Glyph = {
+    index: number;
     advanceWidth?: number;
     getPath(x: number, y: number, fontSize: number): {
       getBoundingBox(): BoundingBox;
@@ -18,6 +19,7 @@ declare module "opentype.js" {
     unitsPerEm: number;
     ascender: number;
     descender: number;
+    tables: { os2?: { sCapHeight?: number } };
     charToGlyph(char: string): Glyph;
   };
 
