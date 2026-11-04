@@ -23,11 +23,15 @@ function tmdbDiskTtlMs(): number {
   return (polisEnvPositiveInt("POLIS_CACHE_TMDB_TTL_SEC") ?? DEFAULT_TMDB_DISK_TTL_SEC) * 1000;
 }
 
-async function readTmdbDiskCache(cacheKey: string): Promise<unknown | null> {
-  return readPolisDiskJson<unknown>("tmdb", "g", cacheKey, tmdbDiskTtlMs());
+async function readTmdbDiskCache(cacheKey: string, ttlMs: number): Promise<unknown | null> {
+  return readPolisDiskJson<unknown>("tmdb", "g", cacheKey, ttlMs);
 }
 
-export async function tmdbApiGet(url: URL, credential: TmdbCredential): Promise<unknown> {
+export async function tmdbApiGet(
+  url: URL,
+  credential: TmdbCredential,
+  options: { ttlSec?: number } = {},
+): Promise<unknown> {
   const target = new URL(url.toString());
   const headers: Record<string, string> = { Accept: "application/json" };
 
@@ -40,10 +44,14 @@ export async function tmdbApiGet(url: URL, credential: TmdbCredential): Promise<
   const cacheKey = tmdbCacheKey(target, credential);
 
   return polisSingleflight(`tmdb:${cacheKey}`, async () => {
-    const cached = await readTmdbDiskCache(cacheKey);
+    const ttlMs = options.ttlSec != null ? options.ttlSec * 1000 : tmdbDiskTtlMs();
+    const cached = await readTmdbDiskCache(cacheKey, ttlMs);
     if (cached !== null) return cached;
 
-    const response = await fetchUpstream(target, { headers, revalidateSeconds: 86400 });
+    const response = await fetchUpstream(target, {
+      headers,
+      revalidateSeconds: options.ttlSec ?? DEFAULT_TMDB_DISK_TTL_SEC,
+    });
     if (!response.ok) {
       return null;
     }

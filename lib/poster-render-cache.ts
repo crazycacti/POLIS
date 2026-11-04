@@ -10,6 +10,8 @@ import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
+import { findTmdbTitle } from "@/lib/tmdb-resolve";
+import { fetchTmdbTrendingRank } from "@/lib/tmdb-trending-rank";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
 type MemoryEntry = { image: Buffer; at: number };
@@ -123,6 +125,24 @@ function memoryHit(cacheKey: string): Buffer | null {
   return hit.image;
 }
 
+// The rank joins the cache key, so a poster re-renders when its place in today's trending list changes.
+async function withLiveTrendRank(params: {
+  imdbId: string;
+  overlay: PosterOverlayQuery;
+  credential: TmdbCredential;
+  language: string;
+}): Promise<PosterOverlayQuery> {
+  if (!params.overlay.trendTags || params.overlay.trendRank != null) return params.overlay;
+  try {
+    const hit = await findTmdbTitle(params.imdbId, params.credential, params.language);
+    const trendRank = hit ? await fetchTmdbTrendingRank(hit, params.credential, params.language) : null;
+    return trendRank != null ? { ...params.overlay, trendRank } : params.overlay;
+  } catch (error) {
+    console.warn(`[polis] trending rank lookup failed for ${params.imdbId}`, error);
+    return params.overlay;
+  }
+}
+
 export async function renderPosterForImdbCached(params: {
   imdbId: string;
   overlay: PosterOverlayQuery;
@@ -133,7 +153,8 @@ export async function renderPosterForImdbCached(params: {
   tvdbCredentials: TvdbCredentials | null;
   configId: string | null;
 }): Promise<PosterCacheResult | null> {
-  const overlayQueryString = serializePosterQuery(params.overlay);
+  const overlay = await withLiveTrendRank(params);
+  const overlayQueryString = serializePosterQuery(overlay);
   const cacheKey = posterRenderCacheKey({
     imdbId: params.imdbId,
     overlayQueryString,
@@ -182,7 +203,7 @@ export async function renderPosterForImdbCached(params: {
       image = await withPolisRenderLimit(() =>
         renderPosterForImdb({
           imdbId: params.imdbId,
-          overlay: params.overlay,
+          overlay,
           credential: params.credential,
           language: params.language,
           mdblistApiKey: params.mdblistApiKey,

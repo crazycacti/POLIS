@@ -4,6 +4,7 @@ import {
 } from "@/lib/polis-catalogs";
 import { defaultPosterQueryString } from "@/lib/poster-query";
 import { appendTrendRankToPosterQuery } from "@/lib/poster-badges";
+import { TMDB_TRENDING_TTL_SEC, tmdbTrendingUrl } from "@/lib/tmdb-trending-rank";
 import { posterArtUrl } from "@/lib/polis-urls";
 import {
   parseCatalogSkip,
@@ -183,11 +184,17 @@ async function fetchTmdbCatalogMetas(params: {
   let offsetInPage = globalOffset % TMDB_DISCOVER_PAGE_SIZE;
 
   while (metas.length < STREMIO_CATALOG_PAGE_SIZE) {
-    const url = new URL(`https://api.themoviedb.org/3${path}`);
+    const url = isTrendingCatalog
+      ? tmdbTrendingUrl(stremioType, language, tmdbPage)
+      : new URL(`https://api.themoviedb.org/3${path}`);
     url.searchParams.set("language", language);
     url.searchParams.set("page", String(tmdbPage));
 
-    const raw = (await tmdbApiGet(url, credential)) as TmdbPaged<TmdbTrendingRow> | null;
+    const raw = (await tmdbApiGet(
+      url,
+      credential,
+      isTrendingCatalog ? { ttlSec: TMDB_TRENDING_TTL_SEC } : {},
+    )) as TmdbPaged<TmdbTrendingRow> | null;
     const rows = raw?.results ?? [];
     if (!rows.length) break;
 
