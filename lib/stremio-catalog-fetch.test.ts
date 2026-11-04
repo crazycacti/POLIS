@@ -8,11 +8,18 @@ describe("fetchMdblistCatalogMetas", () => {
     const apiKey = process.env.MDBLIST_API_KEY?.trim();
     if (!apiKey) return;
 
+    // Hard-coded list ids get deleted upstream; pick a current public movie list instead.
+    const topUrl = new URL("https://api.mdblist.com/lists/top");
+    topUrl.searchParams.set("apikey", apiKey);
+    const top = (await (await fetch(topUrl)).json()) as { id?: number; mediatype?: string; items?: number }[];
+    const list = top.find((row) => row.mediatype === "movie" && (row.items ?? 0) > 0);
+    expect(list?.id).toBeDefined();
+
     const def: PolisCatalogDefinition = {
-      id: "mdblist-list-161766-movie",
+      id: `mdblist-list-${list!.id}-movie`,
       type: "movie",
-      name: "Today's Most Popular Movies",
-      provider: { kind: "mdblist", list: "list", listId: "161766" },
+      name: "Top list",
+      provider: { kind: "mdblist", list: "list", listId: String(list!.id) },
     };
 
     const metas = await fetchPolisCatalogMetas({

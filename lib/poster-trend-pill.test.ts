@@ -13,7 +13,7 @@ const hasFonts = getOverlayFont(700) != null;
 describe("poster trend pill", () => {
   test("returns null without overlay fonts", () => {
     if (hasFonts) return;
-    expect(measureTrendPillBadge({ text: "Certified Hot", priority: 72 }, 500, 45)).toBeNull();
+    expect(measureTrendPillBadge({ text: "Certified Hot", kind: "trend" }, 500, 45)).toBeNull();
   });
 
   test("centered trend sits flush on poster top", () => {

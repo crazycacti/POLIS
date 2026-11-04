@@ -12,7 +12,9 @@
     "build:clean": "rm -rf .next && bun --bun next build",
     "sync:fonts": "sh scripts/sync-overlay-fonts.sh",
     "fetch:fonts": "sh scripts/fetch-overlay-fonts.sh",
-    "start": "bun --bun next start -p 3050"
+    "start": "bun --bun next start -p 3050",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "lucide-react": "^0.553.0",
@@ -24,6 +26,7 @@
   },
   "devDependencies": {
     "@fontsource/dejavu-sans": "^5.2.5",
+    "@types/bun": "^1.4.4",
     "@types/node": "^22.19.19",
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",

@@ -16,7 +16,7 @@ describe("overlay font metrics", () => {
 
   test("certified hot glyph bbox fits inside pill", () => {
     if (!hasFonts) return;
-    const metrics = measureTrendPillBadge({ text: "Certified Hot", priority: 72 }, 500, 45);
+    const metrics = measureTrendPillBadge({ text: "Certified Hot", kind: "trend" }, 500, 45);
     expect(metrics).not.toBeNull();
     const layout = buildTrendPillGlyphLayout(metrics!.text, metrics!.fontSize, metrics!.padX, metrics!.padY)!;
     expect(layout.boxW).toBe(metrics!.boxW);
