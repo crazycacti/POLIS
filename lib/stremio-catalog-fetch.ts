@@ -23,6 +23,7 @@ export type StremioCatalogMeta = {
 };
 
 const TMDB_DISCOVER_PAGE_SIZE = 20;
+const TMDB_EXTERNAL_ID_CONCURRENCY = 10;
 
 type TmdbTrendingRow = {
   id?: number;
@@ -83,17 +84,22 @@ function mdblistRowsForCatalogType(
   return [];
 }
 
-async function mapWithConcurrency<T, R>(
+// A rolling pool: a slow request holds one slot instead of stalling a whole batch.
+export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<R>,
 ): Promise<R[]> {
-  const out: R[] = [];
-  for (let i = 0; i < items.length; i += limit) {
-    const chunk = items.slice(i, i + limit);
-    const chunkOut = await Promise.all(chunk.map(fn));
-    out.push(...chunkOut);
-  }
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      out[index] = await fn(items[index]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return out;
 }
 
@@ -190,7 +196,7 @@ async function fetchTmdbCatalogMetas(params: {
 
     const resolved = await mapWithConcurrency(
       slice.map((row, index) => ({ row, index })),
-      8,
+      TMDB_EXTERNAL_ID_CONCURRENCY,
       ({ row, index }) =>
         tmdbRowToCatalogMeta({
           row,

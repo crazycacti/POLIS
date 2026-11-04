@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { readPolisDiskBytes, readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
+import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
@@ -16,23 +16,15 @@ function tmdbCacheKey(url: URL, credential: TmdbCredential): string {
   return [tmdbCredentialFingerprint(credential), url.pathname, url.search].join("\0");
 }
 
-function tmdbDiskTtlMs(): number | null {
-  const sec = polisEnvPositiveInt("POLIS_CACHE_TMDB_TTL_SEC");
-  return sec != null ? sec * 1000 : null;
+// Scores and air dates change daily; TMDB terms also cap caching at six months.
+const DEFAULT_TMDB_DISK_TTL_SEC = 24 * 60 * 60;
+
+function tmdbDiskTtlMs(): number {
+  return (polisEnvPositiveInt("POLIS_CACHE_TMDB_TTL_SEC") ?? DEFAULT_TMDB_DISK_TTL_SEC) * 1000;
 }
 
 async function readTmdbDiskCache(cacheKey: string): Promise<unknown | null> {
-  const ttlMs = tmdbDiskTtlMs();
-  if (ttlMs != null) {
-    return readPolisDiskJson<unknown>("tmdb", "g", cacheKey, ttlMs);
-  }
-  const raw = await readPolisDiskBytes("tmdb", "g", cacheKey, ".json");
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw.toString("utf8")) as unknown;
-  } catch {
-    return null;
-  }
+  return readPolisDiskJson<unknown>("tmdb", "g", cacheKey, tmdbDiskTtlMs());
 }
 
 export async function tmdbApiGet(url: URL, credential: TmdbCredential): Promise<unknown> {

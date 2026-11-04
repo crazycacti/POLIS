@@ -121,7 +121,7 @@ export async function preparePosterLogoRaster(
   maxWidth: number,
 ): Promise<{ buffer: Buffer; width: number; height: number } | null> {
   ensurePolisSharpConfigured();
-  const raw = await renderLogoPng(logoPath);
+  const raw = await renderLogoPng(logoPath, "w500");
   if (!raw) return null;
 
   const trimmed = await trimLogoTransparentPadding(raw);

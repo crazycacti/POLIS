@@ -11,7 +11,7 @@ import {
   type RatingScores,
 } from "@/lib/ratings";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
-import { resolveTitleForArtwork } from "@/lib/tmdb-resolve";
+import { findTmdbTitle, resolveTitleForArtwork } from "@/lib/tmdb-resolve";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
 export async function renderPosterForImdb(params: {
@@ -25,7 +25,30 @@ export async function renderPosterForImdb(params: {
   configId?: string | null;
   onDegraded?: () => void;
 }): Promise<Buffer | null> {
-  const resolved = await resolveTitleForArtwork(params.imdbId, params.credential, params.language);
+  const hit = await findTmdbTitle(params.imdbId, params.credential, params.language);
+  if (!hit) return null;
+
+  const needsMdblist = overlayUsesMdblist(params.overlay);
+  // Ratings only need the IMDb id and type, so fetch them while details and artwork load.
+  const mdblistPromise: Promise<MdblistMediaInfo | null> =
+    params.mdblistApiKey && needsMdblist
+      ? fetchMdblistMediaInfo({
+          imdbId: params.imdbId,
+          stremioType: hit.stremioType,
+          apiKey: params.mdblistApiKey,
+        }).catch((error: unknown) => {
+          console.warn(`[polis] mdblist lookup failed for ${params.imdbId}`, error);
+          params.onDegraded?.();
+          return null;
+        })
+      : Promise.resolve(null);
+
+  const resolved = await resolveTitleForArtwork(
+    params.imdbId,
+    params.credential,
+    params.language,
+    hit,
+  );
   if (!resolved) return null;
 
   const base = await getPosterBaseBufferCached({
@@ -46,21 +69,7 @@ export async function renderPosterForImdb(params: {
   });
   if (!base) return null;
 
-  const needsMdblist = overlayUsesMdblist(params.overlay);
-
-  let mdblist: MdblistMediaInfo | null = null;
-  if (params.mdblistApiKey && needsMdblist) {
-    try {
-      mdblist = await fetchMdblistMediaInfo({
-        imdbId: params.imdbId,
-        stremioType: resolved.stremioType,
-        apiKey: params.mdblistApiKey,
-      });
-    } catch (error) {
-      console.warn(`[polis] mdblist lookup failed for ${params.imdbId}`, error);
-      params.onDegraded?.();
-    }
-  }
+  const mdblist = await mdblistPromise;
 
   const scores: RatingScores = mergeRatingScores(mdblist?.ratings ?? {}, resolved.voteAverage);
   const ratingStyle = params.overlay.ratingStyle === "votes" ? "score" : params.overlay.ratingStyle;

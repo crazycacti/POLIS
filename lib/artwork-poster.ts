@@ -16,6 +16,9 @@ import type { ResolvedTitle } from "@/lib/tmdb-resolve";
 import { fetchTvdbSeriesPoster } from "@/lib/tvdb-client";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
+// Posters render at 500x750, so the 780 px rendition is enough and far smaller than the original.
+const TMDB_POSTER_BASE_URL = "https://image.tmdb.org/t/p/w780";
+
 type TmdbImageRow = {
   file_path?: string | null;
   iso_639_1?: string | null;
@@ -58,6 +61,7 @@ export async function fetchTmdbImagePosters(
   resolved: ResolvedTitle,
   credential: TmdbCredential,
 ): Promise<TmdbImageRow[]> {
+  if (resolved.posterImages) return resolved.posterImages;
   const kind = resolved.stremioType === "movie" ? "movie" : "tv";
   const url = new URL(`https://api.themoviedb.org/3/${kind}/${resolved.tmdbNumericId}/images`);
   const raw = await tmdbApiGet(url, credential);
@@ -98,7 +102,7 @@ async function resolveTmdbPoster(
   const tmdbPath = tmdbFromImages ?? resolved.posterPath;
   if (!tmdbPath) return null;
   const textless = posters.some((p) => p.file_path === tmdbPath && p.iso_639_1 === "xx");
-  return { url: `https://image.tmdb.org/t/p/original${tmdbPath}`, textless };
+  return { url: `${TMDB_POSTER_BASE_URL}${tmdbPath}`, textless };
 }
 
 function untexted(url: string | null): ArtworkCandidate | null {
