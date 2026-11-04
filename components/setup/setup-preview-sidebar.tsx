@@ -11,8 +11,7 @@ export function SetupPreviewSidebar(props: {
   hasPreviewCredential: boolean;
 }) {
   const { displaySrc, isLoading, loadFailed } = usePreloadedPosterSrc(props.livePreviewSrc);
-  const waitingForPreview =
-    Boolean(props.livePreviewSrc) && !displaySrc && !loadFailed && isLoading;
+  const waitingForPreview = Boolean(props.livePreviewSrc) && !displaySrc && !loadFailed;
   const showPoster = Boolean(displaySrc) && !loadFailed;
 
   const liveMessage =
