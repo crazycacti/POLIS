@@ -195,7 +195,7 @@ async function handleStremioCatalogRequestInner(
       catalogDefinitions: config?.catalogs,
       configId: config?.id,
     });
-    prewarmCatalogPosters(built, publicBase);
+    if (skip === 0) prewarmCatalogPosters(built, publicBase);
     return built;
   });
 
