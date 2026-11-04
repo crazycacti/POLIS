@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { formatTvdbCredentials, type TvdbCredentials } from "@/lib/tvdb-credentials";
 
-function hashPart(label: string, value: string | null | undefined): string {
+export function hashPart(label: string, value: string | null | undefined): string {
   if (!value?.trim()) return "";
   return `${label}:${createHash("sha256").update(value.trim()).digest("hex").slice(0, 12)}`;
 }

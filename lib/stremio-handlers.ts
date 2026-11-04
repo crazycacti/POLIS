@@ -11,6 +11,7 @@ import {
   getOrBuildStremioCatalog,
   getOrBuildStremioMeta,
   stremioCatalogCacheKey,
+  stremioCredentialFingerprint,
   stremioMetaCacheKey,
 } from "@/lib/stremio-response-cache";
 import {
@@ -110,6 +111,10 @@ async function handleStremioMetaRequestInner(
     language,
     publicBase,
     posterQueryString: posterQuery,
+    credentialFingerprint: stremioCredentialFingerprint(
+      integrator.tmdb.credential,
+      integrator.mdblistApiKey,
+    ),
   });
 
   const meta = await getOrBuildStremioMeta(metaCacheKey, config?.id ?? null, async () => {
@@ -171,6 +176,10 @@ async function handleStremioCatalogRequestInner(
     publicBase,
     posterQueryString: config?.posterQuery,
     catalogs: config?.catalogs,
+    credentialFingerprint: stremioCredentialFingerprint(
+      integrator.tmdb?.credential,
+      integrator.mdblistApiKey,
+    ),
   });
   const metas = await getOrBuildStremioCatalog(catalogCacheKey, config?.id ?? null, () =>
     fetchPolisCatalogMetas({

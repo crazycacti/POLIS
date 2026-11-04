@@ -3,10 +3,12 @@ import { createHash } from "node:crypto";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import { serializePolisCatalogDefinitions } from "@/lib/polis-catalogs-json";
+import { hashPart } from "@/lib/integrator-cache-fingerprint";
 import { polisCacheScope } from "@/lib/polis-cache-path";
 import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import type { StremioCatalogMeta } from "@/lib/stremio-catalog-fetch";
+import type { TmdbCredential } from "@/lib/tmdb-auth";
 
 const STREMIO_CATALOG_CACHE_GENERATION = "2";
 
@@ -25,6 +27,21 @@ function catalogsFingerprint(catalogs: PolisCatalogDefinition[] | undefined): st
   return createHash("sha256").update(serializePolisCatalogDefinitions(catalogs)).digest("hex").slice(0, 16);
 }
 
+// Responses embed request-supplied keys in art URLs and depend on the caller's watchlist,
+// so entries built with one caller's credentials must never be served to another.
+export function stremioCredentialFingerprint(
+  credential: TmdbCredential | null | undefined,
+  mdblistApiKey: string | null | undefined,
+): string {
+  const tmdb = !credential
+    ? ""
+    : credential.kind === "bearer"
+      ? hashPart("tmdb_b", credential.token)
+      : hashPart("tmdb_k", credential.key);
+  const parts = [tmdb, hashPart("mdb", mdblistApiKey)].filter(Boolean);
+  return parts.length > 0 ? parts.join("|") : "_";
+}
+
 export function stremioMetaCacheKey(params: {
   configId: string | null;
   stremioType: string;
@@ -32,12 +49,14 @@ export function stremioMetaCacheKey(params: {
   language: string;
   publicBase: string;
   posterQueryString: string | undefined;
+  credentialFingerprint: string;
 }): string {
   const posterQs = params.posterQueryString?.trim() || "";
   return [
     String(POLIS_RENDERER_REVISION),
     "meta",
     params.configId?.trim() || "_",
+    params.credentialFingerprint,
     params.publicBase,
     params.language,
     params.stremioType,
@@ -55,6 +74,7 @@ export function stremioCatalogCacheKey(params: {
   publicBase: string;
   posterQueryString: string | undefined;
   catalogs: PolisCatalogDefinition[] | undefined;
+  credentialFingerprint: string;
 }): string {
   const posterQs = params.posterQueryString?.trim() || "";
   return [
@@ -62,6 +82,7 @@ export function stremioCatalogCacheKey(params: {
     STREMIO_CATALOG_CACHE_GENERATION,
     "catalog",
     params.configId?.trim() || "_",
+    params.credentialFingerprint,
     params.publicBase,
     params.language,
     params.stremioType,
@@ -126,6 +147,7 @@ export async function getOrBuildStremioMeta(
     if (raced) return raced;
 
     const meta = await build();
+    if (Object.keys(meta).length === 0) return meta;
     void writeCachedStremioMeta(cacheKey, configId, meta).catch(() => {});
     return meta;
   });
