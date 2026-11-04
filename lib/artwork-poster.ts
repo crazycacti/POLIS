@@ -38,8 +38,9 @@ export function pickTmdbPosterPath(
 
   if (preferTextless) {
     const textless = posters.filter(isTextlessTmdbPoster);
-    const xx = textless.find((p) => p.iso_639_1 === "xx");
-    if (xx?.file_path) return xx.file_path;
+    // TMDB tags most textless posters with no language; xx stays first because it is set on purpose.
+    const pick = textless.find((p) => p.iso_639_1 === "xx") ?? textless[0];
+    if (pick?.file_path) return pick.file_path;
     return pickTmdbPosterPath(posters, language, false);
   }
 
@@ -101,7 +102,7 @@ async function resolveTmdbPoster(
   const tmdbFromImages = pickTmdbImagesPosterPath(posters, language, preferTextless);
   const tmdbPath = tmdbFromImages ?? resolved.posterPath;
   if (!tmdbPath) return null;
-  const textless = posters.some((p) => p.file_path === tmdbPath && p.iso_639_1 === "xx");
+  const textless = posters.some((p) => p.file_path === tmdbPath && isTextlessTmdbPoster(p));
   return { url: `${TMDB_POSTER_BASE_URL}${tmdbPath}`, textless };
 }
 

@@ -39,11 +39,23 @@ describe("poster artwork selection", () => {
     expect(postersHasXxTextless([{ file_path: "/neutral.jpg", iso_639_1: null }])).toBe(false);
   });
 
-  test("title logo mode uses titled poster when no xx textless", () => {
+  test("title logo mode falls back to a no-language poster when no xx textless", () => {
     const path = pickTmdbPosterPath(
       [
         { file_path: "/en.jpg", iso_639_1: "en" },
         { file_path: "/neutral.jpg", iso_639_1: null },
+      ],
+      "en-US",
+      true,
+    );
+    expect(path).toBe("/neutral.jpg");
+  });
+
+  test("title logo mode uses titled poster when nothing is textless", () => {
+    const path = pickTmdbPosterPath(
+      [
+        { file_path: "/en.jpg", iso_639_1: "en" },
+        { file_path: "/fr.jpg", iso_639_1: "fr" },
       ],
       "en-US",
       true,
