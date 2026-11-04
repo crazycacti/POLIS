@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { checkConfigPassword } from "@/lib/polis-config-api-auth";
 import {
   configureSessionCookieHeader,
   createConfigureSessionToken,
-  verifyConfigPassword,
 } from "@/lib/polis-config-auth";
 import { isValidPolisConfigId } from "@/lib/polis-config-id";
-import { getConfigPasswordHash, getPolisConfig } from "@/lib/polis-config-store";
+import { getPolisConfig } from "@/lib/polis-config-store";
 
 export const runtime = "nodejs";
 
@@ -46,10 +46,11 @@ export async function POST(
     return NextResponse.json({ error: "Password is required." }, { status: 400 });
   }
 
-  const hash = getConfigPasswordHash(configId);
-  const valid = await verifyConfigPassword(password, hash);
-  if (!valid) {
-    return NextResponse.json({ error: "Invalid password." }, { status: 401 });
+  const check = await checkConfigPassword(configId, password);
+  if (!check.ok) {
+    const headers: HeadersInit =
+      check.status === 429 ? { "Retry-After": String(check.retryAfterSeconds) } : {};
+    return NextResponse.json({ error: check.error }, { status: check.status, headers });
   }
 
   const token = createConfigureSessionToken(configId);
