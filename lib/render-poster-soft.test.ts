@@ -3,7 +3,7 @@ import sharp from "sharp";
 
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import { softFontAvailable } from "@/lib/poster-soft-font";
-import { logoLegibleShare, logoScrimAlpha, renderSoftPoster } from "@/lib/render-poster-soft";
+import { fitTopRow, logoLegibleShare, logoScrimAlpha, renderSoftPoster } from "@/lib/render-poster-soft";
 
 describe("poster look options", () => {
   test("soft and medium logo are the defaults and survive a round trip", () => {
@@ -90,5 +90,56 @@ describe("logoLegibleShare", () => {
     const bright = sample([1], [0.5]);
     expect(logoLegibleShare(bright, 0)).toBe(0);
     expect(logoLegibleShare(bright, 0.6)).toBe(1);
+  });
+});
+
+// Stremio skips poster images over 100 KB, so the busiest look must stay under it.
+const STREMIO_POSTER_MAX_BYTES = 100 * 1024;
+
+describe("poster size", () => {
+  test("every sample title stays under the poster size limit with all options on", async () => {
+    if (!softFontAvailable()) return;
+    const { DEMO_TITLES } = await import("@/lib/demo-catalog");
+    const { loadDemoArtBuffer } = await import("@/lib/demo-art-cache");
+    const overlay = parsePosterOverlayQuery(
+      new URLSearchParams("genre=1&rating=1&trend=1&quality=1&age=1&logo=0"),
+    );
+    for (const demo of DEMO_TITLES) {
+      const art = await loadDemoArtBuffer(demo.id);
+      expect(art).not.toBeNull();
+      const out = await renderSoftPoster({
+        imageBuffer: art!,
+        artTextless: demo.artTextless,
+        overlay,
+        genreNames: demo.genreNames,
+        ratingValueTen: demo.voteAverage,
+        ratingColorSource: "average",
+        trendBadges: demo.trendText ? [{ text: demo.trendText, kind: "trend" }] : [],
+        qualityMarkIds: demo.qualityMarkIds,
+        ageBadge: demo.ageLabel ? { text: demo.ageLabel, kind: "age" } : null,
+        logoPath: null,
+      });
+      expect(out!.length).toBeLessThan(STREMIO_POSTER_MAX_BYTES);
+    }
+  });
+});
+
+describe("fitTopRow", () => {
+  const text = (width: number) => ({ kind: "text" as const, text: "x", width });
+
+  test("keeps everything at full size when it fits", () => {
+    if (!softFontAvailable()) return;
+    const row = fitTopRow({ label: "Top Rated", items: [text(30)], fs: 29, w: 500, padX: 40 });
+    expect(row.fs).toBe(29);
+    expect(row.items).toHaveLength(1);
+  });
+
+  test("never runs wider than the poster, dropping the last marks first", () => {
+    if (!softFontAvailable()) return;
+    const items = [text(60), text(60), text(60), text(60), text(60)];
+    const row = fitTopRow({ label: "Golden Globe Winner", items, fs: 29, w: 500, padX: 40 });
+    expect(row.items.length).toBeLessThan(items.length);
+    expect(row.fs).toBeGreaterThanOrEqual(Math.round(29 * 0.75));
+    expect(row.itemsWidth).toBeLessThanOrEqual(500 - 80);
   });
 });

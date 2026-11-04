@@ -5,7 +5,7 @@ import { overlayUsesMdblist } from "@/lib/overlay-requirements";
 import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/poster-badges";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { renderPosterJpeg } from "@/lib/render-poster-default";
-import { renderSoftPoster } from "@/lib/render-poster-soft";
+import { MAX_LOGO_ALTERNATES, renderSoftPoster } from "@/lib/render-poster-soft";
 import { softFontAvailable } from "@/lib/poster-soft-font";
 import {
   mergeRatingScores,
@@ -15,8 +15,6 @@ import {
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { findTmdbTitle, resolveTitleForArtwork } from "@/lib/tmdb-resolve";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
-
-const MAX_LOGO_ALTERNATES = 2;
 
 export async function renderPosterForImdb(params: {
   imdbId: string;

@@ -1,5 +1,7 @@
 import type { PosterPillBadge } from "@/lib/poster-badges";
 import { buildTrendPillGlyphLayout } from "@/lib/overlay-font-metrics";
+import { POSTER_OVERLAY_DEFAULTS } from "@/lib/poster-query";
+import { labelTextPx } from "@/lib/poster-type-scale";
 
 export type TrendPillMetrics = {
   text: string;
@@ -13,14 +15,8 @@ export type TrendPillMetrics = {
   textOffsetY: number;
 };
 
-const TREND_FONT_REF = 57;
-
 export function scaledTrendFontSize(canvasW: number, configuredTrendFontSize: number): number {
-  const nominal = Math.min(Math.max(Math.round(canvasW * 0.08), 30), 44);
-  return Math.min(
-    Math.max(Math.round(nominal * (configuredTrendFontSize / TREND_FONT_REF)), 18),
-    72,
-  );
+  return labelTextPx(canvasW, { ...POSTER_OVERLAY_DEFAULTS, trendFontSize: configuredTrendFontSize }, "trendFontSize");
 }
 
 export function trendPillPadding(

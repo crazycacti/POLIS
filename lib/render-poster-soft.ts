@@ -6,18 +6,19 @@ import { encodePosterImage } from "@/lib/poster-encode";
 import { normalizeGenreLabel } from "@/lib/poster-footer-pill";
 import { regionBadgeBackground } from "@/lib/poster-overlay-colors";
 import { preparePosterLogoRaster } from "@/lib/poster-logo-on-poster";
-import { compositeTopRightCluster, type QualityMarkId } from "@/lib/poster-quality-marks";
 import {
-  POSTER_OVERLAY_DEFAULTS,
-  type LogoSize,
-  type PosterOverlayQuery,
-} from "@/lib/poster-query";
+  loadMarkGlyph,
+  normalizeQualityMarkIds,
+  type QualityMarkId,
+} from "@/lib/poster-quality-marks";
+import type { PosterOverlayQuery } from "@/lib/poster-query";
 import {
   fitSoftText,
   measureSoftText,
   softCapHeight,
   softTextPath,
 } from "@/lib/poster-soft-font";
+import { LOGO_GAP_SHARE, labelTextPx, logoMaxBox, scoreTextPx, textSizeFactor } from "@/lib/poster-type-scale";
 import { ratingDisplayColor } from "@/lib/rating-colors";
 import type { RatingSource } from "@/lib/ratings";
 import { escapeXml } from "@/lib/xml-escape";
@@ -28,17 +29,24 @@ const PAD_BOTTOM = 0.055;
 const PAD_TOP = 0.05;
 const RING_DIAMETER = 0.17;
 const RING_STROKE = 0.012;
-const SCORE_FONT = 0.064;
-const GENRE_FONT = 0.046;
-const TREND_FONT = 0.048;
 const FOOTER_GAP = 0.04;
-const LOGO_GAP = 0.035;
+const TOP_ITEM_GAP = 0.5;
+const TOP_ROW_MIN_SCALE = 0.75;
+const TOP_ROW_SCALE_STEP = 0.05;
+const DOLBY_GLYPH_HEIGHT = 0.9;
+
+const MARK_TEXT: Partial<Record<QualityMarkId, string>> = {
+  "4k": "4K",
+  "1080p": "1080p",
+  "720p": "720p",
+  hdr: "HDR",
+};
+// Left to right; when the row is full the last items go first.
+const MARK_ORDER: QualityMarkId[] = ["4k", "1080p", "720p", "dolby", "hdr"];
 const BLUR_BAND = 0.2;
 const SCRIM_BAND = 0.38;
 const BLUR_SIGMA = 0.012;
 
-const LOGO_WIDTH_SHARE: Record<LogoSize, number> = { small: 0.5, medium: 0.66, large: 0.8 };
-const LOGO_MAX_HEIGHT_SHARE = 0.24;
 const LOGO_SHADOW_SIGMA = 0.012;
 const LOGO_SHADOW_OFFSET = 0.004;
 const LOGO_SHADOW_ALPHA = 0.55;
@@ -47,6 +55,7 @@ const LOGO_MIN_CONTRAST = 3;
 const LIGHT_LOGO_LUMINANCE = 0.4;
 const LOGO_BACKDROP_PERCENTILE = 0.75;
 const LOGO_MIN_LEGIBLE_SHARE = 0.6;
+export const MAX_LOGO_ALTERNATES = 2;
 const LOGO_SCRIM_MAX_ALPHA = 0.6;
 const LOGO_SCRIM_PAD = 0.06;
 const LOGO_SCRIM_SIGMA = 0.03;
@@ -56,15 +65,14 @@ const RING_DISC = "rgba(0,0,0,0.38)";
 const CAPSULE_HEIGHT = 1.85;
 const CAPSULE_PAD_X = 0.62;
 const CAPSULE_ALPHA = 0.86;
+const TAB_HEIGHT = 1.95;
+const TAB_RADIUS = 0.34;
 // White text needs 4.5:1, which holds while the fill stays under this luminance.
 const CAPSULE_MAX_LUMINANCE = 0.12;
+const CAPSULE_DARKEN = 0.45;
 const TEXT_PRIMARY = "#ffffff";
 
 type Rect = { left: number; top: number; width: number; height: number };
-
-function sizeFactor(configured: number, fallback: number): number {
-  return Math.min(1.6, Math.max(0.6, configured / fallback));
-}
 
 function ringColor(
   overlay: Pick<PosterOverlayQuery, "ratingColor">,
@@ -198,15 +206,19 @@ export function logoScrimAlpha(logoLum: number, backdropLum: number): number {
 }
 
 function logoScrim(rect: Rect, w: number, h: number, alpha: number): { input: Buffer; top: number; left: number } {
-  const pad = Math.round(w * LOGO_SCRIM_PAD);
+  // The canvas needs about three sigma beyond the pool so the blur fades out instead of ending in a hard edge.
+  const blur = w * LOGO_SCRIM_SIGMA;
+  const inset = Math.round(w * LOGO_SCRIM_PAD / 2);
+  const pad = inset + Math.ceil(blur * 3);
   const left = Math.max(0, rect.left - pad);
   const top = Math.max(0, rect.top - pad);
   const width = Math.min(w, rect.left + rect.width + pad) - left;
   const height = Math.min(h, rect.top + rect.height + pad) - top;
-  const inset = Math.round(pad / 2);
+  const rx = rect.left - left - inset;
+  const ry = rect.top - top - inset;
   return {
     input: Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${(w * LOGO_SCRIM_SIGMA).toFixed(2)}"/></filter><rect x="${inset}" y="${inset}" width="${Math.max(1, width - inset * 2)}" height="${Math.max(1, height - inset * 2)}" rx="${inset}" fill="#000" fill-opacity="${alpha.toFixed(3)}" filter="url(#b)"/></svg>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><filter id="b" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="${blur.toFixed(2)}"/></filter><rect x="${rx}" y="${ry}" width="${rect.width + inset * 2}" height="${rect.height + inset * 2}" rx="${inset}" fill="#000" fill-opacity="${alpha.toFixed(3)}" filter="url(#b)"/></svg>`,
     ),
     top,
     left,
@@ -216,11 +228,13 @@ function logoScrim(rect: Rect, w: number, h: number, alpha: number): { input: Bu
 async function capsuleFill(base: Buffer, rect: Rect): Promise<string> {
   const { r, g, b } = await regionBadgeBackground(base, rect);
   const lum = pixelLuminance(r, g, b);
-  const k = lum > CAPSULE_MAX_LUMINANCE ? (CAPSULE_MAX_LUMINANCE / lum) ** (1 / 2.4) : 1;
+  // Always step below the art so the shape reads even where the art is already dark.
+  const target = Math.min(CAPSULE_MAX_LUMINANCE, lum * CAPSULE_DARKEN);
+  const k = lum > 0 ? (target / lum) ** (1 / 2.4) : 1;
   return `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${CAPSULE_ALPHA})`;
 }
 
-type Capsule = { text: string; rect: Rect; fs: number };
+type Capsule = { text: string; rect: Rect; fs: number; tab: boolean };
 
 function capsuleAt(text: string, fs: number, left: number, centerY: number, maxW: number): Capsule | null {
   const padX = Math.round(fs * CAPSULE_PAD_X);
@@ -228,19 +242,138 @@ function capsuleAt(text: string, fs: number, left: number, centerY: number, maxW
   if (!fitted) return null;
   const height = Math.round(fs * CAPSULE_HEIGHT);
   const width = Math.round(measureSoftText(fitted, fs, 600) + padX * 2);
-  return { text: fitted, fs, rect: { left, top: Math.round(centerY - height / 2), width, height } };
+  return { text: fitted, fs, tab: false, rect: { left, top: Math.round(centerY - height / 2), width, height } };
+}
+
+// With the top row free, the flag hangs from the top edge as a centered tab and stays clear of client corner badges.
+function topTabAt(text: string, fs: number, w: number, maxW: number): Capsule | null {
+  const padX = Math.round(fs * CAPSULE_PAD_X * 1.3);
+  const fitted = fitSoftText(text, fs, 600, maxW - padX * 2);
+  if (!fitted) return null;
+  const height = Math.round(fs * TAB_HEIGHT);
+  const width = Math.round(measureSoftText(fitted, fs, 600) + padX * 2);
+  return { text: fitted, fs, tab: true, rect: { left: Math.round((w - width) / 2), top: 0, width, height } };
 }
 
 async function capsuleSvg(base: Buffer, capsule: Capsule): Promise<string[]> {
   const { rect, fs, text } = capsule;
   const fill = await capsuleFill(base, rect);
+  const { left: x, top: y, width: cw, height: ch } = rect;
+  const r = Math.round(ch * TAB_RADIUS);
+  const shape = capsule.tab
+    ? `<path d="M${x} ${y}H${x + cw}V${y + ch - r}Q${x + cw} ${y + ch} ${x + cw - r} ${y + ch}H${x + r}Q${x} ${y + ch} ${x} ${y + ch - r}Z" fill="${fill}"/>`
+    : `<rect x="${x}" y="${y}" width="${cw}" height="${ch}" rx="${(ch / 2).toFixed(2)}" fill="${fill}"/>`;
+  const parts = [shape];
+  const baseline = y + ch / 2 + softCapHeight(fs, 600) / 2;
+  const textX = x + (cw - measureSoftText(text, fs, 600)) / 2;
+  const placed = softTextPath(text, textX, baseline, fs, 600);
+  if (placed) parts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
+  return parts;
+}
+
+export type TopItem =
+  | { kind: "text"; text: string; width: number }
+  | { kind: "glyph"; buf: Buffer; width: number; height: number };
+
+async function buildTopItems(
+  markIds: QualityMarkId[],
+  ageLabel: string | null,
+  fs: number,
+): Promise<TopItem[]> {
+  const items: TopItem[] = [];
+  for (const id of MARK_ORDER) {
+    if (!markIds.includes(id)) continue;
+    const text = MARK_TEXT[id];
+    if (text) {
+      items.push({ kind: "text", text, width: measureSoftText(text, fs, 600) });
+      continue;
+    }
+    const glyph = await loadMarkGlyph(id, fs * DOLBY_GLYPH_HEIGHT);
+    if (glyph) items.push({ kind: "glyph", buf: glyph.buf, width: glyph.width, height: glyph.height });
+  }
+  if (ageLabel) items.push({ kind: "text", text: ageLabel, width: measureSoftText(ageLabel, fs, 600) });
+  return items;
+}
+
+function itemsCapsuleWidth(items: TopItem[], scale: number, fs: number): number {
+  if (items.length === 0) return 0;
+  const content = items.reduce((sum, item) => sum + item.width * scale, 0);
+  const gaps = fs * scale * TOP_ITEM_GAP * (items.length - 1);
+  return Math.round(content + gaps + fs * scale * CAPSULE_PAD_X * 2);
+}
+
+// One row at one height: shrink the type a little, then drop the lowest marks, never wrap.
+export function fitTopRow(params: {
+  label: string | null;
+  items: TopItem[];
+  fs: number;
+  w: number;
+  padX: number;
+}): { label: string | null; items: TopItem[]; fs: number; itemsWidth: number } {
+  const available = params.w - params.padX * 2;
+  const separation = Math.round(params.w * FOOTER_GAP);
+  const labelWidth = (fs: number) =>
+    params.label ? measureSoftText(params.label, fs, 600) + fs * CAPSULE_PAD_X * 2 : 0;
+  const rowWidth = (items: TopItem[], scale: number) => {
+    const fs = params.fs * scale;
+    const right = itemsCapsuleWidth(items, scale, params.fs);
+    if (!params.label) return right;
+    return right > 0 ? labelWidth(fs) + separation + right : labelWidth(fs);
+  };
+
+  let items = params.items;
+  for (;;) {
+    for (let scale = 1; scale >= TOP_ROW_MIN_SCALE - 1e-9; scale -= TOP_ROW_SCALE_STEP) {
+      if (rowWidth(items, scale) <= available) {
+        return {
+          label: params.label,
+          items: items.map((item) => scaleTopItem(item, scale)),
+          fs: Math.round(params.fs * scale),
+          itemsWidth: itemsCapsuleWidth(items, scale, params.fs),
+        };
+      }
+    }
+    if (items.length === 0) {
+      return { label: params.label, items: [], fs: Math.round(params.fs * TOP_ROW_MIN_SCALE), itemsWidth: 0 };
+    }
+    items = items.slice(0, -1);
+  }
+}
+
+function scaleTopItem(item: TopItem, scale: number): TopItem {
+  return item.kind === "text"
+    ? { ...item, width: item.width * scale }
+    : { ...item, width: item.width * scale, height: item.height * scale };
+}
+
+async function marksCapsuleSvg(
+  base: Buffer,
+  capsule: { rect: Rect; items: TopItem[]; fs: number },
+): Promise<{ parts: string[]; glyphs: OverlayOptions[] }> {
+  const { rect, items, fs } = capsule;
+  const fill = await capsuleFill(base, rect);
   const parts = [
     `<rect x="${rect.left}" y="${rect.top}" width="${rect.width}" height="${rect.height}" rx="${(rect.height / 2).toFixed(2)}" fill="${fill}"/>`,
   ];
-  const baseline = rect.top + rect.height / 2 + softCapHeight(fs, 600) / 2;
-  const placed = softTextPath(text, rect.left + Math.round(fs * CAPSULE_PAD_X), baseline, fs, 600);
-  if (placed) parts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
-  return parts;
+  const glyphs: OverlayOptions[] = [];
+  const centerY = rect.top + rect.height / 2;
+  let x = rect.left + fs * CAPSULE_PAD_X;
+  for (const item of items) {
+    if (item.kind === "text") {
+      const placed = softTextPath(item.text, x, centerY + softCapHeight(fs, 600) / 2, fs, 600);
+      if (placed) parts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
+    } else {
+      const width = Math.max(1, Math.round(item.width));
+      const height = Math.max(1, Math.round(item.height));
+      glyphs.push({
+        input: await sharp(item.buf).resize({ width, height, fit: "fill" }).png().toBuffer(),
+        left: Math.round(x),
+        top: Math.round(centerY - height / 2),
+      });
+    }
+    x += item.width + fs * TOP_ITEM_GAP;
+  }
+  return { parts, glyphs };
 }
 
 function logoRect(params: {
@@ -300,17 +433,15 @@ export async function renderSoftPoster(params: {
   const padBottom = Math.round(w * PAD_BOTTOM);
   const padTop = Math.round(w * PAD_TOP);
 
-  const ringScale = sizeFactor(overlay.ratingFontSize, POSTER_OVERLAY_DEFAULTS.ratingFontSize);
-  const genreScale = sizeFactor(overlay.genreFontSize, POSTER_OVERLAY_DEFAULTS.genreFontSize);
-  const trendScale = sizeFactor(overlay.trendFontSize, POSTER_OVERLAY_DEFAULTS.trendFontSize);
+  const ringScale = textSizeFactor(overlay, "ratingFontSize");
 
   const valueTen = overlay.rating ? params.ratingValueTen : null;
   const showRing = valueTen != null && Number.isFinite(valueTen);
   const ringD = Math.round(w * RING_DIAMETER * ringScale);
   const ringStroke = Math.max(2, w * RING_STROKE * ringScale);
-  const scoreFs = Math.round(w * SCORE_FONT * ringScale);
-  const genreFs = Math.round(w * GENRE_FONT * genreScale);
-  const trendFs = Math.round(w * TREND_FONT * trendScale);
+  const scoreFs = scoreTextPx(w, overlay);
+  const genreFs = labelTextPx(w, overlay, "genreFontSize");
+  const trendFs = labelTextPx(w, overlay, "trendFontSize");
 
   const genreRaw = overlay.genre ? normalizeGenreLabel(params.genreNames, overlay.genreMode) : null;
   const footerH = Math.max(showRing ? ringD : 0, genreRaw ? Math.round(genreFs * CAPSULE_HEIGHT) : 0);
@@ -337,17 +468,38 @@ export async function renderSoftPoster(params: {
     });
   }
 
-  const trendCapsule = trendText ? capsuleAt(trendText, trendFs, padX, padTop + Math.round((trendFs * CAPSULE_HEIGHT) / 2), w - padX * 2) : null;
+  const markIds = overlay.qualityTags ? normalizeQualityMarkIds(params.qualityMarkIds) : [];
+  const topItems = await buildTopItems(markIds, ageLabel, trendFs);
+  const topRow = fitTopRow({ label: trendText, items: topItems, fs: trendFs, w, padX });
+  const trendCapsule = !topRow.label
+    ? null
+    : topRow.items.length === 0
+      ? topTabAt(topRow.label, topRow.fs, w, w - padX * 2)
+      : capsuleAt(topRow.label, topRow.fs, padX, padTop + Math.round((topRow.fs * CAPSULE_HEIGHT) / 2), w - padX * 2);
+  const marksCapsule =
+    topRow.items.length > 0
+      ? {
+          rect: {
+            left: w - padX - topRow.itemsWidth,
+            top: padTop,
+            width: topRow.itemsWidth,
+            height: Math.round(topRow.fs * CAPSULE_HEIGHT),
+          },
+          items: topRow.items,
+          fs: topRow.fs,
+        }
+      : null;
+  const topBandBottom = Math.max(
+    trendCapsule ? trendCapsule.rect.top + trendCapsule.rect.height : 0,
+    marksCapsule ? marksCapsule.rect.top + marksCapsule.rect.height : 0,
+  );
 
   if (drawLogo && params.logoPath) {
-    const maxLogoW = Math.round(w * LOGO_WIDTH_SHARE[overlay.logoSize]);
-    const maxLogoH = Math.round(h * LOGO_MAX_HEIGHT_SHARE);
+    const { maxW: maxLogoW, maxH: maxLogoH } = logoMaxBox(w, h, overlay.logoSize);
     const bottomLimit = hasFooter
-      ? Math.round(footerCenterY - footerH / 2 - w * LOGO_GAP)
+      ? Math.round(footerCenterY - footerH / 2 - w * LOGO_GAP_SHARE)
       : h - padBottom;
-    const logoPadTop = trendCapsule
-      ? trendCapsule.rect.top + trendCapsule.rect.height + Math.round(w * LOGO_GAP)
-      : padTop;
+    const logoPadTop = topBandBottom > 0 ? topBandBottom + Math.round(w * LOGO_GAP_SHARE) : padTop;
 
     const placeLogo = async (path: string) => {
       const raster = await preparePosterLogoRaster(path, maxLogoW);
@@ -415,6 +567,13 @@ export async function renderSoftPoster(params: {
     genreRight = cx - ringD / 2 - Math.round(w * FOOTER_GAP);
   }
 
+  const glyphLayers: OverlayOptions[] = [];
+  if (marksCapsule) {
+    const drawn = await marksCapsuleSvg(baseBuf, marksCapsule);
+    svgParts.push(...drawn.parts);
+    glyphLayers.push(...drawn.glyphs);
+  }
+
   const genreCapsule = genreRaw ? capsuleAt(genreRaw, genreFs, padX, footerCenterY, genreRight - padX) : null;
   const capsules = [genreCapsule, trendCapsule].filter((c): c is Capsule => c != null);
   for (const parts of await Promise.all(capsules.map((c) => capsuleSvg(baseBuf, c)))) {
@@ -431,20 +590,8 @@ export async function renderSoftPoster(params: {
     });
   }
 
-  let composed: Buffer = layers.length > 0 ? await sharp(baseBuf).composite(layers).toBuffer() : baseBuf;
-
-  const markIds = overlay.qualityTags ? params.qualityMarkIds : [];
-  if (markIds.length > 0 || ageLabel) {
-    composed = await compositeTopRightCluster(
-      composed,
-      markIds,
-      ageLabel,
-      padX,
-      padTop,
-      overlay.qualityMarkSize,
-      "right",
-    );
-  }
+  layers.push(...glyphLayers);
+  const composed: Buffer = layers.length > 0 ? await sharp(baseBuf).composite(layers).toBuffer() : baseBuf;
 
   return encodePosterImage(composed);
 }

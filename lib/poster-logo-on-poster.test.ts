@@ -3,7 +3,6 @@ import { describe, expect, test } from "bun:test";
 import { measureFooterPill } from "@/lib/poster-footer-pill";
 import {
   computePosterLogoPlacement,
-  LOGO_ABOVE_FOOTER_GAP_PX,
   posterFooterBandTop,
   posterLogoAboveFooterGap,
   posterLogoMaxWidth,
@@ -11,9 +10,10 @@ import {
 } from "@/lib/poster-logo-on-poster";
 
 describe("poster title logo layout", () => {
-  test("posterLogoMaxWidth caps at 800 and scales with canvas", () => {
-    expect(posterLogoMaxWidth(500)).toBe(420);
-    expect(posterLogoMaxWidth(1000)).toBe(800);
+  test("posterLogoMaxWidth follows the shared logo size scale", () => {
+    expect(posterLogoMaxWidth(500)).toBe(330);
+    expect(posterLogoMaxWidth(1000)).toBe(660);
+    expect(posterLogoMaxWidth(500, "large")).toBe(400);
   });
 
   test("logo sits above footer band when footer is reserved", () => {
@@ -83,9 +83,8 @@ describe("poster title logo layout", () => {
     const h = 750;
     const padBottom = 20;
     const fs = 38;
-    const gap = posterLogoAboveFooterGap(h);
-    expect(gap).toBe(10);
-    expect(gap).toBeLessThanOrEqual(14);
+    const gap = posterLogoAboveFooterGap(500);
+    expect(gap).toBe(18);
     const genreMetrics = measureFooterPill("Drama", fs);
     const bandTop = resolvePosterLogoFooterBandTop({
       canvasH: h,
@@ -115,7 +114,7 @@ describe("poster title logo layout", () => {
     const h = 750;
     const w = 500;
     const fs = 38;
-    const gap = posterLogoAboveFooterGap(h);
+    const gap = posterLogoAboveFooterGap(w);
     const genreMetrics = measureFooterPill("Drama", fs);
     const lowPad = 20;
     const highPad = 60;

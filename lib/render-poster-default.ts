@@ -33,9 +33,8 @@ import {
   resolvePosterLogoFooterBandTop,
 } from "@/lib/poster-logo-on-poster";
 import { encodePosterImage } from "@/lib/poster-encode";
+import { labelTextPx, scoreTextPx } from "@/lib/poster-type-scale";
 import { escapeXml } from "@/lib/xml-escape";
-
-const OVERLAY_FONT_REF = 57;
 
 export async function renderPosterJpeg(params: {
   imageUrl?: string;
@@ -118,8 +117,8 @@ export async function renderPosterJpeg(params: {
   const ratingText = buildRatingLabel(ratingLabel, overlay);
   const ratingFill = resolveRatingFill(overlay, ratingValueTen, ratingColorSource);
 
-  const genreFooterFs = footerFontSize(w, overlay.genreFontSize);
-  const ratingFooterFs = footerFontSize(w, overlay.ratingFontSize);
+  const genreFooterFs = labelTextPx(w, overlay, "genreFontSize");
+  const ratingFooterFs = scoreTextPx(w, overlay);
 
   const ratingMetricsForLayout = ratingText
     ? measureFooterPill(ratingText, ratingFooterFs)
@@ -158,8 +157,9 @@ export async function renderPosterJpeg(params: {
       footerBandTop,
       padBottom: footerPadBottom,
       padX: edgePadX,
-      gap: footerBandTop != null ? posterLogoAboveFooterGap(h) : overlay.lineGap,
+      gap: footerBandTop != null ? posterLogoAboveFooterGap(w) : overlay.lineGap,
       gridCell: overlay.gridCell,
+      logoSize: overlay.logoSize,
     });
   }
 
@@ -263,10 +263,6 @@ export async function renderPosterJpeg(params: {
   return encodePosterImage(composited);
 }
 
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
-}
-
 function textColorOnSolidBackground(color: string): string {
   const hex = color.replace(/^#/, "");
   if (!/^[0-9a-f]{6}$/i.test(hex)) return "#f5f5f5";
@@ -319,21 +315,6 @@ function resolveRatingFill(
     return ratingDisplayColor(colorSource, valueTen);
   }
   return overlay.ratingColor === "auto" ? "#ffffff" : overlay.ratingColor;
-}
-
-function scaledOverlayFontSize(
-  canvasW: number,
-  configuredSize: number,
-  widthRatio: number,
-  minNominal: number,
-  maxNominal: number,
-): number {
-  const nominal = clamp(Math.round(canvasW * widthRatio), minNominal, maxNominal);
-  return clamp(Math.round(nominal * (configuredSize / OVERLAY_FONT_REF)), 18, 72);
-}
-
-function footerFontSize(canvasW: number, configuredSize: number): number {
-  return scaledOverlayFontSize(canvasW, configuredSize, 0.076, 30, 42);
 }
 
 function footerPillCornerRadius(boxW: number, boxH: number): number {

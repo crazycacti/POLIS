@@ -3,23 +3,17 @@ import {
   footerPillNominalBoxHeight,
   type FooterPillMetrics,
 } from "@/lib/poster-footer-pill";
-import type { GridCell } from "@/lib/poster-query";
+import type { GridCell, LogoSize } from "@/lib/poster-query";
+import { LOGO_GAP_SHARE, logoMaxBox } from "@/lib/poster-type-scale";
 import { renderLogoPng } from "@/lib/render-logo-default";
 import sharp from "sharp";
 
-export const LOGO_ABOVE_FOOTER_GAP_PX = 10;
-export const LOGO_ABOVE_FOOTER_GAP_MAX_PX = 14;
-
-export function posterLogoAboveFooterGap(canvasH: number): number {
-  const scaled = Math.round(canvasH * 0.012);
-  return Math.min(
-    LOGO_ABOVE_FOOTER_GAP_MAX_PX,
-    Math.max(LOGO_ABOVE_FOOTER_GAP_PX, scaled),
-  );
+export function posterLogoAboveFooterGap(canvasW: number): number {
+  return Math.round(canvasW * LOGO_GAP_SHARE);
 }
 
-export function posterLogoMaxWidth(canvasWidth: number): number {
-  return Math.min(800, Math.round(canvasWidth * 0.84));
+export function posterLogoMaxWidth(canvasWidth: number, logoSize: LogoSize = "medium"): number {
+  return logoMaxBox(canvasWidth, canvasWidth, logoSize).maxW;
 }
 
 export type PosterLogoPlacement = {
@@ -79,9 +73,10 @@ export function computePosterLogoPlacement(params: {
   padX: number;
   gap: number;
   gridCell: GridCell;
+  logoSize?: LogoSize;
 }): PosterLogoPlacement {
-  const maxW = posterLogoMaxWidth(params.canvasW);
-  const scale = Math.min(1, maxW / params.logoW);
+  const { maxW, maxH } = logoMaxBox(params.canvasW, params.canvasH, params.logoSize ?? "medium");
+  const scale = Math.min(1, maxW / params.logoW, maxH / params.logoH);
   const width = Math.max(1, Math.round(params.logoW * scale));
   const height = Math.max(1, Math.round(params.logoH * scale));
 
@@ -159,8 +154,9 @@ export async function applyTitleLogoToPosterBuffer(params: {
   padX: number;
   gap: number;
   gridCell: GridCell;
+  logoSize?: LogoSize;
 }): Promise<Buffer> {
-  const maxW = posterLogoMaxWidth(params.canvasW);
+  const maxW = posterLogoMaxWidth(params.canvasW, params.logoSize);
   const raster = await preparePosterLogoRaster(params.logoPath, maxW);
   if (!raster) return params.baseBuf;
 
@@ -174,6 +170,7 @@ export async function applyTitleLogoToPosterBuffer(params: {
     padX: params.padX,
     gap: params.gap,
     gridCell: params.gridCell,
+    logoSize: params.logoSize,
   });
 
   const scaled =

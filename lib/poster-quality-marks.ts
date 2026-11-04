@@ -224,3 +224,19 @@ export async function compositeTopRightCluster(
 
   return sharp(baseBuf).composite(layers).toBuffer();
 }
+
+export async function loadMarkGlyph(
+  id: QualityMarkId,
+  height: number,
+): Promise<{ buf: Buffer; width: number; height: number } | null> {
+  const asset = await loadMarkAsset(id);
+  if (!asset) return null;
+  const input =
+    asset[0] === 0x3c ? Buffer.from(wrapSvgWithOverlayFont(asset.toString("utf8")), "utf8") : asset;
+  let buf = await sharp(input).resize({ height: Math.max(1, Math.round(height)), fit: "inside" }).png().toBuffer();
+  try {
+    buf = await sharp(buf).trim().toBuffer();
+  } catch {}
+  const meta = await sharp(buf).metadata();
+  return { buf, width: meta.width ?? height, height: meta.height ?? height };
+}

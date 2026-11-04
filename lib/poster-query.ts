@@ -398,7 +398,6 @@ export function showcasePosterOverlay(base?: PosterOverlayQuery): PosterOverlayQ
   const b = base ?? POSTER_OVERLAY_DEFAULTS;
   return {
     ...b,
-    logoOnPoster: false,
     trendTags: true,
     qualityTags: false,
     ageRating: false,

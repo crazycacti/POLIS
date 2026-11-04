@@ -9,6 +9,8 @@ import {
 import { resolveRatingDisplay } from "@/lib/ratings";
 import { normalizeQualityMarkIds } from "@/lib/poster-quality-marks";
 import { renderPosterJpeg } from "@/lib/render-poster-default";
+import { MAX_LOGO_ALTERNATES, renderSoftPoster } from "@/lib/render-poster-soft";
+import { softFontAvailable } from "@/lib/poster-soft-font";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { resolveTitleForArtwork } from "@/lib/tmdb-resolve";
 
@@ -20,13 +22,13 @@ function tmdbCredentialFromEnv(): TmdbCredential | null {
   return null;
 }
 
-async function demoLogoPath(demo: DemoTitle, overlay: PosterOverlayQuery): Promise<string | null> {
-  if (!overlay.logoOnPoster) return null;
+async function demoLogoPaths(demo: DemoTitle, overlay: PosterOverlayQuery): Promise<string[]> {
+  if (!overlay.logoOnPoster || !demo.artTextless) return [];
   const credential = tmdbCredentialFromEnv();
-  if (!credential) return null;
+  if (!credential) return [];
   const language = process.env.TMDB_LANGUAGE?.trim() || "en-US";
   const resolved = await resolveTitleForArtwork(demo.imdbId, credential, language);
-  return resolved?.logoPath ?? null;
+  return resolved?.logoPaths ?? [];
 }
 
 export async function renderDemoPosterJpeg(
@@ -47,7 +49,7 @@ export async function renderPosterFromDemo(
   demo: DemoTitle,
   overlay: PosterOverlayQuery,
 ): Promise<Buffer | null> {
-  const logoPath = await demoLogoPath(demo, overlay);
+  const [logoPath = null, ...logoAlternates] = await demoLogoPaths(demo, overlay);
   const ratingStyle = overlay.ratingStyle === "votes" ? "score" : overlay.ratingStyle;
   const ratingResolved = overlay.rating
     ? resolveRatingDisplay(overlay.ratingSource, demo.ratings, demo.voteAverage, ratingStyle)
@@ -61,6 +63,22 @@ export async function renderPosterFromDemo(
   const trendBadges = overlay.trendTags ? demoTrendBadges(demo) : [];
   const ageBadge: PosterPillBadge | null =
     overlay.ageRating && demo.ageLabel ? { text: demo.ageLabel, kind: "age" } : null;
+
+  if (overlay.look === "soft" && softFontAvailable()) {
+    return renderSoftPoster({
+      imageBuffer: art,
+      artTextless: demo.artTextless,
+      overlay,
+      genreNames: demo.genreNames,
+      ratingValueTen,
+      ratingColorSource: overlay.rating ? overlay.ratingSource : null,
+      trendBadges,
+      qualityMarkIds,
+      ageBadge,
+      logoPath,
+      logoAlternates: logoAlternates.slice(0, MAX_LOGO_ALTERNATES),
+    });
+  }
 
   return renderPosterJpeg({
     imageBuffer: art,
