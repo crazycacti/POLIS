@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
+import { polisDiskCacheEnabled, readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
@@ -50,7 +50,7 @@ export async function tmdbApiGet(
 
     const response = await fetchUpstream(target, {
       headers,
-      revalidateSeconds: options.ttlSec ?? DEFAULT_TMDB_DISK_TTL_SEC,
+      revalidateSeconds: polisDiskCacheEnabled() ? 0 : ttlMs / 1000,
     });
     if (!response.ok) {
       return null;
