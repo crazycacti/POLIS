@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { pickTmdbPosterPath, postersHasXxTextless } from "@/lib/artwork-poster";
-import { pickFanartPosterUrl } from "@/lib/fanart-client";
+import { pickFanartPoster } from "@/lib/fanart-client";
 
 describe("poster artwork selection", () => {
   test("default order prefers localized titled posters", () => {
@@ -52,7 +52,7 @@ describe("poster artwork selection", () => {
   });
 
   test("fanart title logo mode prefers textless assets", () => {
-    const url = pickFanartPosterUrl(
+    const poster = pickFanartPoster(
       [
         { url: "https://fanart/en.jpg", lang: "en" },
         { url: "https://fanart/textless.jpg", lang: "00" },
@@ -60,6 +60,11 @@ describe("poster artwork selection", () => {
       "en-US",
       true,
     );
-    expect(url).toBe("https://fanart/textless.jpg");
+    expect(poster).toEqual({ url: "https://fanart/textless.jpg", textless: true });
+  });
+
+  test("fanart reports titled art when no textless asset exists", () => {
+    const poster = pickFanartPoster([{ url: "https://fanart/en.jpg", lang: "en" }], "en-US", true);
+    expect(poster).toEqual({ url: "https://fanart/en.jpg", textless: false });
   });
 });

@@ -24,6 +24,33 @@ function posterMemoryCacheMax(): number | null {
   return polisEnvPositiveInt("POLIS_CACHE_MEMORY_POSTERS");
 }
 
+const DEFAULT_POSTER_DISK_TTL_SEC = 7 * 24 * 60 * 60;
+const STALE_RETRY_BACKOFF_MS = 10 * 60 * 1000;
+const STALE_BACKOFF_MAX_KEYS = 5_000;
+
+// After a failed refresh, keep serving the stale file for a while instead of retrying upstream per request.
+const staleBackoffUntil = new Map<string, number>();
+
+function inStaleBackoff(cacheKey: string): boolean {
+  const until = staleBackoffUntil.get(cacheKey);
+  if (until == null) return false;
+  if (Date.now() < until) return true;
+  staleBackoffUntil.delete(cacheKey);
+  return false;
+}
+
+function startStaleBackoff(cacheKey: string): void {
+  if (staleBackoffUntil.size >= STALE_BACKOFF_MAX_KEYS) {
+    const oldest = staleBackoffUntil.keys().next().value;
+    if (oldest !== undefined) staleBackoffUntil.delete(oldest);
+  }
+  staleBackoffUntil.set(cacheKey, Date.now() + STALE_RETRY_BACKOFF_MS);
+}
+
+function posterDiskTtlMs(): number {
+  return (polisEnvPositiveInt("POLIS_CACHE_POSTER_TTL_SEC") ?? DEFAULT_POSTER_DISK_TTL_SEC) * 1000;
+}
+
 function posterMemoryCacheTtlMs(): number | null {
   const sec = polisEnvPositiveInt("POLIS_CACHE_MEMORY_POSTERS_TTL_SEC");
   return sec != null ? sec * 1000 : null;
@@ -125,29 +152,58 @@ export async function renderPosterForImdbCached(params: {
   if (mem) return { source: "buffer", image: mem };
 
   const ext = posterDiskExtension();
-  const diskPath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
+  const ttlMs = posterDiskTtlMs();
+  const diskPath = await resolvePolisDiskCachePath(
+    "poster",
+    scope,
+    cacheKey,
+    ext,
+    inStaleBackoff(cacheKey) ? undefined : ttlMs,
+  );
   if (diskPath) {
     return { source: "disk", path: diskPath };
   }
 
   const flightKey = `poster:${scope}:${cacheKey}`;
   const rendered = await polisSingleflight(flightKey, async () => {
-    const racedPath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
+    const racedPath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext, ttlMs);
     if (racedPath) return { source: "disk" as const, path: racedPath };
 
-    const image = await withPolisRenderLimit(() =>
-      renderPosterForImdb({
-        imdbId: params.imdbId,
-        overlay: params.overlay,
-        credential: params.credential,
-        language: params.language,
-        mdblistApiKey: params.mdblistApiKey,
-        fanartApiKey: params.fanartApiKey,
-        tvdbCredentials: params.tvdbCredentials,
-        configId: params.configId,
-      }),
-    );
-    if (!image) return null;
+    const staleFallback = async () => {
+      const stalePath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext);
+      if (!stalePath) return null;
+      startStaleBackoff(cacheKey);
+      return { source: "disk" as const, path: stalePath };
+    };
+
+    let degraded = false;
+    let image: Buffer | null;
+    try {
+      image = await withPolisRenderLimit(() =>
+        renderPosterForImdb({
+          imdbId: params.imdbId,
+          overlay: params.overlay,
+          credential: params.credential,
+          language: params.language,
+          mdblistApiKey: params.mdblistApiKey,
+          fanartApiKey: params.fanartApiKey,
+          tvdbCredentials: params.tvdbCredentials,
+          configId: params.configId,
+          onDegraded: () => {
+            degraded = true;
+          },
+        }),
+      );
+    } catch (error) {
+      const stale = await staleFallback();
+      if (!stale) throw error;
+      console.warn(`[polis] poster render failed for ${params.imdbId}, serving stale copy`, error);
+      return stale;
+    }
+    if (!image) return staleFallback();
+    if (degraded) {
+      return (await staleFallback()) ?? { source: "buffer" as const, image };
+    }
     void writePolisDiskBytes("poster", scope, cacheKey, ext, image).catch(() => {});
     rememberInMemory(cacheKey, image);
     return { source: "buffer" as const, image };

@@ -1,6 +1,7 @@
 import { fetchAnilistPosterUrl } from "@/lib/anilist-client";
+import type { ArtworkCandidate } from "@/lib/artwork-candidate";
 import type { AnimeSearchContext } from "@/lib/anime-artwork-match";
-import { fetchFanartPosterUrl } from "@/lib/fanart-client";
+import { fetchFanartPoster } from "@/lib/fanart-client";
 import { fetchJikanPosterUrl } from "@/lib/jikan-client";
 import { fetchKitsuPosterUrl } from "@/lib/kitsu-client";
 import { metahubPosterUrl, metahubPosterUrls } from "@/lib/metahub-poster";
@@ -12,7 +13,7 @@ import type {
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import type { ResolvedTitle } from "@/lib/tmdb-resolve";
-import { fetchTvdbSeriesPosterUrl } from "@/lib/tvdb-client";
+import { fetchTvdbSeriesPoster } from "@/lib/tvdb-client";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
 type TmdbImageRow = {
@@ -84,18 +85,24 @@ function pickTmdbImagesPosterPath(
   return pickTmdbPosterPath(posters, language, preferTextless);
 }
 
-async function resolveTmdbPosterUrl(
+async function resolveTmdbPoster(
   resolved: ResolvedTitle,
   credential: TmdbCredential,
   language: string,
   preferTextless: boolean,
   tmdbPosters?: TmdbImageRow[] | null,
-): Promise<string | null> {
+): Promise<ArtworkCandidate | null> {
   const posters =
     tmdbPosters ?? (await fetchTmdbImagePosters(resolved, credential));
   const tmdbFromImages = pickTmdbImagesPosterPath(posters, language, preferTextless);
   const tmdbPath = tmdbFromImages ?? resolved.posterPath;
-  return tmdbPath ? `https://image.tmdb.org/t/p/original${tmdbPath}` : null;
+  if (!tmdbPath) return null;
+  const textless = posters.some((p) => p.file_path === tmdbPath && p.iso_639_1 === "xx");
+  return { url: `https://image.tmdb.org/t/p/original${tmdbPath}`, textless };
+}
+
+function untexted(url: string | null): ArtworkCandidate | null {
+  return url ? { url, textless: false } : null;
 }
 
 type ArtworkResolveContext = {
@@ -110,9 +117,9 @@ type ArtworkResolveContext = {
   tmdbPosters?: TmdbImageRow[] | null;
 };
 
-async function resolveFanartUrl(ctx: ArtworkResolveContext): Promise<string | null> {
+async function resolveFanartPoster(ctx: ArtworkResolveContext): Promise<ArtworkCandidate | null> {
   if (!ctx.fanartApiKey) return null;
-  return fetchFanartPosterUrl({
+  return fetchFanartPoster({
     mediaType: ctx.resolved.stremioType,
     tmdbId: ctx.resolved.tmdbNumericId,
     tvdbId: ctx.tvdbId,
@@ -129,13 +136,13 @@ function animeContext(resolved: ResolvedTitle): AnimeSearchContext {
 async function urlForArtworkSource(
   source: PosterArtworkSource | PosterArtworkFallback | PosterArtworkMovieSource,
   ctx: ArtworkResolveContext,
-): Promise<string | null> {
+): Promise<ArtworkCandidate | null> {
   if (source === "metahub") {
-    return metahubPosterUrl(ctx.imdbId);
+    return untexted(metahubPosterUrl(ctx.imdbId));
   }
 
   if (source === "tmdb") {
-    return resolveTmdbPosterUrl(
+    return resolveTmdbPoster(
       ctx.resolved,
       ctx.credential,
       ctx.language,
@@ -146,8 +153,8 @@ async function urlForArtworkSource(
 
   if (source === "fanart") {
     return (
-      (await resolveFanartUrl(ctx)) ??
-      resolveTmdbPosterUrl(
+      (await resolveFanartPoster(ctx)) ??
+      resolveTmdbPoster(
         ctx.resolved,
         ctx.credential,
         ctx.language,
@@ -160,7 +167,7 @@ async function urlForArtworkSource(
   if (source === "tvdb") {
     if (ctx.resolved.stremioType !== "series") return null;
     if (!ctx.tvdbId || !ctx.tvdbCredentials) return null;
-    return fetchTvdbSeriesPosterUrl({
+    return fetchTvdbSeriesPoster({
       tvdbId: ctx.tvdbId,
       credentials: ctx.tvdbCredentials,
       language: ctx.language,
@@ -169,20 +176,20 @@ async function urlForArtworkSource(
   }
 
   if (source === "anilist") {
-    return fetchAnilistPosterUrl(animeContext(ctx.resolved));
+    return untexted(await fetchAnilistPosterUrl(animeContext(ctx.resolved)));
   }
 
   if (source === "kitsu") {
-    return fetchKitsuPosterUrl(animeContext(ctx.resolved));
+    return untexted(await fetchKitsuPosterUrl(animeContext(ctx.resolved)));
   }
 
   if (source === "mal") {
-    return fetchJikanPosterUrl(animeContext(ctx.resolved));
+    return untexted(await fetchJikanPosterUrl(animeContext(ctx.resolved)));
   }
 
-  const fanart = await resolveFanartUrl(ctx);
+  const fanart = await resolveFanartPoster(ctx);
   if (fanart) return fanart;
-  return resolveTmdbPosterUrl(
+  return resolveTmdbPoster(
     ctx.resolved,
     ctx.credential,
     ctx.language,
@@ -191,14 +198,27 @@ async function urlForArtworkSource(
   );
 }
 
-function dedupeUrls(urls: string[]): string[] {
+// One failing provider (timeout, HTML error page, schema drift) must not block the next source.
+async function urlForArtworkSourceSafe(
+  source: PosterArtworkSource | PosterArtworkFallback | PosterArtworkMovieSource,
+  ctx: ArtworkResolveContext,
+): Promise<ArtworkCandidate | null> {
+  try {
+    return await urlForArtworkSource(source, ctx);
+  } catch (error) {
+    console.warn(`[polis] artwork source ${source} failed for ${ctx.imdbId}`, error);
+    return null;
+  }
+}
+
+function dedupeCandidates(candidates: ArtworkCandidate[]): ArtworkCandidate[] {
   const seen = new Set<string>();
-  const out: string[] = [];
-  for (const u of urls) {
-    const key = u.trim();
+  const out: ArtworkCandidate[] = [];
+  for (const candidate of candidates) {
+    const key = candidate.url.trim();
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    out.push(key);
+    out.push({ ...candidate, url: key });
   }
   return out;
 }
@@ -227,7 +247,7 @@ export async function resolvePosterImageCandidates(params: {
   tvdbId: number | null;
   preferTextlessArtwork?: boolean;
   tmdbPosters?: TmdbImageRow[] | null;
-}): Promise<string[]> {
+}): Promise<ArtworkCandidate[]> {
   const ctx: ArtworkResolveContext = {
     resolved: params.resolved,
     imdbId: params.imdbId,
@@ -240,40 +260,37 @@ export async function resolvePosterImageCandidates(params: {
     tmdbPosters: params.tmdbPosters,
   };
 
-  const urls: string[] = [];
+  const urls: ArtworkCandidate[] = [];
   const source = effectiveArtworkSource(
     params.resolved,
     params.artworkSource,
     params.artworkMovie,
   );
 
-  const primary = await urlForArtworkSource(source, ctx);
+  const primary = await urlForArtworkSourceSafe(source, ctx);
   if (primary) urls.push(primary);
 
   if (ctx.preferTextlessArtwork && source !== "tmdb") {
-    const tmdbTextless = await resolveTmdbPosterUrl(
-      ctx.resolved,
-      ctx.credential,
-      ctx.language,
-      true,
-      ctx.tmdbPosters,
-    );
-    if (tmdbTextless) {
+    const tmdbTextless = await urlForArtworkSourceSafe("tmdb", {
+      ...ctx,
+      preferTextlessArtwork: true,
+    });
+    if (tmdbTextless?.textless) {
       urls.unshift(tmdbTextless);
     }
   }
 
   const fb = params.artworkFallback;
   if (fb !== source && fb !== params.artworkSource) {
-    const fallback = await urlForArtworkSource(fb, ctx);
+    const fallback = await urlForArtworkSourceSafe(fb, ctx);
     if (fallback) urls.push(fallback);
   }
 
   if (fb === "metahub") {
     for (const alt of metahubPosterUrls(params.imdbId)) {
-      urls.push(alt);
+      urls.push({ url: alt, textless: false });
     }
   }
 
-  return dedupeUrls(urls);
+  return dedupeCandidates(urls);
 }

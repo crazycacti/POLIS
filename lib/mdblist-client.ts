@@ -155,7 +155,7 @@ async function fetchMdblistModernPayload(params: {
   imdbId: string;
   stremioType: "movie" | "series";
   apiKey: string;
-}): Promise<unknown | null> {
+}): Promise<{ status: number; payload: unknown | null }> {
   const mediaType = params.stremioType === "movie" ? "movie" : "show";
   const url = new URL(
     `https://api.mdblist.com/imdb/${mediaType}/${encodeURIComponent(params.imdbId)}`,
@@ -166,8 +166,11 @@ async function fetchMdblistModernPayload(params: {
     headers: { Accept: "application/json" },
     revalidateSeconds: 3600,
   });
-  if (!response.ok) return null;
-  return response.json();
+  if (!response.ok) {
+    await response.body?.cancel();
+    return { status: response.status, payload: null };
+  }
+  return { status: response.status, payload: (await response.json()) as unknown };
 }
 
 export function mergeMdblistMediaInfo(
@@ -192,9 +195,14 @@ export async function fetchMdblistMediaInfo(params: {
   stremioType: "movie" | "series";
   apiKey: string;
 }): Promise<MdblistMediaInfo | null> {
-  const modernPayload = await fetchMdblistModernPayload(params);
-  const modern = modernPayload ? parseMdblistMediaInfo(modernPayload) : null;
+  const modernResult = await fetchMdblistModernPayload(params);
+  const modern = modernResult.payload ? parseMdblistMediaInfo(modernResult.payload) : null;
   if (modern) return modern;
+  // Auth, quota and server errors would fail the legacy host too and only spend more quota.
+  if (modernResult.status === 429 || modernResult.status >= 500) {
+    throw new Error(`MDBList returned HTTP ${modernResult.status}`);
+  }
+  if (modernResult.status === 401 || modernResult.status === 403) return null;
 
   const legacyPayload = await fetchMdblistLegacyPayload({
     imdbId: params.imdbId,

@@ -1,10 +1,6 @@
-import {
-  fetchTmdbImagePosters,
-  postersHasXxTextless,
-} from "@/lib/artwork-poster";
 import { getPosterBaseBufferCached } from "@/lib/poster-artwork-cache";
 import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
-import { fetchMdblistMediaInfo } from "@/lib/mdblist-client";
+import { fetchMdblistMediaInfo, type MdblistMediaInfo } from "@/lib/mdblist-client";
 import { overlayUsesMdblist } from "@/lib/overlay-requirements";
 import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/poster-badges";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
@@ -27,11 +23,12 @@ export async function renderPosterForImdb(params: {
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
   configId?: string | null;
+  onDegraded?: () => void;
 }): Promise<Buffer | null> {
   const resolved = await resolveTitleForArtwork(params.imdbId, params.credential, params.language);
   if (!resolved) return null;
 
-  const baseBuffer = await getPosterBaseBufferCached({
+  const base = await getPosterBaseBufferCached({
     imdbId: params.imdbId,
     overlay: params.overlay,
     resolved,
@@ -47,23 +44,23 @@ export async function renderPosterForImdb(params: {
       tvdbCredentials: params.tvdbCredentials,
     }),
   });
-  if (!baseBuffer) return null;
+  if (!base) return null;
 
   const needsMdblist = overlayUsesMdblist(params.overlay);
 
-  const mdblist =
-    params.mdblistApiKey && needsMdblist
-      ? await fetchMdblistMediaInfo({
-          imdbId: params.imdbId,
-          stremioType: resolved.stremioType,
-          apiKey: params.mdblistApiKey,
-        })
-      : null;
-
-  const tmdbPosters =
-    params.overlay.artwork === "tmdb"
-      ? await fetchTmdbImagePosters(resolved, params.credential)
-      : undefined;
+  let mdblist: MdblistMediaInfo | null = null;
+  if (params.mdblistApiKey && needsMdblist) {
+    try {
+      mdblist = await fetchMdblistMediaInfo({
+        imdbId: params.imdbId,
+        stremioType: resolved.stremioType,
+        apiKey: params.mdblistApiKey,
+      });
+    } catch (error) {
+      console.warn(`[polis] mdblist lookup failed for ${params.imdbId}`, error);
+      params.onDegraded?.();
+    }
+  }
 
   const scores: RatingScores = mergeRatingScores(mdblist?.ratings ?? {}, resolved.voteAverage);
   const ratingStyle = params.overlay.ratingStyle === "votes" ? "score" : params.overlay.ratingStyle;
@@ -99,17 +96,11 @@ export async function renderPosterForImdb(params: {
     ? buildAgeBadge(mdblist, resolved.certification)
     : null;
 
-  let logoPath: string | null = null;
-  if (params.overlay.logoOnPoster && resolved.logoPath) {
-    if (params.overlay.artwork === "tmdb") {
-      if (postersHasXxTextless(tmdbPosters ?? [])) logoPath = resolved.logoPath;
-    } else {
-      logoPath = resolved.logoPath;
-    }
-  }
+  const logoPath =
+    params.overlay.logoOnPoster && base.textless ? (resolved.logoPath ?? null) : null;
 
   return renderPosterJpeg({
-    imageBuffer: baseBuffer,
+    imageBuffer: base.buffer,
     overlay: params.overlay,
     genreNames: resolved.genreNames,
     ratingLabel,

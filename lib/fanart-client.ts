@@ -4,6 +4,7 @@ type FanartAsset = {
   iso_639_1?: string | null;
 };
 
+import type { ArtworkCandidate } from "@/lib/artwork-candidate";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 
 function isTextlessFanartAsset(asset: FanartAsset): boolean {
@@ -11,45 +12,45 @@ function isTextlessFanartAsset(asset: FanartAsset): boolean {
   return Boolean(asset.url) && (!code || code === "00" || code === "xx");
 }
 
-export function pickFanartPosterUrl(
+function fanartCandidate(asset: FanartAsset | undefined): ArtworkCandidate | null {
+  if (!asset?.url) return null;
+  return { url: asset.url, textless: isTextlessFanartAsset(asset) };
+}
+
+export function pickFanartPoster(
   assets: FanartAsset[],
   language: string,
   preferTextless = false,
-): string | null {
+): ArtworkCandidate | null {
   if (!assets.length) return null;
   const lang = language.split("-")[0]?.toLowerCase() ?? "en";
 
   if (preferTextless) {
-    const textless = assets.find(isTextlessFanartAsset);
-    if (textless?.url) return textless.url;
-    return assets.find((a) => a.url)?.url ?? null;
+    return fanartCandidate(assets.find(isTextlessFanartAsset) ?? assets.find((a) => a.url));
   }
 
   const localized = assets.find(
     (a) => (a.lang ?? a.iso_639_1 ?? "").toLowerCase() === lang && a.url,
   );
-  if (localized?.url) return localized.url;
+  if (localized) return fanartCandidate(localized);
 
   const anyTitled = assets.find((a) => {
     const code = (a.lang ?? a.iso_639_1 ?? "").toLowerCase();
     return a.url && code && code !== "00" && code !== "xx";
   });
-  if (anyTitled?.url) return anyTitled.url;
+  if (anyTitled) return fanartCandidate(anyTitled);
 
-  const textless = assets.find(isTextlessFanartAsset);
-  if (textless?.url) return textless.url;
-
-  return assets[0]?.url ?? null;
+  return fanartCandidate(assets.find(isTextlessFanartAsset) ?? assets[0]);
 }
 
-export async function fetchFanartPosterUrl(params: {
+export async function fetchFanartPoster(params: {
   mediaType: "movie" | "series";
   tmdbId: number;
   tvdbId: number | null;
   apiKey: string;
   language: string;
   preferTextless?: boolean;
-}): Promise<string | null> {
+}): Promise<ArtworkCandidate | null> {
   const lookupId = params.mediaType === "movie" ? String(params.tmdbId) : String(params.tvdbId ?? "");
   if (!lookupId) return null;
 
@@ -71,5 +72,5 @@ export async function fetchFanartPosterUrl(params: {
       ? (payload.movieposter ?? [])
       : (payload.tvposter ?? []);
 
-  return pickFanartPosterUrl(posters, params.language, params.preferTextless ?? false);
+  return pickFanartPoster(posters, params.language, params.preferTextless ?? false);
 }

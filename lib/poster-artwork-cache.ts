@@ -1,4 +1,5 @@
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
+import { fetchArtworkBytes } from "@/lib/artwork-url-allow";
 import sharp from "sharp";
 
 import {
@@ -26,10 +27,14 @@ import type { ResolvedTitle } from "@/lib/tmdb-resolve";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
-type MemoryEntry = { buffer: Buffer; at: number };
+export type PosterBase = { buffer: Buffer; textless: boolean };
+
+type MemoryEntry = { base: PosterBase; at: number };
 
 const memory = new Map<string, MemoryEntry>();
 const BASE_EXT = ".jpg";
+// The textless flag decides whether a title logo may be drawn, so it is kept in the file name.
+const TEXTLESS_BASE_EXT = ".textless.jpg";
 
 function posterArtworkMemoryMax(): number | null {
   return polisEnvPositiveInt("POLIS_CACHE_MEMORY_POSTER_ARTWORK");
@@ -66,10 +71,10 @@ export function posterArtworkCacheKey(params: {
   ].join("\0");
 }
 
-function rememberInMemory(cacheKey: string, buffer: Buffer): void {
+function rememberInMemory(cacheKey: string, base: PosterBase): void {
   const max = posterArtworkMemoryMax();
   if (max == null) return;
-  memory.set(cacheKey, { buffer, at: Date.now() });
+  memory.set(cacheKey, { base, at: Date.now() });
   pruneMemory(max);
 }
 
@@ -88,7 +93,7 @@ function pruneMemory(max: number): void {
   }
 }
 
-function memoryHit(cacheKey: string): Buffer | null {
+function memoryHit(cacheKey: string): PosterBase | null {
   const max = posterArtworkMemoryMax();
   if (max == null) return null;
   const hit = memory.get(cacheKey);
@@ -98,7 +103,7 @@ function memoryHit(cacheKey: string): Buffer | null {
     memory.delete(cacheKey);
     return null;
   }
-  return hit.buffer;
+  return hit.base;
 }
 
 async function fetchPosterBaseBuffer(params: {
@@ -112,7 +117,7 @@ async function fetchPosterBaseBuffer(params: {
   language: string;
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
-}): Promise<Buffer | null> {
+}): Promise<PosterBase | null> {
   ensurePolisSharpConfigured();
 
   const tmdbPosters =
@@ -136,16 +141,21 @@ async function fetchPosterBaseBuffer(params: {
   });
   if (imageUrls.length === 0) return null;
 
-  let input: Buffer | null = null;
-  for (const url of imageUrls) {
-    const imgRes = await fetchUpstream(url, { revalidateSeconds: 86400 });
-    if (!imgRes.ok) continue;
-    input = Buffer.from(await imgRes.arrayBuffer());
-    break;
+  for (const candidate of imageUrls) {
+    try {
+      const input = await fetchArtworkBytes(candidate.url, (target, init) =>
+        fetchUpstream(target, init),
+      );
+      if (!input) continue;
+      const buffer = await sharp(input)
+        .resize(500, 750, { fit: "cover", position: "attention" })
+        .toBuffer();
+      return { buffer, textless: candidate.textless };
+    } catch (error) {
+      console.warn(`[polis] artwork candidate failed for ${params.imdbId}`, error);
+    }
   }
-  if (!input) return null;
-
-  return sharp(input).resize(500, 750, { fit: "cover", position: "attention" }).toBuffer();
+  return null;
 }
 
 export async function getPosterBaseBufferCached(params: {
@@ -161,7 +171,7 @@ export async function getPosterBaseBufferCached(params: {
   tvdbCredentials: TvdbCredentials | null;
   configId: string | null;
   integratorFingerprint?: string;
-}): Promise<Buffer | null> {
+}): Promise<PosterBase | null> {
   const cacheKey = posterArtworkCacheKey({
     imdbId: params.imdbId,
     language: params.language,
@@ -177,21 +187,29 @@ export async function getPosterBaseBufferCached(params: {
   const mem = memoryHit(cacheKey);
   if (mem) return mem;
 
-  const diskBytes = await readPolisDiskBytes("poster-base", scope, cacheKey, BASE_EXT);
-  if (diskBytes) {
-    rememberInMemory(cacheKey, diskBytes);
-    return diskBytes;
+  const readDisk = async (): Promise<PosterBase | null> => {
+    const textless = await readPolisDiskBytes("poster-base", scope, cacheKey, TEXTLESS_BASE_EXT);
+    if (textless) return { buffer: textless, textless: true };
+    const titled = await readPolisDiskBytes("poster-base", scope, cacheKey, BASE_EXT);
+    return titled ? { buffer: titled, textless: false } : null;
+  };
+
+  const disk = await readDisk();
+  if (disk) {
+    rememberInMemory(cacheKey, disk);
+    return disk;
   }
 
   const flightKey = `poster-base:${scope}:${cacheKey}`;
   return polisSingleflight(flightKey, async () => {
-    const raced = await readPolisDiskBytes("poster-base", scope, cacheKey, BASE_EXT);
+    const raced = await readDisk();
     if (raced) return raced;
 
-    const buffer = await fetchPosterBaseBuffer(params);
-    if (!buffer) return null;
-    void writePolisDiskBytes("poster-base", scope, cacheKey, BASE_EXT, buffer).catch(() => {});
-    rememberInMemory(cacheKey, buffer);
-    return buffer;
+    const base = await fetchPosterBaseBuffer(params);
+    if (!base) return null;
+    const ext = base.textless ? TEXTLESS_BASE_EXT : BASE_EXT;
+    void writePolisDiskBytes("poster-base", scope, cacheKey, ext, base.buffer).catch(() => {});
+    rememberInMemory(cacheKey, base);
+    return base;
   });
 }
