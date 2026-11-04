@@ -1,10 +1,18 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { link, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { polisCacheRoot } from "@/lib/polis-cache-path";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_CACHE_MAX_AGE_DAYS = 45;
+const CACHE_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+const TEMP_SUFFIX = ".tmp";
+
+let lastSweepAt = 0;
+let sweepInFlight: Promise<void> | null = null;
 
 export function polisDiskCacheEnabled(): boolean {
   return process.env.POLIS_CACHE_DISABLE !== "1";
@@ -63,8 +71,32 @@ export async function writePolisDiskBytes(
   if (!polisDiskCacheEnabled()) return;
   const file = filePath(namespace, scope, cacheKey, ext);
   await ensureParent(file);
-  await writeFile(file, data);
-  void enforceCacheSizeLimit().catch(() => {});
+  await replaceFile(file, (temp) => writeFile(temp, data));
+  scheduleCacheSweep();
+}
+
+// Readers stream cache files while background refreshes rewrite them, so a file is only ever swapped in whole.
+async function replaceFile(file: string, writeTemp: (temp: string) => Promise<void>): Promise<void> {
+  const temp = `${file}.${randomBytes(6).toString("hex")}${TEMP_SUFFIX}`;
+  try {
+    await writeTemp(temp);
+    await rename(temp, file);
+  } catch (error) {
+    await rm(temp, { force: true });
+    throw error;
+  }
+}
+
+export async function linkPolisDiskCacheAlias(
+  namespace: string,
+  scope: string,
+  cacheKey: string,
+  aliasKey: string,
+  ext: string,
+): Promise<void> {
+  if (!polisDiskCacheEnabled()) return;
+  const source = filePath(namespace, scope, cacheKey, ext);
+  await replaceFile(filePath(namespace, scope, aliasKey, ext), (temp) => link(source, temp));
 }
 
 export async function readPolisDiskJson<T>(
@@ -92,8 +124,10 @@ export async function writePolisDiskJson(
   await writePolisDiskBytes(namespace, scope, cacheKey, ".json", body);
 }
 
-async function listCacheFiles(dir: string): Promise<{ path: string; mtimeMs: number; size: number }[]> {
-  const out: { path: string; mtimeMs: number; size: number }[] = [];
+type CacheFile = { path: string; mtimeMs: number; size: number; ino: number };
+
+async function listCacheFiles(dir: string): Promise<CacheFile[]> {
+  const out: CacheFile[] = [];
   let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -110,29 +144,75 @@ async function listCacheFiles(dir: string): Promise<{ path: string; mtimeMs: num
     if (!entry.isFile()) continue;
     try {
       const st = await stat(full);
-      out.push({ path: full, mtimeMs: st.mtimeMs, size: st.size });
-    } catch {}
+      out.push({ path: full, mtimeMs: st.mtimeMs, size: st.size, ino: st.ino });
+    } catch {
+      continue;
+    }
   }
   return out;
 }
 
-async function enforceCacheSizeLimit(): Promise<void> {
-  const max = polisEnvPositiveInt("POLIS_CACHE_MAX_BYTES");
-  if (max == null) return;
+function cacheMaxAgeMs(): number {
+  return (polisEnvPositiveInt("POLIS_CACHE_MAX_AGE_DAYS") ?? DEFAULT_CACHE_MAX_AGE_DAYS) * DAY_MS;
+}
 
-  const root = polisCacheRoot();
-  const files = await listCacheFiles(root);
-  let total = files.reduce((sum, f) => sum + f.size, 0);
-  if (total <= max) return;
+function scheduleCacheSweep(): void {
+  if (sweepInFlight || Date.now() - lastSweepAt < CACHE_SWEEP_INTERVAL_MS) return;
+  lastSweepAt = Date.now();
+  sweepInFlight = sweepPolisDiskCache()
+    .then(() => undefined)
+    .catch((error) => console.warn("[polis] cache sweep failed", error))
+    .finally(() => {
+      sweepInFlight = null;
+    });
+}
 
-  files.sort((a, b) => a.mtimeMs - b.mtimeMs);
-  for (const file of files) {
-    if (total <= max) break;
-    try {
-      await rm(file.path);
-      total -= file.size;
-    } catch {}
+async function removeCacheFile(file: string): Promise<boolean> {
+  try {
+    await rm(file);
+    return true;
+  } catch {
+    return false;
   }
+}
+
+// Past the max age a file is orphaned by a revision bump or unused; hard-linked aliases count once toward the cap.
+export async function sweepPolisDiskCache(now = Date.now()): Promise<{ removed: number }> {
+  const files = await listCacheFiles(polisCacheRoot());
+  const maxAgeMs = cacheMaxAgeMs();
+  let removed = 0;
+  const kept: CacheFile[] = [];
+  for (const file of files) {
+    const abandonedTemp = file.path.endsWith(TEMP_SUFFIX) && now - file.mtimeMs > CACHE_SWEEP_INTERVAL_MS;
+    if (abandonedTemp || now - file.mtimeMs > maxAgeMs) {
+      if (await removeCacheFile(file.path)) removed += 1;
+    } else {
+      kept.push(file);
+    }
+  }
+
+  const maxBytes = polisEnvPositiveInt("POLIS_CACHE_MAX_BYTES");
+  if (maxBytes == null) return { removed };
+
+  const links = new Map<number, number>();
+  let total = 0;
+  for (const file of kept) {
+    const count = links.get(file.ino) ?? 0;
+    if (count === 0) total += file.size;
+    links.set(file.ino, count + 1);
+  }
+  if (total <= maxBytes) return { removed };
+
+  kept.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  for (const file of kept) {
+    if (total <= maxBytes) break;
+    if (!(await removeCacheFile(file.path))) continue;
+    removed += 1;
+    const left = (links.get(file.ino) ?? 1) - 1;
+    links.set(file.ino, left);
+    if (left === 0) total -= file.size;
+  }
+  return { removed };
 }
 
 export async function purgePolisConfigDiskCache(configId: string): Promise<void> {
