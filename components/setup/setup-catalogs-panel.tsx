@@ -137,7 +137,7 @@ export function SetupCatalogsPanel(props: {
   return (
     <div className="polis-catalogs-panel space-y-6">
       {props.defaultCount > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/[0.02] px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/5 bg-white/2 px-4 py-3">
           <p className="text-sm text-zinc-400">
             Defaults:{" "}
             {props.hasTmdb && props.hasMdblist
@@ -189,7 +189,7 @@ export function SetupCatalogsPanel(props: {
           >
             <div className="mb-4 flex flex-wrap gap-2">
               <input
-                className="polis-input min-w-[10rem] flex-1 text-sm"
+                className="polis-input min-w-40 flex-1 text-sm"
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Username"
                 value={username}
@@ -213,7 +213,7 @@ export function SetupCatalogsPanel(props: {
             </div>
             <div className="mb-4 flex flex-wrap gap-2">
               <input
-                className="polis-input min-w-[10rem] flex-1 text-sm"
+                className="polis-input min-w-40 flex-1 text-sm"
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search lists"
                 value={search}

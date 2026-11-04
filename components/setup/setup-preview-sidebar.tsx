@@ -27,7 +27,7 @@ export function SetupPreviewSidebar(props: {
 
   return (
     <aside className="w-full shrink-0 lg:sticky lg:top-4 lg:z-10 lg:w-[min(220px,28vw)]">
-      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-4 backdrop-blur-sm">
+      <div className="rounded-xl border border-zinc-800/80 bg-zinc-950/90 p-4 backdrop-blur-xs">
         <p className="mb-4 text-xs font-medium uppercase tracking-[0.16em] text-zinc-500">
           Live preview
         </p>
@@ -68,7 +68,7 @@ export function SetupPreviewSidebar(props: {
               ) : null}
             </>
           ) : (
-            <div className="flex aspect-[2/3] items-center justify-center bg-zinc-950 px-3 text-center text-[11px] leading-snug text-zinc-600">
+            <div className="flex aspect-2/3 items-center justify-center bg-zinc-950 px-3 text-center text-[11px] leading-snug text-zinc-600">
               {liveMessage ?? "Enter a valid IMDb id"}
             </div>
           )}

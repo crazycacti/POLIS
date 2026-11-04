@@ -28,7 +28,7 @@ export function SetupPosterThumb(props: {
           width={props.width ?? 132}
         />
       ) : (
-        <div className="flex aspect-[2/3] items-center justify-center bg-zinc-950 text-[10px] text-zinc-600">
+        <div className="flex aspect-2/3 items-center justify-center bg-zinc-950 text-[10px] text-zinc-600">
           …
         </div>
       )}

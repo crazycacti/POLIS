@@ -5,7 +5,7 @@ type PolisLogoProps = {
 };
 
 export function PolisLogo({
-  className = "h-7 w-[8.75rem]",
+  className = "h-7 w-35",
   colorClassName = "text-white",
   "aria-hidden": ariaHidden,
 }: PolisLogoProps) {

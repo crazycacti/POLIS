@@ -4,7 +4,7 @@ import { GithubMark } from "@/components/github-mark";
 import { POLIS_GITHUB_URL, POLIS_SUPPORT_URL } from "@/lib/site-links";
 
 const iconLinkClass =
-  "inline-flex shrink-0 items-center justify-center rounded-sm text-zinc-500 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black max-sm:h-10 max-sm:w-10 sm:h-auto sm:w-auto";
+  "inline-flex shrink-0 items-center justify-center rounded-xs text-zinc-500 transition-colors hover:text-white focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-cyan-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-black max-sm:h-10 max-sm:w-10 sm:h-auto sm:w-auto";
 
 type SiteSupportLinksProps = {
   className?: string;
