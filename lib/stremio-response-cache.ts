@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
+import { POLIS_STREMIO_CACHE_GENERATION } from "@/lib/polis-renderer";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import { serializePolisCatalogDefinitions } from "@/lib/polis-catalogs-json";
 import { hashPart } from "@/lib/integrator-cache-fingerprint";
@@ -9,8 +9,6 @@ import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 import { serveFreshOrStale } from "@/lib/polis-stale-while-revalidate";
 import type { StremioCatalogMeta } from "@/lib/stremio-catalog-fetch";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
-
-const STREMIO_CATALOG_CACHE_GENERATION = "2";
 
 function metaTtlMs(): number {
   const sec = Number(process.env.POLIS_CACHE_META_TTL_SEC ?? "21600");
@@ -52,7 +50,7 @@ export function stremioMetaCacheKey(params: {
 }): string {
   const posterQs = params.posterQueryString?.trim() || "";
   return [
-    String(POLIS_RENDERER_REVISION),
+    String(POLIS_STREMIO_CACHE_GENERATION),
     "meta",
     params.configId?.trim() || "_",
     params.credentialFingerprint,
@@ -77,8 +75,7 @@ export function stremioCatalogCacheKey(params: {
 }): string {
   const posterQs = params.posterQueryString?.trim() || "";
   return [
-    String(POLIS_RENDERER_REVISION),
-    STREMIO_CATALOG_CACHE_GENERATION,
+    String(POLIS_STREMIO_CACHE_GENERATION),
     "catalog",
     params.configId?.trim() || "_",
     params.credentialFingerprint,

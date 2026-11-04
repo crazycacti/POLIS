@@ -14,7 +14,7 @@ import {
 } from "@/lib/polis-disk-cache";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { polisSingleflight } from "@/lib/polis-singleflight";
-import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
+import { POLIS_ARTWORK_CACHE_GENERATION } from "@/lib/polis-renderer";
 import type {
   PosterArtworkFallback,
   PosterArtworkMovieSource,
@@ -59,7 +59,7 @@ export function posterArtworkCacheKey(params: {
   const integrator =
     scope === "_" ? (params.integratorFingerprint?.trim() || "_") : "_";
   return [
-    String(POLIS_RENDERER_REVISION),
+    `a${POLIS_ARTWORK_CACHE_GENERATION}`,
     scope,
     integrator,
     params.language,
