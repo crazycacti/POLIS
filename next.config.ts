@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   agentRules: false,
   serverExternalPackages: ["sharp", "opentype.js"],
+  // Runtime data and local secrets must never be copied into the standalone server bundle.
+  outputFileTracingExcludes: {
+    "/*": [".env*", "**/*.sqlite*", "data/**", ".cache/**", ".cursor/**"],
+  },
   logging: {
     incomingRequests: {
       ignore: DEV_INCOMING_REQUEST_IGNORE,

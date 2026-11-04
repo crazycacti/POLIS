@@ -52,7 +52,7 @@ async function loadMarkAsset(id: QualityMarkId): Promise<Buffer | null> {
   for (const dir of MARK_DIRS) {
     for (const ext of ["png", "svg"] as const) {
       try {
-        const buf = await readFile(path.join(dir, `${id}.${ext}`));
+        const buf = await readFile(path.join(/*turbopackIgnore: true*/ dir, `${id}.${ext}`));
         markBufferCache.set(id, buf);
         return buf;
       } catch {

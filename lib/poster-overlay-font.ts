@@ -33,14 +33,14 @@ function loadEmbeddedFontFaceCss(): string | null {
 
   const faces: string[] = [];
   for (const fontPath of REGULAR_FONT_PATHS) {
-    if (!existsSync(fontPath)) continue;
+    if (!existsSync(/*turbopackIgnore: true*/ fontPath)) continue;
     const face = fontFaceCss(fontPath, "400 600");
     if (face) faces.push(face);
     break;
   }
 
   for (const fontPath of BOLD_FONT_PATHS) {
-    if (!existsSync(fontPath)) continue;
+    if (!existsSync(/*turbopackIgnore: true*/ fontPath)) continue;
     const face = fontFaceCss(fontPath, "700");
     if (face) faces.push(face);
     break;

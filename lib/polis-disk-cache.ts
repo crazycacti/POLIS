@@ -47,7 +47,7 @@ export async function readPolisDiskBytes(
   const file = await resolvePolisDiskCachePath(namespace, scope, cacheKey, ext, ttlMs);
   if (!file) return null;
   try {
-    return await readFile(file);
+    return await readFile(/*turbopackIgnore: true*/ file);
   } catch {
     return null;
   }
