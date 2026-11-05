@@ -18,15 +18,29 @@ describe("parseTmdbCredits", () => {
     expect(parsed.directors).toEqual(["Jane Director"]);
   });
 
-  test("series uses Creator as director", () => {
+  test("series lists created_by before episode directors", () => {
     const parsed = parseTmdbCredits(
       {
         cast: [{ name: "Star", order: 0 }],
-        crew: [{ name: "Showrunner", job: "Creator" }],
+        crew: [
+          { name: "Episode Director", job: "Director" },
+          { name: "Showrunner", job: "Executive Producer" },
+        ],
       },
       "series",
+      [{ name: "Showrunner" }, { name: " " }],
     );
-    expect(parsed.directors).toEqual(["Showrunner"]);
+    expect(parsed.directors).toEqual(["Showrunner", "Episode Director"]);
+  });
+
+  test("series keeps creators when credits are missing", () => {
+    const parsed = parseTmdbCredits(null, "series", [{ name: "Creator One" }]);
+    expect(parsed.directors).toEqual(["Creator One"]);
+  });
+
+  test("movies ignore created_by", () => {
+    const parsed = parseTmdbCredits(null, "movie", [{ name: "Someone" }]);
+    expect(parsed.directors).toEqual([]);
   });
 
   test("keeps character and photo path for each cast member", () => {

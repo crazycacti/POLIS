@@ -5,7 +5,7 @@ import {
   parseTmdbCredits,
   type TmdbCreditsBlock,
 } from "@/lib/tmdb-credits";
-import type { TmdbCastMember } from "@/lib/tmdb-credits-parse";
+import type { TmdbCastMember, TmdbCreatedBy } from "@/lib/tmdb-credits-parse";
 import { fetchTmdbSeriesVideos, type StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 
@@ -30,6 +30,7 @@ type MovieDetailsJson = {
   runtime?: number;
   episode_run_time?: number[];
   production_countries?: { iso_3166_1?: string; name?: string }[];
+  created_by?: TmdbCreatedBy;
   credits?: TmdbCreditsBlock;
   aggregate_credits?: TmdbCreditsBlock;
   images?: ImagesJson;
@@ -224,7 +225,7 @@ function mapResolved(
     certification = us?.rating ?? null;
   }
 
-  const { cast, castMembers, directors } = parseTmdbCredits(creditsBlock, stremioType);
+  const { cast, castMembers, directors } = parseTmdbCredits(creditsBlock, stremioType, d.created_by ?? []);
   const releaseInfo =
     stremioType === "series" ? seriesReleaseInfo(d) : year;
 

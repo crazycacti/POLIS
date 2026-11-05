@@ -9,6 +9,8 @@ export type TmdbCreditsBlock = {
   crew?: { name?: string; job?: string }[];
 };
 
+export type TmdbCreatedBy = { name?: string }[];
+
 export type TmdbCastMember = {
   name: string;
   character: string | null;
@@ -21,6 +23,7 @@ type DetailsWithCredits = {
 };
 
 const CAST_LIMIT = 10;
+const DIRECTOR_LIMIT = 5;
 const TMDB_IMAGE_PATH_RE = /^\/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)$/i;
 
 export function creditsBlockFromDetails(details: DetailsWithCredits): TmdbCreditsBlock | null {
@@ -34,8 +37,22 @@ export function creditsBlockFromDetails(details: DetailsWithCredits): TmdbCredit
 export function parseTmdbCredits(
   block: TmdbCreditsBlock | null,
   stremioType: "movie" | "series",
+  createdBy: TmdbCreatedBy = [],
 ): { cast: string[]; castMembers: TmdbCastMember[]; directors: string[] } {
-  if (!block) return { cast: [], castMembers: [], directors: [] };
+  const directors: string[] = [];
+  const seenDirectors = new Set<string>();
+  const addDirector = (raw: string | undefined) => {
+    const name = raw?.trim();
+    if (!name || seenDirectors.has(name) || directors.length >= DIRECTOR_LIMIT) return;
+    seenDirectors.add(name);
+    directors.push(name);
+  };
+
+  if (stremioType === "series") {
+    for (const creator of createdBy) addDirector(creator.name);
+  }
+
+  if (!block) return { cast: [], castMembers: [], directors };
 
   const castMembers = (block.cast ?? [])
     .filter((c) => c.name?.trim())
@@ -52,21 +69,8 @@ export function parseTmdbCredits(
     });
   const cast = castMembers.map((member) => member.name);
 
-  const directorJobs =
-    stremioType === "series"
-      ? new Set(["Director", "Creator"])
-      : new Set(["Director"]);
-
-  const seenDirectors = new Set<string>();
-  const directors: string[] = [];
   for (const member of block.crew ?? []) {
-    if (!member.name?.trim() || !member.job) continue;
-    if (!directorJobs.has(member.job)) continue;
-    const name = member.name.trim();
-    if (seenDirectors.has(name)) continue;
-    seenDirectors.add(name);
-    directors.push(name);
-    if (directors.length >= 5) break;
+    if (member.job === "Director") addDirector(member.name);
   }
 
   return { cast, castMembers, directors };
