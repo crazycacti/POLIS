@@ -29,6 +29,7 @@ POLIS renders posters on demand from IMDb ids (WebP by default), then serves the
 ```bash
 cp env.example .env
 # Edit .env: TMDB_ACCESS_TOKEN or TMDB_API_KEY, POLIS_PUBLIC_URL
+# POLIS_SESSION_SECRET is required for production builds (openssl rand -hex 32)
 
 bun install
 bun run dev
@@ -43,6 +44,8 @@ bun run build
 bun run start
 ```
 
+Production mode requires `POLIS_SESSION_SECRET` in `.env`. Without it, creating, saving and unlocking configurations fails.
+
 Default port: **3050** (override with `-p` on `next start` / `next dev`).
 
 Poster routes return **WebP** by default (`POLIS_POSTER_FORMAT` / `NEXT_PUBLIC_POLIS_POSTER_FORMAT` in `env.example`).
@@ -53,7 +56,7 @@ Poster routes return **WebP** by default (`POLIS_POSTER_FORMAT` / `NEXT_PUBLIC_P
 
 ```bash
 cp env.example .env
-# Set POLIS_PUBLIC_URL and TMDB keys in .env
+# Set POLIS_PUBLIC_URL, POLIS_SESSION_SECRET (openssl rand -hex 32) and TMDB keys in .env
 
 docker compose up -d
 ```
