@@ -224,7 +224,9 @@ export async function purgePolisConfigDiskCache(configId: string): Promise<void>
       const dir = path.join(scopeDir, ns, `c/${id}`);
       try {
         await rm(dir, { recursive: true, force: true });
-      } catch {}
+      } catch (error) {
+        console.warn(`[polis] cache purge failed for ${ns} of config ${id}`, error);
+      }
     }),
   );
 }
