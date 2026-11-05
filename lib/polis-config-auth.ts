@@ -61,7 +61,12 @@ export function parseConfigureSessionCookie(
   for (const part of cookieHeader.split(";")) {
     const trimmed = part.trim();
     if (!trimmed.startsWith(prefix)) continue;
-    const token = decodeURIComponent(trimmed.slice(prefix.length));
+    let token: string;
+    try {
+      token = decodeURIComponent(trimmed.slice(prefix.length));
+    } catch {
+      return null;
+    }
     const payload = token.split(".")[0];
     const configId = payload?.split(":")[0];
     if (!configId) return null;
