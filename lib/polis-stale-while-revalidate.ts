@@ -1,6 +1,7 @@
 import { polisSingleflight } from "@/lib/polis-singleflight";
 
 const REFRESH_RETRY_DELAY_MS = 5 * 60 * 1000;
+const REFRESH_BLOCK_MAX_KEYS = 5000;
 const refreshBlockedUntil = new Map<string, number>();
 
 function refreshAllowed(key: string): boolean {
@@ -12,7 +13,13 @@ function refreshAllowed(key: string): boolean {
 }
 
 function blockRefresh(key: string): void {
-  refreshBlockedUntil.set(key, Date.now() + REFRESH_RETRY_DELAY_MS);
+  const now = Date.now();
+  refreshBlockedUntil.delete(key);
+  for (const [oldestKey, until] of refreshBlockedUntil) {
+    if (until > now && refreshBlockedUntil.size < REFRESH_BLOCK_MAX_KEYS) break;
+    refreshBlockedUntil.delete(oldestKey);
+  }
+  refreshBlockedUntil.set(key, now + REFRESH_RETRY_DELAY_MS);
 }
 
 export async function serveFreshOrStale<T>(params: {
