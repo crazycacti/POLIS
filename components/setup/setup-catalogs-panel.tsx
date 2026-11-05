@@ -241,7 +241,7 @@ export function SetupCatalogsPanel(props: {
                     <CatalogToggleRow
                       key={list.id}
                       checked={listChecked(list)}
-                      detail={detailParts.join(" · ")}
+                      detail={detailParts.join(", ")}
                       label={list.name}
                       onChange={(on) => toggleMdblistList(list, on)}
                     />

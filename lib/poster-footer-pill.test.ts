@@ -45,6 +45,10 @@ describe("poster footer pill layout", () => {
     );
   });
 
+  test("normalizeGenreLabel keeps an ampersand genre as one genre", () => {
+    expect(normalizeGenreLabel(["Drama", "Action&Adventure"], "top3")).toBe("Drama · Action & Adventure");
+  });
+
   test("truncateTextToPillWidth never exceeds budget", () => {
     const fs = 30;
     const max = 140;

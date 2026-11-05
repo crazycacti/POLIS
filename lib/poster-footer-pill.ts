@@ -187,11 +187,9 @@ export function footerPillBox(
 export function normalizeGenreLabel(genreNames: string[], mode: "first" | "top3"): string | null {
   const list = genreNames.map((g) => formatGenreDisplayName(g)).filter(Boolean);
   if (list.length === 0) return null;
+  const withAmpersand = (g: string) => g.replace(/\s*&\s*/g, " & ");
   if (mode === "top3") {
-    return list
-      .slice(0, 3)
-      .map((g) => g.replace(/\s*&\s*/g, " · "))
-      .join(" · ");
+    return list.slice(0, 3).map(withAmpersand).join(" · ");
   }
-  return list[0].replace(/\s*&\s*/g, " & ");
+  return withAmpersand(list[0]);
 }
