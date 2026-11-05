@@ -14,11 +14,6 @@ function formatRuntimeLabel(minutes: number | null): string | undefined {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function formatRating(voteAverage: number | null): string | undefined {
-  if (voteAverage == null || voteAverage <= 0) return undefined;
-  return voteAverage.toFixed(1);
-}
-
 type StremioMetaLink = {
   name: string;
   category: string;
@@ -92,11 +87,6 @@ export function buildStremioMetaRecord(
 
   if (resolved.genreNames.length > 0) {
     out.genres = resolved.genreNames;
-  }
-
-  const rating = formatRating(resolved.voteAverage);
-  if (rating) {
-    out.imdbRating = rating;
   }
 
   const runtime = formatRuntimeLabel(resolved.runtimeMinutes);

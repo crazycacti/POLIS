@@ -58,6 +58,11 @@ describe("buildStremioMetaRecord", () => {
     });
   });
 
+  test("does not label the TMDB vote average as an IMDb rating", () => {
+    const meta = buildStremioMetaRecord(resolvedTitle({ voteAverage: 7.4 }), "https://polis.test", undefined, undefined);
+    expect(meta.imdbRating).toBeUndefined();
+  });
+
   test("leaves out app_extras when there is no cast", () => {
     const meta = buildStremioMetaRecord(
       resolvedTitle({ cast: [], castMembers: [] }),
