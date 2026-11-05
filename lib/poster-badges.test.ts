@@ -22,6 +22,7 @@ function baseResolved(overrides: Partial<ResolvedTitle> = {}): ResolvedTitle {
     voteCount: 100,
     genreNames: [],
     cast: [],
+    castMembers: [],
     directors: [],
     country: null,
     tmdbNumericId: 1,

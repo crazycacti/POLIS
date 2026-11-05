@@ -5,6 +5,7 @@ import {
   parseTmdbCredits,
   type TmdbCreditsBlock,
 } from "@/lib/tmdb-credits";
+import type { TmdbCastMember } from "@/lib/tmdb-credits-parse";
 import { fetchTmdbSeriesVideos, type StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 
@@ -29,14 +30,8 @@ type MovieDetailsJson = {
   runtime?: number;
   episode_run_time?: number[];
   production_countries?: { iso_3166_1?: string; name?: string }[];
-  credits?: {
-    cast?: { name?: string; order?: number }[];
-    crew?: { name?: string; job?: string }[];
-  };
-  aggregate_credits?: {
-    cast?: { name?: string; order?: number }[];
-    crew?: { name?: string; job?: string }[];
-  };
+  credits?: TmdbCreditsBlock;
+  aggregate_credits?: TmdbCreditsBlock;
   images?: ImagesJson;
   external_ids?: ExternalIdsJson;
 };
@@ -81,6 +76,7 @@ export type ResolvedTitle = {
   voteCount: number | null;
   genreNames: string[];
   cast: string[];
+  castMembers: TmdbCastMember[];
   directors: string[];
   country: string | null;
   tmdbNumericId: number;
@@ -228,7 +224,7 @@ function mapResolved(
     certification = us?.rating ?? null;
   }
 
-  const { cast, directors } = parseTmdbCredits(creditsBlock, stremioType);
+  const { cast, castMembers, directors } = parseTmdbCredits(creditsBlock, stremioType);
   const releaseInfo =
     stremioType === "series" ? seriesReleaseInfo(d) : year;
 
@@ -251,6 +247,7 @@ function mapResolved(
     voteCount: typeof d.vote_count === "number" ? d.vote_count : null,
     genreNames: genres,
     cast,
+    castMembers,
     directors,
     country: primaryCountry(d),
     tvdbId,

@@ -1,8 +1,10 @@
 import { mergePosterQueryWithIntegratorAuth } from "@/lib/integrator-auth";
-import { defaultPosterQueryString, parsePosterOverlayQuery } from "@/lib/poster-query";
+import { defaultPosterQueryString } from "@/lib/poster-query";
 import { backdropArtUrl, logoArtUrl, posterArtUrl } from "@/lib/polis-urls";
 import type { StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import type { ResolvedTitle } from "@/lib/tmdb-resolve";
+
+const TMDB_PROFILE_BASE_URL = "https://image.tmdb.org/t/p/w185";
 
 function formatRuntimeLabel(minutes: number | null): string | undefined {
   if (minutes == null || minutes <= 0) return undefined;
@@ -68,7 +70,6 @@ export function buildStremioMetaRecord(
     posterQueryString?.trim() || defaultPosterQueryString(),
     artworkAuth,
   );
-  const overlay = parsePosterOverlayQuery(new URLSearchParams(qs));
 
   const out: Record<string, unknown> = {
     id: resolved.imdbId,
@@ -138,7 +139,16 @@ export function buildStremioMetaRecord(
     out.background = backdropArtUrl(publicBase, resolved.imdbId, configId);
   }
 
-  if (resolved.logoPath && !overlay.logoOnPoster) {
+  const appCast = resolved.castMembers.map((member) => ({
+    name: member.name,
+    ...(member.character ? { character: member.character } : {}),
+    ...(member.profilePath ? { photo: `${TMDB_PROFILE_BASE_URL}${member.profilePath}` } : {}),
+  }));
+  if (appCast.length > 0) {
+    out.app_extras = { cast: appCast };
+  }
+
+  if (resolved.logoPath) {
     out.logo = logoArtUrl(publicBase, resolved.imdbId, configId);
   }
 
