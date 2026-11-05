@@ -5,3 +5,9 @@ node_modules
 *.md
 Dockerfile
 .dockerignore
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.cache/
+.cursor/
