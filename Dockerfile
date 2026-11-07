@@ -16,6 +16,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3050
 ENV HOSTNAME=0.0.0.0
+ENV MALLOC_ARENA_MAX=2
 
 COPY docker/fonts/local.conf /etc/fonts/local.conf
 RUN apt-get update \
