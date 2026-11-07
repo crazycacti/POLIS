@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-
 import { posterContentType, posterDiskExtension } from "@/lib/poster-output-format";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { polisSingleflight } from "@/lib/polis-singleflight";
@@ -11,7 +9,10 @@ import {
   cachedPreviewThumbExists,
   PREVIEW_THUMB_CONTENT_TYPE,
   previewCachedPath,
+  readPreviewCacheFile,
+  TITLE_PREVIEW_STORE,
   writePreviewCache,
+  type PreviewFullLoad,
   type PreviewImage,
   type PreviewThumbWidth,
 } from "@/lib/preview-image-cache";
@@ -91,11 +92,9 @@ const KEYLESS_PROVIDER_CANDIDATES: PreviewProviders[] = [true, false]
   )
   .sort((a, b) => Number(b.mdblist) + Number(b.fanart) + Number(b.tvdb) - (Number(a.mdblist) + Number(a.fanart) + Number(a.tvdb)));
 
-type FullOutcome =
-  | { kind: "full"; image: Buffer; cacheable: boolean }
-  | { kind: "failed"; failure: PreviewFailure };
-
 export type PreviewFailure = { kind: "not_found" } | { kind: "limited"; retryAfterSec: number };
+
+type FullOutcome = PreviewFullLoad<PreviewFailure>;
 
 export type PreviewPosterResult =
   | { kind: "image"; image: PreviewImage; contentType: string; degraded: boolean }
@@ -108,19 +107,30 @@ type PreviewRequest = {
   width: PreviewThumbWidth | null;
   auth: PreviewAuth;
   language: string;
+  clientKey: string;
   budget?: PreviewRenderBudget;
   countAgainstBudget?: boolean;
 };
 
+function fullPath(fullKey: string): Promise<string | null> {
+  return previewCachedPath(TITLE_PREVIEW_STORE, PREVIEW_TITLE_SCOPE, fullKey, posterDiskExtension(), PREVIEW_RENDER_TTL_MS);
+}
+
+async function cachedFull(fullKey: string): Promise<FullOutcome> {
+  const path = await fullPath(fullKey);
+  const image = path ? await readPreviewCacheFile(path) : null;
+  return image ? { kind: "full", image, cacheable: true } : null;
+}
+
 async function renderFull(request: PreviewRequest, fullKey: string, credential: TmdbCredential): Promise<FullOutcome> {
-  const ext = posterDiskExtension();
   return polisSingleflight(`preview:${fullKey}`, async (): Promise<FullOutcome> => {
-    const raced = await previewCachedPath(PREVIEW_TITLE_SCOPE, fullKey, ext, PREVIEW_RENDER_TTL_MS);
-    if (raced) return { kind: "full", image: await readFile(raced), cacheable: true };
+    const raced = await cachedFull(fullKey);
+    if (raced) return raced;
 
     const budget = request.budget ?? previewRenderBudget;
-    if (request.countAgainstBudget !== false && !budget.take(request.auth.keySource)) {
-      return { kind: "failed", failure: { kind: "limited", retryAfterSec: budget.retryAfterSec(request.auth.keySource) } };
+    const source = request.auth.keySource;
+    if (request.countAgainstBudget !== false && !budget.take(source, request.clientKey)) {
+      return { kind: "failed", failure: { kind: "limited", retryAfterSec: budget.retryAfterSec(source, request.clientKey) } };
     }
 
     const overlay = await withLiveTrendRank({
@@ -146,26 +156,22 @@ async function renderFull(request: PreviewRequest, fullKey: string, credential: 
     });
     if (!image) return { kind: "failed", failure: { kind: "not_found" } };
     if (!degraded) {
-      await writePreviewCache(PREVIEW_TITLE_SCOPE, fullKey, ext, image).catch((error: unknown) =>
-        console.warn(`[polis] preview cache write failed for ${request.imdbId}`, error),
+      await writePreviewCache(TITLE_PREVIEW_STORE, PREVIEW_TITLE_SCOPE, fullKey, posterDiskExtension(), image).catch(
+        (error: unknown) => console.warn(`[polis] preview cache write failed for ${request.imdbId}`, error),
       );
     }
     return { kind: "full", image, cacheable: !degraded };
   });
 }
 
-async function cachedFull(fullKey: string): Promise<FullOutcome | null> {
-  const path = await previewCachedPath(PREVIEW_TITLE_SCOPE, fullKey, posterDiskExtension(), PREVIEW_RENDER_TTL_MS);
-  return path ? { kind: "full", image: await readFile(path), cacheable: true } : null;
-}
-
 async function previewForKey(
   request: PreviewRequest,
   fullKey: string,
-  loadFull: () => Promise<FullOutcome | null>,
+  keyed: boolean,
+  loadFull: () => Promise<FullOutcome>,
 ): Promise<PreviewPosterResult | null> {
   if (request.width == null) {
-    const path = await previewCachedPath(PREVIEW_TITLE_SCOPE, fullKey, posterDiskExtension(), PREVIEW_RENDER_TTL_MS);
+    const path = await fullPath(fullKey);
     if (path) return { kind: "image", image: { source: "disk", path }, contentType: posterContentType(), degraded: false };
     const full = await loadFull();
     if (!full) return null;
@@ -178,24 +184,17 @@ async function previewForKey(
     };
   }
 
-  const outcome: { failure: PreviewFailure | null } = { failure: null };
   const thumb = await cachedPreviewThumb({
+    store: TITLE_PREVIEW_STORE,
     scope: PREVIEW_TITLE_SCOPE,
     fullKey,
     width: request.width,
     ttlMs: PREVIEW_RENDER_TTL_MS,
-    loadFull: async () => {
-      const full = await loadFull();
-      if (!full) return null;
-      if (full.kind === "failed") {
-        outcome.failure = full.failure;
-        return null;
-      }
-      return full;
-    },
+    flightTag: keyed ? "keyed" : "keyless",
+    loadFull,
   });
-  if (outcome.failure) return outcome.failure;
   if (!thumb) return null;
+  if (thumb.source === "failed") return thumb.failure;
   return {
     kind: "image",
     image: thumb,
@@ -212,7 +211,7 @@ export async function previewPoster(request: PreviewRequest): Promise<PreviewPos
   if (!credential) {
     for (const providers of KEYLESS_PROVIDER_CANDIDATES) {
       const fullKey = keyFor(providers);
-      const hit = await previewForKey(request, fullKey, () => cachedFull(fullKey));
+      const hit = await previewForKey(request, fullKey, false, () => cachedFull(fullKey));
       if (hit) return hit;
     }
     return { kind: "uncached" };
@@ -222,12 +221,15 @@ export async function previewPoster(request: PreviewRequest): Promise<PreviewPos
   const result = await previewForKey(
     request,
     fullKey,
+    true,
     async () => (await cachedFull(fullKey)) ?? renderFull(request, fullKey, credential),
   );
   return result ?? { kind: "not_found" };
 }
 
-export async function previewPosterCached(request: Omit<PreviewRequest, "budget" | "countAgainstBudget">): Promise<boolean> {
+export async function previewPosterCached(
+  request: Pick<PreviewRequest, "imdbId" | "overlay" | "width" | "auth" | "language">,
+): Promise<boolean> {
   if (!request.auth.credential) return false;
   const fullKey = previewRenderCacheKey({
     imdbId: request.imdbId,
@@ -235,8 +237,6 @@ export async function previewPosterCached(request: Omit<PreviewRequest, "budget"
     language: request.language,
     providers: request.auth.providers,
   });
-  if (request.width == null) {
-    return (await previewCachedPath(PREVIEW_TITLE_SCOPE, fullKey, posterDiskExtension(), PREVIEW_RENDER_TTL_MS)) != null;
-  }
-  return cachedPreviewThumbExists(PREVIEW_TITLE_SCOPE, fullKey, request.width, PREVIEW_RENDER_TTL_MS);
+  if (request.width == null) return (await fullPath(fullKey)) != null;
+  return cachedPreviewThumbExists(TITLE_PREVIEW_STORE, PREVIEW_TITLE_SCOPE, fullKey, request.width, PREVIEW_RENDER_TTL_MS);
 }

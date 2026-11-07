@@ -7,11 +7,12 @@ import sharp from "sharp";
 
 import { trimPolisDiskNamespace } from "@/lib/polis-disk-cache";
 import { POSTER_OVERLAY_DEFAULTS, serializePosterQuery } from "@/lib/poster-query";
-import { PREVIEW_CACHE_NAMESPACE } from "@/lib/preview-image-cache";
+import { readPreviewCacheFile, TITLE_PREVIEW_STORE } from "@/lib/preview-image-cache";
 import { NO_PREVIEW_CALLER_KEYS, PREVIEW_KEYS_COOKIE, serializePreviewKeysCookie } from "@/lib/preview-keys";
 import { previewPoster, previewPosterCached, resolvePreviewAuth } from "@/lib/preview-poster";
 import { handlePreviewPosterRequest } from "@/lib/preview-poster-route";
 import { PreviewRenderBudget } from "@/lib/preview-render-budget";
+import { proxyClientKey } from "@/lib/client-request-context";
 import { previewWarmupIdle, previewWarmupOverlays, warmPreviewPosters } from "@/lib/preview-warmup";
 
 const KEY_A = "1111111111aaaaaa1111111111aaaaaa";
@@ -116,7 +117,7 @@ describe("preview poster route", () => {
     expect(response.status).toBe(200);
     for (const [, value] of response.headers) expect(value).not.toContain(KEY_A);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    const files = await listFiles(path.join(root, PREVIEW_CACHE_NAMESPACE));
+    const files = await listFiles(path.join(root, TITLE_PREVIEW_STORE.namespace));
     expect(files.length).toBeGreaterThanOrEqual(2);
     for (const file of files) {
       expect(file).not.toContain(KEY_A);
@@ -143,11 +144,16 @@ describe("preview poster route", () => {
 });
 
 describe("preview render budget", () => {
-  test("stops uncached renders past the per-minute cap but keeps serving cached ones", async () => {
-    const budget = new PreviewRenderBudget({ server: () => 1, caller: () => 1 });
+  const limits = (perClient: number, server: number, caller: number) => ({
+    perClient: () => perClient,
+    total: { server: () => server, caller: () => caller },
+  });
+
+  test("stops one client's uncached renders past its cap but keeps serving cached ones and other clients", async () => {
+    const budget = new PreviewRenderBudget(limits(1, 10, 10));
     const auth = resolvePreviewAuth({ ...NO_PREVIEW_CALLER_KEYS, tmdb: KEY_A });
     const overlay = { ...POSTER_OVERLAY_DEFAULTS, trendTags: false, logoOnPoster: false };
-    const base = { overlay, width: null, auth, language: "en-US", budget };
+    const base = { overlay, width: null, auth, language: "en-US", budget, clientKey: "203.0.113.1" };
 
     expect((await previewPoster({ ...base, imdbId: "tt0665" })).kind).toBe("image");
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -155,6 +161,17 @@ describe("preview render budget", () => {
     expect(limited.kind).toBe("limited");
     expect(limited.kind === "limited" && limited.retryAfterSec).toBeGreaterThan(0);
     expect((await previewPoster({ ...base, imdbId: "tt0665" })).kind).toBe("image");
+    expect((await previewPoster({ ...base, imdbId: "tt0666", clientKey: "203.0.113.2" })).kind).toBe("image");
+  });
+
+  test("a limited render reports 429 to every thumbnail request that joined it", async () => {
+    const budget = new PreviewRenderBudget(limits(10, 10, 0));
+    const auth = resolvePreviewAuth({ ...NO_PREVIEW_CALLER_KEYS, tmdb: KEY_A });
+    const overlay = { ...POSTER_OVERLAY_DEFAULTS, trendTags: false, logoOnPoster: false };
+    const request = { imdbId: "tt0667", overlay, width: 160 as const, auth, language: "en-US", budget, clientKey: "c" };
+    const results = await Promise.all([previewPoster(request), previewPoster(request)]);
+    expect(results.map((result) => result.kind)).toEqual(["limited", "limited"]);
+    expect(upstream).toHaveLength(0);
   });
 
   test("renders that fall back to a server key count against the server cap", () => {
@@ -163,26 +180,39 @@ describe("preview render budget", () => {
     expect(resolvePreviewAuth({ ...NO_PREVIEW_CALLER_KEYS, tmdb: KEY_A, mdblist: "caller-mdblist" }).keySource).toBe("caller");
   });
 
-  test("the window frees slots after a minute", () => {
-    const budget = new PreviewRenderBudget({ server: () => 2, caller: () => 2 });
-    expect(budget.take("caller", 0)).toBe(true);
-    expect(budget.take("caller", 1)).toBe(true);
-    expect(budget.take("caller", 2)).toBe(false);
-    expect(budget.take("server", 2)).toBe(true);
-    expect(budget.take("caller", 60_001)).toBe(true);
+  test("the window frees slots after a minute and the server-wide ceiling applies across clients", () => {
+    const budget = new PreviewRenderBudget(limits(2, 3, 10));
+    expect(budget.take("server", "a", 0)).toBe(true);
+    expect(budget.take("server", "a", 1)).toBe(true);
+    expect(budget.take("server", "a", 2)).toBe(false);
+    expect(budget.take("server", "b", 2)).toBe(true);
+    expect(budget.take("server", "c", 3)).toBe(false);
+    expect(budget.take("caller", "c", 3)).toBe(true);
+    expect(budget.take("server", "a", 60_001)).toBe(true);
+  });
+
+  test("the client key is the address the proxy appended last", () => {
+    const request = new Request("http://polis.test/", { headers: { "x-forwarded-for": "198.51.100.9, 203.0.113.5" } });
+    expect(proxyClientKey(request)).toBe("203.0.113.5");
+  });
+});
+
+describe("preview cache files", () => {
+  test("a cache file removed after lookup reads as a miss instead of an error", async () => {
+    expect(await readPreviewCacheFile(path.join(root, "gone.webp"))).toBeNull();
   });
 });
 
 describe("preview cache size", () => {
   test("trimming keeps the newest files up to the cap", async () => {
-    const dir = path.join(root, PREVIEW_CACHE_NAMESPACE, "titles");
+    const dir = path.join(root, TITLE_PREVIEW_STORE.namespace, "titles");
     await mkdir(dir, { recursive: true });
     for (let index = 0; index < 5; index += 1) {
       const file = path.join(dir, `f${index}.webp`);
       await writeFile(file, "x");
       await utimes(file, index + 1, index + 1);
     }
-    expect((await trimPolisDiskNamespace(PREVIEW_CACHE_NAMESPACE, 2)).removed).toBe(3);
+    expect((await trimPolisDiskNamespace(TITLE_PREVIEW_STORE.namespace, 2)).removed).toBe(3);
     expect((await readdir(dir)).sort()).toEqual(["f3.webp", "f4.webp"]);
   });
 });
@@ -222,6 +252,16 @@ describe("preview warm-up", () => {
     expect(keylessWarm.status).toBe(200);
     expect(warmPreviewPosters(titles, caller, 1)).toBeNull();
     expect(upstream.length).toBe(callsAfterWarm);
+  });
+
+  test("runs a combination that uses a server key at most once a day", async () => {
+    process.env.MDBLIST_API_KEY = "server-mdblist";
+    const caller = { ...NO_PREVIEW_CALLER_KEYS, tmdb: KEY_B };
+    const first = warmPreviewPosters(titles, caller, 1_000);
+    expect(first).not.toBeNull();
+    await first;
+    const elevenMinutesLater = 1_000 + 11 * 60 * 1000;
+    expect(warmPreviewPosters(titles, caller, elevenMinutesLater)).toBeNull();
   });
 
   test("does nothing without a TMDB key", () => {

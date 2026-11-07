@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { NextRequest } from "next/server";
@@ -7,6 +7,7 @@ import sharp from "sharp";
 
 import { GET } from "@/app/demo/poster/[id]/route";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
+import { DEMO_THUMB_STORE, TITLE_PREVIEW_STORE } from "@/lib/preview-image-cache";
 
 const DEMO_ID = DEMO_TITLES[0]!.id;
 let root = "";
@@ -41,6 +42,14 @@ describe("demo poster thumbnails", () => {
     const etag = response.headers.get("etag");
     expect(etag).toBeTruthy();
     expect((await demo("trend=0&w=320", { "if-none-match": etag! })).status).toBe(304);
+  });
+
+  test("stores demo thumbnails apart from title previews", async () => {
+    expect((await demo("trend=0&genre=1&w=160")).status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const entries = await readdir(root);
+    expect(entries).toContain(DEMO_THUMB_STORE.namespace);
+    expect(entries).not.toContain(TITLE_PREVIEW_STORE.namespace);
   });
 
   test("rejects widths outside the allowed set", async () => {

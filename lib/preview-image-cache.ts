@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import sharp from "sharp";
 
 import {
@@ -14,18 +16,30 @@ import { PREVIEW_THUMB_WIDTHS, type PreviewThumbWidth } from "@/lib/preview-size
 
 export { PREVIEW_THUMB_WIDTHS, type PreviewThumbWidth } from "@/lib/preview-sizes";
 
-export const PREVIEW_CACHE_NAMESPACE = "preview";
 export const PREVIEW_THUMB_CONTENT_TYPE = "image/webp";
 export type PreviewWidthParse = { ok: true; width: PreviewThumbWidth | null } | { ok: false };
 
 const PREVIEW_THUMB_EXT = ".webp";
 const PREVIEW_THUMB_WEBP_QUALITY = 78;
 const PREVIEW_THUMB_WEBP_EFFORT = 4;
-const DEFAULT_PREVIEW_CACHE_MAX_FILES = 4000;
+const DEFAULT_TITLE_PREVIEW_MAX_FILES = 4000;
+const DEFAULT_DEMO_THUMB_MAX_FILES = 1000;
 const PREVIEW_TRIM_INTERVAL_MS = 60 * 1000;
 
-let lastTrimAt = 0;
-let trimInFlight: Promise<void> | null = null;
+export type PreviewStore = { namespace: string; maxFiles: () => number };
+
+export const TITLE_PREVIEW_STORE: PreviewStore = {
+  namespace: "preview",
+  maxFiles: () => polisEnvPositiveInt("POLIS_PREVIEW_CACHE_MAX_FILES") ?? DEFAULT_TITLE_PREVIEW_MAX_FILES,
+};
+
+export const DEMO_THUMB_STORE: PreviewStore = {
+  namespace: "demo-thumb",
+  maxFiles: () => polisEnvPositiveInt("POLIS_DEMO_THUMB_CACHE_MAX_FILES") ?? DEFAULT_DEMO_THUMB_MAX_FILES,
+};
+
+const lastTrimAt = new Map<string, number>();
+const trimInFlight = new Set<string>();
 
 export function parsePreviewWidth(raw: string | null): PreviewWidthParse {
   if (raw == null) return { ok: true, width: null };
@@ -33,34 +47,51 @@ export function parsePreviewWidth(raw: string | null): PreviewWidthParse {
   return width != null ? { ok: true, width } : { ok: false };
 }
 
-export function previewCacheMaxFiles(): number {
-  return polisEnvPositiveInt("POLIS_PREVIEW_CACHE_MAX_FILES") ?? DEFAULT_PREVIEW_CACHE_MAX_FILES;
+export function isMissingFileError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
-function scheduleTrim(): void {
-  if (trimInFlight || Date.now() - lastTrimAt < PREVIEW_TRIM_INTERVAL_MS) return;
-  lastTrimAt = Date.now();
-  trimInFlight = trimPolisDiskNamespace(PREVIEW_CACHE_NAMESPACE, previewCacheMaxFiles())
-    .then(() => undefined)
-    .catch((error: unknown) => console.warn("[polis] preview cache trim failed", error))
-    .finally(() => {
-      trimInFlight = null;
-    });
+function scheduleTrim(store: PreviewStore): void {
+  const now = Date.now();
+  if (trimInFlight.has(store.namespace) || now - (lastTrimAt.get(store.namespace) ?? 0) < PREVIEW_TRIM_INTERVAL_MS) {
+    return;
+  }
+  lastTrimAt.set(store.namespace, now);
+  trimInFlight.add(store.namespace);
+  void trimPolisDiskNamespace(store.namespace, store.maxFiles())
+    .catch((error: unknown) => console.warn(`[polis] ${store.namespace} cache trim failed`, error))
+    .finally(() => trimInFlight.delete(store.namespace));
 }
 
 export function previewCachedPath(
+  store: PreviewStore,
   scope: string,
   cacheKey: string,
   ext: string,
   ttlMs?: number,
 ): Promise<string | null> {
-  return resolvePolisDiskCachePath(PREVIEW_CACHE_NAMESPACE, scope, cacheKey, ext, ttlMs);
+  return resolvePolisDiskCachePath(store.namespace, scope, cacheKey, ext, ttlMs);
 }
 
-export async function writePreviewCache(scope: string, cacheKey: string, ext: string, image: Buffer): Promise<void> {
+export async function readPreviewCacheFile(path: string): Promise<Buffer | null> {
+  try {
+    return await readFile(/*turbopackIgnore: true*/ path);
+  } catch (error) {
+    if (isMissingFileError(error)) return null;
+    throw error;
+  }
+}
+
+export async function writePreviewCache(
+  store: PreviewStore,
+  scope: string,
+  cacheKey: string,
+  ext: string,
+  image: Buffer,
+): Promise<void> {
   if (!polisDiskCacheEnabled()) return;
-  await writePolisDiskBytes(PREVIEW_CACHE_NAMESPACE, scope, cacheKey, ext, image);
-  scheduleTrim();
+  await writePolisDiskBytes(store.namespace, scope, cacheKey, ext, image);
+  scheduleTrim(store);
 }
 
 export function previewThumbCacheKey(fullKey: string, width: PreviewThumbWidth): string {
@@ -81,39 +112,50 @@ export type PreviewImage =
   | { source: "disk"; path: string }
   | { source: "buffer"; image: Buffer; cacheable: boolean };
 
-export type PreviewFullImage = { image: Buffer; cacheable: boolean };
+export type PreviewFullLoad<F> =
+  | { kind: "full"; image: Buffer; cacheable: boolean }
+  | { kind: "failed"; failure: F }
+  | null;
 
-export async function cachedPreviewThumb(params: {
+export type PreviewThumbResult<F> = PreviewImage | { source: "failed"; failure: F } | null;
+
+export async function cachedPreviewThumb<F>(params: {
+  store: PreviewStore;
   scope: string;
   fullKey: string;
   width: PreviewThumbWidth;
   ttlMs?: number;
-  loadFull: () => Promise<PreviewFullImage | null>;
-}): Promise<PreviewImage | null> {
+  flightTag: string;
+  loadFull: () => Promise<PreviewFullLoad<F>>;
+}): Promise<PreviewThumbResult<F>> {
   const thumbKey = previewThumbCacheKey(params.fullKey, params.width);
-  const hit = await previewCachedPath(params.scope, thumbKey, PREVIEW_THUMB_EXT, params.ttlMs);
+  const find = () => previewCachedPath(params.store, params.scope, thumbKey, PREVIEW_THUMB_EXT, params.ttlMs);
+  const hit = await find();
   if (hit) return { source: "disk", path: hit };
 
-  return polisSingleflight(`preview-thumb:${params.scope}:${thumbKey}`, async () => {
-    const raced = await previewCachedPath(params.scope, thumbKey, PREVIEW_THUMB_EXT, params.ttlMs);
-    if (raced) return { source: "disk" as const, path: raced };
+  const flightKey = `preview-thumb:${params.store.namespace}:${params.scope}:${params.flightTag}:${thumbKey}`;
+  return polisSingleflight(flightKey, async (): Promise<PreviewThumbResult<F>> => {
+    const raced = await find();
+    if (raced) return { source: "disk", path: raced };
     const full = await params.loadFull();
     if (!full) return null;
+    if (full.kind === "failed") return { source: "failed", failure: full.failure };
     const thumb = await resizePreviewThumb(full.image, params.width);
     if (full.cacheable) {
-      await writePreviewCache(params.scope, thumbKey, PREVIEW_THUMB_EXT, thumb).catch((error: unknown) =>
-        console.warn("[polis] preview thumbnail cache write failed", error),
+      await writePreviewCache(params.store, params.scope, thumbKey, PREVIEW_THUMB_EXT, thumb).catch(
+        (error: unknown) => console.warn("[polis] preview thumbnail cache write failed", error),
       );
     }
-    return { source: "buffer" as const, image: thumb, cacheable: full.cacheable };
+    return { source: "buffer", image: thumb, cacheable: full.cacheable };
   });
 }
 
 export async function cachedPreviewThumbExists(
+  store: PreviewStore,
   scope: string,
   fullKey: string,
   width: PreviewThumbWidth,
   ttlMs?: number,
 ): Promise<boolean> {
-  return (await previewCachedPath(scope, previewThumbCacheKey(fullKey, width), PREVIEW_THUMB_EXT, ttlMs)) != null;
+  return (await previewCachedPath(store, scope, previewThumbCacheKey(fullKey, width), PREVIEW_THUMB_EXT, ttlMs)) != null;
 }
