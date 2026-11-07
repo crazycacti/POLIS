@@ -153,22 +153,17 @@ export function SetupSaveBar(props: {
 
           <section aria-labelledby={`${reasonId}-aio`}>
             <h3 className="text-sm font-semibold text-zinc-200" id={`${reasonId}-aio`}>
-              AIOMetadata pattern
+              AIOMetadata
             </h3>
-            <p className="mt-1 mb-3 text-sm text-zinc-400">
-              Paste into customPosterUrlPattern in AIOMetadata. Add matching TMDB and MDBList keys in
-              AIOMetadata API settings; AIO fills {"{tmdb_key}"} and {"{mdblist_key}"} when fetching
-              posters.
-            </p>
             {props.posterPattern ? (
-              <>
-                <PatternRow label="Poster URL pattern" value={props.posterPattern} />
+              <div className="mt-3 space-y-3">
+                <PatternRow label="customPosterUrlPattern" value={props.posterPattern} />
                 {props.landscapePattern ? (
-                  <PatternRow label="Landscape URL pattern" value={props.landscapePattern} />
+                  <PatternRow label="customLandscapeUrlPattern" value={props.landscapePattern} />
                 ) : null}
-              </>
+              </div>
             ) : (
-              <p className="text-sm text-zinc-400">Set POLIS_PUBLIC_URL first.</p>
+              <p className="mt-3 text-sm text-zinc-400">Set POLIS_PUBLIC_URL first.</p>
             )}
           </section>
         </div>
