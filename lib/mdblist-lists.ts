@@ -1,6 +1,6 @@
 import type { MdblistListSummary } from "@/lib/mdblist-list-catalog";
 import { fetchUpstream } from "@/lib/upstream-fetch";
-import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
+import { upstreamCredentialFingerprint, upstreamGuard, type UpstreamBlockReason } from "@/lib/upstream-guard";
 
 export type { MdblistListSummary } from "@/lib/mdblist-list-catalog";
 export { mdblistListToCatalogDefinitions } from "@/lib/mdblist-list-catalog";
@@ -63,10 +63,20 @@ function summariesFromRows(rows: Record<string, unknown>[]): MdblistListSummary[
   return out;
 }
 
+export function mdblistBlockedMessage(reason: UpstreamBlockReason): string {
+  if (reason === "auth_rejected") return "MDBList rejected this key. Check it under API keys.";
+  if (reason === "busy") return "MDBList is busy. Try again in a moment.";
+  return "MDBList rate limit reached. Try again later.";
+}
+
 async function mdblistListsGet(url: URL, apiKey: string): Promise<MdblistListSummary[]> {
   url.searchParams.set("apikey", apiKey);
   const result = await upstreamGuard.request(
-    { provider: "mdblist", credentialFingerprint: upstreamCredentialFingerprint(apiKey) },
+    {
+      provider: "mdblist",
+      credentialFingerprint: upstreamCredentialFingerprint(apiKey),
+      authFailureCooldown: false,
+    },
     () =>
       fetchUpstream(url, {
         headers: { Accept: "application/json" },
@@ -80,7 +90,7 @@ async function mdblistListsGet(url: URL, apiKey: string): Promise<MdblistListSum
       return summariesFromRows(rowsFromPayload((await res.json()) as unknown));
     },
   );
-  if (!result.ok) throw new Error("MDBList rate limit reached, try again later");
+  if (!result.ok) throw new Error(mdblistBlockedMessage(result.reason));
   return result.value;
 }
 

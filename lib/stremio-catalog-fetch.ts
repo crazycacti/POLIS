@@ -303,7 +303,11 @@ async function fetchMdblistCatalogMetas(params: {
   let payload: unknown;
   try {
     const result = await upstreamGuard.request(
-      { provider: "mdblist", credentialFingerprint: upstreamCredentialFingerprint(apiKey) },
+      {
+        provider: "mdblist",
+        credentialFingerprint: upstreamCredentialFingerprint(apiKey),
+        authFailureCooldown: false,
+      },
       () =>
         fetchUpstream(url, {
           headers: { Accept: "application/json" },
