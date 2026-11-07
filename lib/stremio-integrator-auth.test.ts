@@ -37,9 +37,9 @@ describe("mdblist key source", () => {
     expect(source("http://polis.test/p", false)).toBeNull();
   });
 
-  test("only server keys are charged to a profile share", () => {
+  test("only server keys used by a saved profile are charged to its share", () => {
     expect(serverKeyProfileFor("server", "cfg1")).toBe("cfg1");
-    expect(serverKeyProfileFor("server", null)).toBe("_");
+    expect(serverKeyProfileFor("server", null)).toBeNull();
     expect(serverKeyProfileFor("profile", "cfg1")).toBeNull();
     expect(serverKeyProfileFor("request", null)).toBeNull();
   });

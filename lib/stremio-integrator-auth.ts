@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
 import type { StoredPolisConfig } from "@/lib/polis-config-store";
-import { ANONYMOUS_UPSTREAM_PROFILE, type UpstreamKeySource } from "@/lib/upstream-guard";
+import type { UpstreamKeySource } from "@/lib/upstream-guard";
 import {
   resolveTmdbAuth,
   tmdbAuthToSearchParams,
@@ -90,5 +90,5 @@ export function serverKeyProfileFor(
   configId: string | null,
 ): string | null {
   if (source !== "server") return null;
-  return configId?.trim() || ANONYMOUS_UPSTREAM_PROFILE;
+  return configId?.trim() || null;
 }

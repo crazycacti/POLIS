@@ -58,7 +58,6 @@ const DEFAULT_SERVER_KEY_SHARE_PERCENT = 20;
 const MAX_PERCENT = 100;
 
 export const PUBLIC_UPSTREAM_CREDENTIAL = "public";
-export const ANONYMOUS_UPSTREAM_PROFILE = "_";
 
 export const UPSTREAM_PROVIDER_POLICIES: Record<UpstreamProvider, UpstreamProviderPolicy> = {
   tmdb: {
