@@ -1,10 +1,9 @@
 import type { NextRequest } from "next/server";
 
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
+import { serverTmdbCredential, type TmdbCredential } from "@/lib/tmdb-server-credential";
 
-export type TmdbCredential =
-  | { kind: "bearer"; token: string }
-  | { kind: "api_key"; key: string };
+export type { TmdbCredential } from "@/lib/tmdb-server-credential";
 
 export type ResolvedTmdbAuth = {
   credential: TmdbCredential;
@@ -84,29 +83,6 @@ export function resolveTmdbAuth(request: NextRequest): ResolvedTmdbAuth | null {
     };
   }
 
-  const envApiKey = process.env.TMDB_API_KEY?.trim();
-  const envBearer = process.env.TMDB_ACCESS_TOKEN?.trim();
-
-  if (envApiKey && envBearer) {
-    return {
-      credential: { kind: "api_key", key: envApiKey },
-      embedInArtworkUrls: false,
-    };
-  }
-
-  if (envBearer) {
-    return {
-      credential: { kind: "bearer", token: envBearer },
-      embedInArtworkUrls: false,
-    };
-  }
-
-  if (envApiKey) {
-    return {
-      credential: { kind: "api_key", key: envApiKey },
-      embedInArtworkUrls: false,
-    };
-  }
-
-  return null;
+  const server = serverTmdbCredential();
+  return server ? { credential: server, embedInArtworkUrls: false } : null;
 }

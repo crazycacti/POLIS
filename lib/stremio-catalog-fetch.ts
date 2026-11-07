@@ -116,7 +116,7 @@ export async function mapWithConcurrency<T, R>(
   return out;
 }
 
-async function tmdbImdbIdForItem(params: {
+export async function tmdbImdbIdForItem(params: {
   tmdbId: number;
   stremioType: "movie" | "series";
   credential: TmdbCredential;
