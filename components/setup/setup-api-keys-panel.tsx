@@ -124,20 +124,17 @@ function ApiKeyRow(props: {
   const [notice, setNotice] = useState<string | null>(null);
 
   const browserValue = source.browserValue.trim();
-  const serverOnly = source.hasServer && def.id !== "mdblist";
   const trimmedDraft = draft.trim();
   const checking = validation.state === "checking";
   const draftSaved = trimmedDraft !== "" && trimmedDraft === browserValue;
   const canSave = trimmedDraft !== "" && !draftSaved && !checking;
-  const canRemove = browserValue !== "" || (source.hasProfile && !serverOnly);
+  const canRemove = browserValue !== "" || source.hasProfile;
 
   const statusLabel = checking
     ? "Checking"
     : validation.state === "rejected"
       ? "Rejected"
-      : serverOnly
-        ? "Using the server key"
-        : browserValue
+      : browserValue
           ? maskedKey(def.id, browserValue)
           : source.hasProfile
             ? "Saved to profile"
@@ -217,9 +214,9 @@ function ApiKeyRow(props: {
           >
             Get a key
           </a>
-          {!editing && !serverOnly ? (
+          {!editing ? (
             <button className="polis-btn-secondary" onClick={openEditor} type="button">
-              {browserValue || source.hasProfile ? "Replace" : "Add key"}
+              {browserValue || source.hasProfile ? "Replace" : source.hasServer ? "Use my own key" : "Add key"}
             </button>
           ) : null}
           {!editing && canRemove ? (
