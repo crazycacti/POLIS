@@ -146,3 +146,34 @@ describe("cachedUpstreamJson", () => {
     expect((await h.lookup("k1")).outcome).toBe("fetched");
   });
 });
+
+describe("cachedUpstreamJson flights", () => {
+  test("a caller over its profile share does not block a caller with its own key", async () => {
+    process.env.POLIS_MDBLIST_DAILY_LIMIT = "100";
+    let calls = 0;
+    const guard = new UpstreamGuard({ sharePercent: () => 1 });
+    const lookup = (cacheKey: string, fingerprint: string, serverKeyProfile: string | null) =>
+      cachedUpstreamJson<{ n: number }>({
+        provider: "mdblist",
+        cacheKey,
+        ttlMs: HOUR_MS,
+        negativeTtlMs: HOUR_MS,
+        label: "flight test",
+        credentialFingerprint: fingerprint,
+        serverKeyProfile,
+        guard,
+        request: async () => {
+          calls += 1;
+          return json({ n: calls });
+        },
+        parse: (payload) => payload as { n: number },
+      });
+    expect((await lookup("warmup", "server", "p1")).outcome).toBe("fetched");
+    const [blocked, own] = await Promise.all([
+      lookup("shared", "server", "p1"),
+      lookup("shared", "own", null),
+    ]);
+    expect(blocked).toEqual({ value: null, outcome: "unavailable" });
+    expect(own).toEqual({ value: { n: 2 }, outcome: "fetched" });
+  });
+});

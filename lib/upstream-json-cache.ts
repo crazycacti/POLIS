@@ -93,7 +93,15 @@ export async function cachedUpstreamJson<T>(params: {
     }
   };
 
-  return polisSingleflight(`upstream:${params.provider}:${params.cacheKey}`, async () => {
+  const flightKey = [
+    "upstream",
+    params.provider,
+    scope.credentialFingerprint,
+    scope.serverKeyProfile ?? "",
+    scope.background ? "bg" : "fg",
+    params.cacheKey,
+  ].join("\0");
+  return polisSingleflight(flightKey, async () => {
     const raced = freshFrom(await readCached());
     if (raced) return raced;
 
