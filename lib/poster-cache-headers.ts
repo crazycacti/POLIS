@@ -1,8 +1,11 @@
+const POSTER_MAX_AGE_SEC = 6 * 60 * 60;
+const POSTER_STALE_SEC = 24 * 60 * 60;
+
 export function posterHttpCacheControl(): string {
   if (process.env.NODE_ENV === "development") {
     return "no-store, no-cache, must-revalidate";
   }
-  return "public, max-age=3600, stale-while-revalidate=86400, stale-if-error=86400";
+  return `public, max-age=${POSTER_MAX_AGE_SEC}, stale-while-revalidate=${POSTER_STALE_SEC}, stale-if-error=${POSTER_STALE_SEC}`;
 }
 
 export function degradedPosterHttpCacheControl(maxAgeSec: number): string {
