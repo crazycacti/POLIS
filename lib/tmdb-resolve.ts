@@ -106,32 +106,29 @@ export async function resolveTitleFromImdb(params: {
 }): Promise<ResolvedTitle | null> {
   const { imdbId, stremioType, credential, language } = params;
 
-  const findUrl = new URL(`https://api.themoviedb.org/3/find/${encodeURIComponent(imdbId)}`);
-  findUrl.searchParams.set("external_source", "imdb_id");
-  findUrl.searchParams.set("language", language);
-
-  const findRaw = await tmdbApiGet(findUrl, credential);
-  if (!findRaw) return null;
-  const find = findRaw as FindResponse;
+  const hint = await readTmdbIdHint(imdbId);
+  const tmdbId =
+    hint?.stremioType === stremioType
+      ? hint.tmdbId
+      : await findTmdbIdForType(imdbId, stremioType, credential, language);
+  if (tmdbId == null) return null;
 
   if (stremioType === "movie") {
-    const hit = find.movie_results?.[0];
-    if (!hit) return null;
-    const detailsUrl = new URL(`https://api.themoviedb.org/3/movie/${hit.id}`);
+    const detailsUrl = new URL(`https://api.themoviedb.org/3/movie/${tmdbId}`);
     detailsUrl.searchParams.set("language", language);
     detailsUrl.searchParams.set("append_to_response", "release_dates,credits");
     const detailsRaw = await tmdbApiGet(detailsUrl, credential);
     if (!detailsRaw) return null;
     const d = detailsRaw as MovieDetailsJson;
     const [logoPath, externalIds] = await Promise.all([
-      fetchLogoPath("movie", hit.id, credential, language),
-      fetchExternalIds("movie", hit.id, credential),
+      fetchLogoPath("movie", tmdbId, credential, language),
+      fetchExternalIds("movie", tmdbId, credential),
     ]);
     const credits = creditsBlockFromDetails(d);
     return mapResolved(
       imdbId,
       "movie",
-      hit.id,
+      tmdbId,
       d,
       logoPath,
       externalIds?.tvdb_id ?? null,
@@ -140,19 +137,17 @@ export async function resolveTitleFromImdb(params: {
     );
   }
 
-  const hit = find.tv_results?.[0];
-  if (!hit) return null;
-  const detailsUrl = new URL(`https://api.themoviedb.org/3/tv/${hit.id}`);
+  const detailsUrl = new URL(`https://api.themoviedb.org/3/tv/${tmdbId}`);
   detailsUrl.searchParams.set("language", language);
   detailsUrl.searchParams.set("append_to_response", "content_ratings,aggregate_credits");
   const detailsRaw = await tmdbApiGet(detailsUrl, credential);
   if (!detailsRaw) return null;
   const d = detailsRaw as MovieDetailsJson;
   const [logoPath, externalIds, videos] = await Promise.all([
-    fetchLogoPath("tv", hit.id, credential, language),
-    fetchExternalIds("tv", hit.id, credential),
+    fetchLogoPath("tv", tmdbId, credential, language),
+    fetchExternalIds("tv", tmdbId, credential),
     fetchTmdbSeriesVideos({
-      tmdbTvId: hit.id,
+      tmdbTvId: tmdbId,
       imdbId,
       credential,
       language,
@@ -163,13 +158,30 @@ export async function resolveTitleFromImdb(params: {
   return mapResolved(
     imdbId,
     "series",
-    hit.id,
+    tmdbId,
     d,
     logoPath,
     externalIds?.tvdb_id ?? null,
     videos,
     credits,
   );
+}
+
+async function findTmdbIdForType(
+  imdbId: string,
+  stremioType: "movie" | "series",
+  credential: TmdbCredential,
+  language: string,
+): Promise<number | null> {
+  const findUrl = new URL(`https://api.themoviedb.org/3/find/${encodeURIComponent(imdbId)}`);
+  findUrl.searchParams.set("external_source", "imdb_id");
+  findUrl.searchParams.set("language", language);
+
+  const findRaw = await tmdbApiGet(findUrl, credential);
+  if (!findRaw) return null;
+  const find = findRaw as FindResponse;
+  const hit = stremioType === "movie" ? find.movie_results?.[0] : find.tv_results?.[0];
+  return hit?.id ?? null;
 }
 
 function isoDateMidnight(date: string | undefined): string | null {
