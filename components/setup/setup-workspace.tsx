@@ -156,6 +156,8 @@ export function SetupWorkspace(props: {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordDialogError, setPasswordDialogError] = useState<string | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
+  const [configLoadFailed, setConfigLoadFailed] = useState(false);
+  const [configLoadAttempt, setConfigLoadAttempt] = useState(0);
   const [configSaving, setConfigSaving] = useState(false);
   const [selectedCatalogs, setSelectedCatalogs] = useState<PolisCatalogDefinition[]>([]);
   const [catalogsCustomized, setCatalogsCustomized] = useState(false);
@@ -225,6 +227,7 @@ export function SetupWorkspace(props: {
 
   useEffect(() => {
     const cid = configId?.trim();
+    setConfigLoadFailed(false);
     if (!cid) {
       setConfigExists(false);
       setConfigHasTmdbKey(false);
@@ -240,11 +243,13 @@ export function SetupWorkspace(props: {
       try {
         const res = await fetch(`/api/config/${encodeURIComponent(cid)}`, CONFIG_FETCH_INIT);
         if (cancelled) return;
+        if (!res.ok && res.status !== 404) {
+          setConfigLoadFailed(true);
+          return;
+        }
         if (!res.ok) {
-          if (res.status === 404) {
-            setConfigId(props.fixedConfigId?.trim() || null);
-            if (!props.fixedConfigId?.trim()) clearStoredConfigId();
-          }
+          setConfigId(props.fixedConfigId?.trim() || null);
+          if (!props.fixedConfigId?.trim()) clearStoredConfigId();
           setConfigExists(false);
           setConfigHasTmdbKey(false);
           setConfigHasMdblistKey(false);
@@ -279,14 +284,16 @@ export function SetupWorkspace(props: {
         if (origin) {
           setInstallUrl(stremioUserInstallUrl(origin, cid));
         }
-      } catch {} finally {
+      } catch {
+        if (!cancelled) setConfigLoadFailed(true);
+      } finally {
         if (!cancelled) setOverlaySettled(true);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [catalogsHydrated, configId, initialQueryString, origin]);
+  }, [catalogsHydrated, configId, configLoadAttempt, initialQueryString, origin]);
 
   useEffect(() => {
     setLookCodeParam(lookCodeFromSearch(window.location.search));
@@ -608,7 +615,9 @@ export function SetupWorkspace(props: {
       : null;
   const catalogsMissingReason =
     overlaySettled && selectedCatalogs.length === 0 ? "Add at least one catalog" : null;
-  const lockReason = keysMissingReason ?? catalogsMissingReason;
+  const lockReason = configLoadFailed
+    ? "Could not load this profile."
+    : (keysMissingReason ?? catalogsMissingReason);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -719,7 +728,9 @@ export function SetupWorkspace(props: {
       setConfigId(data.configId);
       setConfigExists(true);
       setConfigHasPassword(Boolean(data.hasPassword ?? true));
-      localStorage.setItem(LS_CONFIG_ID, data.configId);
+      try {
+        localStorage.setItem(LS_CONFIG_ID, data.configId);
+      } catch {}
       if (integrator.tmdbSecret !== undefined) setConfigHasTmdbKey(integrator.tmdbSecret !== null);
       if (integrator.mdblistApiKey !== undefined) {
         setConfigHasMdblistKey(integrator.mdblistApiKey !== null);
@@ -985,7 +996,9 @@ export function SetupWorkspace(props: {
         error={configError}
         installUrl={installUrl}
         lockAction={
-          keysMissingReason
+          configLoadFailed
+            ? { label: "Retry", onClick: () => setConfigLoadAttempt((n) => n + 1) }
+            : keysMissingReason
             ? { label: "Go to API keys", onClick: () => setTab("keys") }
             : catalogsMissingReason && tab !== "catalogs"
               ? { label: "Go to catalogs", onClick: () => setTab("catalogs") }
