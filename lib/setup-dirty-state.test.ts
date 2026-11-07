@@ -5,6 +5,7 @@ import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import {
   hasUnsavedSetupChanges,
   NO_KEY_CHANGES,
+  setupIntegratorPatch,
   setupKeyChanges,
   setupSnapshot,
 } from "@/lib/setup-dirty-state";
@@ -76,6 +77,17 @@ describe("setupKeyChanges", () => {
     expect(setupKeyChanges({ tmdb: "  ", mdblist: "" }, sent)).toEqual(NO_KEY_CHANGES);
   });
 
+  it("flags a key removed from the profile until a new key replaces it", () => {
+    const removed = { tmdb: false, mdblist: true };
+    expect(setupKeyChanges({ tmdb: "tmdb-a", mdblist: "" }, sent, removed)).toEqual({
+      tmdb: false,
+      mdblist: true,
+    });
+    expect(setupKeyChanges({ tmdb: "tmdb-a", mdblist: "mdb-a" }, sent, removed)).toEqual(
+      NO_KEY_CHANGES,
+    );
+  });
+
   it("flags a first key when nothing was sent", () => {
     expect(setupKeyChanges({ tmdb: "tmdb-a", mdblist: "" }, { tmdb: "", mdblist: "" })).toEqual({
       tmdb: true,
@@ -100,5 +112,30 @@ describe("setupSnapshot key changes", () => {
     );
     expect(snapshot).not.toContain("secret-tmdb");
     expect(snapshot).not.toContain("secret-mdb");
+  });
+});
+
+describe("setupIntegratorPatch", () => {
+  it("sends trimmed browser keys", () => {
+    expect(setupIntegratorPatch({ tmdb: " t ", mdblist: "m" }, NO_KEY_CHANGES)).toEqual({
+      tmdbSecret: "t",
+      mdblistApiKey: "m",
+    });
+  });
+
+  it("leaves profile keys alone when the browser has none", () => {
+    expect(setupIntegratorPatch({ tmdb: "", mdblist: "" }, NO_KEY_CHANGES)).toEqual({});
+  });
+
+  it("clears a profile key the user removed", () => {
+    expect(setupIntegratorPatch({ tmdb: "", mdblist: "" }, { tmdb: true, mdblist: false })).toEqual({
+      tmdbSecret: null,
+    });
+  });
+
+  it("sends a replacement key instead of clearing", () => {
+    expect(setupIntegratorPatch({ tmdb: "new", mdblist: "" }, { tmdb: true, mdblist: false })).toEqual({
+      tmdbSecret: "new",
+    });
   });
 });
