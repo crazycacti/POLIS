@@ -16,6 +16,7 @@ import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import { rememberTmdbIdHint } from "@/lib/tmdb-resolve";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
+import { upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
 export type StremioCatalogMeta = {
   id: string;
@@ -318,7 +319,7 @@ async function fetchMdblistCatalogMetas(params: {
       () =>
         fetchUpstream(url, {
           headers: { Accept: "application/json" },
-          revalidateSeconds: MDBLIST_CATALOG_REVALIDATE_SEC,
+          revalidateSeconds: upstreamNextRevalidateSeconds(MDBLIST_CATALOG_REVALIDATE_SEC * 1000),
         }),
       async (response) => {
         if (!response.ok) {

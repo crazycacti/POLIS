@@ -2,6 +2,7 @@ import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import sharp from "sharp";
 
 import { fetchUpstream, IMAGE_FETCH_TIMEOUT_MS } from "@/lib/upstream-fetch";
+import { upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
 import { trendPillFillsFromRegion } from "@/lib/poster-overlay-colors";
 import type { PosterPillBadge } from "@/lib/poster-badges";
@@ -36,6 +37,8 @@ import {
 import { encodePosterImage } from "@/lib/poster-encode";
 import { labelTextPx, scoreTextPx } from "@/lib/poster-type-scale";
 import { escapeXml } from "@/lib/xml-escape";
+
+const POSTER_IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function renderPosterJpeg(params: {
   imageUrl?: string;
@@ -74,7 +77,10 @@ export async function renderPosterJpeg(params: {
   if (!input) {
     const candidates = imageUrls ?? (imageUrl ? [imageUrl] : []);
     for (const url of candidates) {
-      const imgRes = await fetchUpstream(url, { revalidateSeconds: 86400, timeoutMs: IMAGE_FETCH_TIMEOUT_MS });
+      const imgRes = await fetchUpstream(url, {
+        revalidateSeconds: upstreamNextRevalidateSeconds(POSTER_IMAGE_TTL_MS),
+        timeoutMs: IMAGE_FETCH_TIMEOUT_MS,
+      });
       if (!imgRes.ok) continue;
       input = Buffer.from(await imgRes.arrayBuffer());
       break;
