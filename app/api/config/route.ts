@@ -20,6 +20,11 @@ import {
   type StoredPolisConfig,
 } from "@/lib/polis-config-store";
 import { normalizeConfigLabel } from "@/lib/polis-config-label";
+import {
+  profileCreateClientKey,
+  profileCreateRetryAfterSeconds,
+  recordProfileCreated,
+} from "@/lib/polis-profile-create-limit";
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 
@@ -27,6 +32,7 @@ export const runtime = "nodejs";
 
 const MAX_POSTER_QUERY_LEN = 4096;
 const MAX_CATALOGS = 32;
+const SECONDS_PER_MINUTE = 60;
 
 type ConfigBody = {
   configId?: string;
@@ -180,7 +186,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: pair.error }, { status: 400 });
   }
 
+  const clientKey = profileCreateClientKey(request);
+  const retryAfter = profileCreateRetryAfterSeconds(clientKey);
+  if (retryAfter != null) {
+    return NextResponse.json(
+      {
+        error: `Too many new profiles right now. Try again in ${Math.ceil(retryAfter / SECONDS_PER_MINUTE)} minutes.`,
+      },
+      { status: 429, headers: { "Retry-After": String(retryAfter) } },
+    );
+  }
+
   const passwordHash = await hashConfigPassword(pair.password);
+  recordProfileCreated(clientKey);
   const created = createPolisConfig({
     overlay,
     catalogs,
