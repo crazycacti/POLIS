@@ -7,6 +7,7 @@ import {
   ClientPreviewTabs,
   type ClientPreviewView,
 } from "@/components/setup/setup-client-previews";
+import { SelectionCheck } from "@/components/setup/setup-ui";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
 import { resolveSetupDemoPosterSrc } from "@/lib/demo-poster-urls";
@@ -85,26 +86,28 @@ export function SetupPreviewSidebar(props: {
       )}
 
       <div aria-label="Preview title" className="mt-3 flex justify-center gap-2 lg:justify-start" role="group">
-        {DEMO_TITLES.map((demo) => (
-          <button
-            aria-label={demo.title}
-            aria-pressed={selected === demo.id}
-            className={`w-12 shrink-0 overflow-hidden rounded-md transition-opacity lg:w-auto lg:flex-1 ${
-              selected === demo.id ? "ring-2 ring-cyan-400/80" : "opacity-60 hover:opacity-100"
-            }`}
-            key={demo.id}
-            onClick={() => setSelected(demo.id)}
-            type="button"
-          >
-            <img
-              alt=""
-              className={`${props.landscape ? "aspect-video" : "aspect-2/3"} w-full object-cover`}
-              decoding="async"
-              loading="lazy"
-              src={demoSrc(demo.id)}
-            />
-          </button>
-        ))}
+        {DEMO_TITLES.map((demo) => {
+          const isSelected = selected === demo.id;
+          return (
+            <button
+              aria-label={demo.title}
+              aria-pressed={isSelected}
+              className="polis-focus relative w-12 shrink-0 rounded-md lg:w-auto lg:flex-1"
+              key={demo.id}
+              onClick={() => setSelected(demo.id)}
+              type="button"
+            >
+              <img
+                alt=""
+                className={`${props.landscape ? "aspect-video" : "aspect-2/3"} w-full rounded-md object-cover ${isSelected ? "ring-2 ring-cyan-400" : ""}`}
+                decoding="async"
+                loading="lazy"
+                src={demoSrc(demo.id)}
+              />
+              {isSelected ? <SelectionCheck /> : null}
+            </button>
+          );
+        })}
       </div>
 
       <label className="mt-3 flex items-center gap-2">

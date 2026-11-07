@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CopyButton } from "@/components/copy-button";
@@ -60,5 +61,16 @@ export function PatternRow({ label, value }: { label: string; value: string }) {
         <CopyButton text={value} />
       </div>
     </div>
+  );
+}
+
+export function SelectionCheck() {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-cyan-400 text-black shadow"
+    >
+      <Check className="h-3.5 w-3.5" strokeWidth={3} />
+    </span>
   );
 }

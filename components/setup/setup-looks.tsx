@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { CopyButton } from "@/components/copy-button";
 import { SetupDialog, SetupDialogCancel } from "@/components/setup/setup-dialog";
+import { SelectionCheck } from "@/components/setup/setup-ui";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
 import { dynamicDemoPosterPath } from "@/lib/demo-poster-urls";
 import {
@@ -67,22 +68,25 @@ function LookTile(props: {
     <div className="relative">
       <button
         aria-pressed={props.selected}
-        className={`group flex w-full flex-col gap-2 rounded-lg p-1.5 text-left transition-colors ${
-          props.selected ? "polis-selected" : "hover:bg-white/5"
-        }`}
+        className="polis-focus group flex w-full flex-col gap-2 rounded-lg p-1.5 text-left"
         onClick={props.onSelect}
         type="button"
       >
-        <img
-          alt=""
-          className={`${props.preview.posterShape === "landscape" ? "aspect-video" : "aspect-2/3"} w-full rounded-md object-cover ${props.selected ? "ring-2 ring-cyan-400/70" : ""}`}
-          decoding="async"
-          height={198}
-          loading="lazy"
-          src={dynamicDemoPosterPath(LOOK_PREVIEW_DEMO_ID, serializePosterQuery(props.preview))}
-          width={132}
-        />
-        <span className={`truncate px-0.5 text-sm ${props.selected ? "text-white" : "text-zinc-400"}`}>
+        <span className="relative block">
+          <img
+            alt=""
+            className={`${props.preview.posterShape === "landscape" ? "aspect-video" : "aspect-2/3"} w-full rounded-md object-cover ${props.selected ? "ring-2 ring-cyan-400" : ""}`}
+            decoding="async"
+            height={198}
+            loading="lazy"
+            src={dynamicDemoPosterPath(LOOK_PREVIEW_DEMO_ID, serializePosterQuery(props.preview))}
+            width={132}
+          />
+          {props.selected ? <SelectionCheck /> : null}
+        </span>
+        <span
+          className={`truncate px-0.5 text-sm ${props.selected ? "text-white" : "text-zinc-400 group-hover:text-zinc-200"}`}
+        >
           {props.label}
         </span>
       </button>
