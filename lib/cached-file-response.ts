@@ -7,7 +7,7 @@ const ETAG_HASH_CHARS = 27;
 const WEAK_PREFIX = "W/";
 const FILE_ETAG_MEMORY_MAX = 10_000;
 
-type FileEtag = { mtimeMs: number; size: number; ino: number; etag: string };
+type FileEtag = { mtimeMs: number; ctimeMs: number; size: number; ino: number; etag: string };
 
 const fileEtags = new Map<string, FileEtag>();
 
@@ -51,7 +51,11 @@ async function fileResponse(request: Request, path: string, headers: Headers): P
     const stats = await handle.stat();
     const known = fileEtags.get(path);
     const unchanged =
-      known != null && known.mtimeMs === stats.mtimeMs && known.size === stats.size && known.ino === stats.ino;
+      known != null &&
+      known.mtimeMs === stats.mtimeMs &&
+      known.ctimeMs === stats.ctimeMs &&
+      known.size === stats.size &&
+      known.ino === stats.ino;
     if (unchanged) {
       headers.set("ETag", known.etag);
       if (ifNoneMatchHits(request.headers.get("if-none-match"), known.etag)) return notModified(headers);
@@ -59,7 +63,13 @@ async function fileResponse(request: Request, path: string, headers: Headers): P
     const bytes = await handle.readFile();
     const etag = unchanged ? known.etag : imageEtag(bytes);
     if (!unchanged) {
-      rememberFileEtag(path, { mtimeMs: stats.mtimeMs, size: stats.size, ino: stats.ino, etag });
+      rememberFileEtag(path, {
+        mtimeMs: stats.mtimeMs,
+        ctimeMs: stats.ctimeMs,
+        size: stats.size,
+        ino: stats.ino,
+        etag,
+      });
       headers.set("ETag", etag);
       if (ifNoneMatchHits(request.headers.get("if-none-match"), etag)) return notModified(headers);
     }

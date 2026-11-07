@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -11,6 +11,9 @@ const HEADERS = {
   "Access-Control-Allow-Origin": "*",
 };
 const IMAGE_URL = "https://polis.example/poster/imdb/poster-default/tt0111161.jpg";
+
+const CTIME_TICK_MS = 20;
+const MS_PER_SECOND = 1000;
 
 let root = "";
 
@@ -76,6 +79,22 @@ describe("imageResponse", () => {
     expect(replaced.headers.get("etag")).toBe(
       (await imageResponse(request(), { bytes: new Uint8Array([2, 2, 2, 2]) }, HEADERS)).headers.get("etag"),
     );
+  });
+
+  test("rehashes a file rewritten in place with the same size and mtime", async () => {
+    const file = path.join(root, "poster.webp");
+    await writeFile(file, new Uint8Array([3, 3, 3]));
+    const before = await stat(file);
+    const firstTag = (await imageResponse(request(), { path: file }, HEADERS)).headers.get("etag") ?? "";
+
+    await new Promise((resolve) => setTimeout(resolve, CTIME_TICK_MS));
+    await writeFile(file, new Uint8Array([4, 4, 4]));
+    await utimes(file, before.atimeMs / MS_PER_SECOND, before.mtimeMs / MS_PER_SECOND);
+    expect((await stat(file)).mtimeMs).toBe(before.mtimeMs);
+
+    const rewritten = await imageResponse(request(firstTag), { path: file }, HEADERS);
+    expect(rewritten.status).toBe(200);
+    expect(new Uint8Array(await rewritten.arrayBuffer())).toEqual(new Uint8Array([4, 4, 4]));
   });
 
   test("sends the full image when the client holds an older version", async () => {
