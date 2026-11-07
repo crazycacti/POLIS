@@ -8,6 +8,8 @@ import { fetchPreviewTitles, PREVIEW_TITLE_LIMIT } from "@/lib/preview-titles";
 import { previewWarmupIdle } from "@/lib/preview-warmup";
 import { tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 
+const SERVER_KEY_ENV = ["TMDB_API_KEY", "TMDB_ACCESS_TOKEN", "MDBLIST_API_KEY", "FANART_API_KEY", "TVDB_API_KEY"];
+
 let root = "";
 const savedEnv = { ...process.env };
 const realFetch = globalThis.fetch;
@@ -33,8 +35,7 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "polis-preview-titles-"));
   process.env.POLIS_CACHE_DIR = root;
   delete process.env.POLIS_CACHE_DISABLE;
-  delete process.env.TMDB_API_KEY;
-  delete process.env.TMDB_ACCESS_TOKEN;
+  for (const name of SERVER_KEY_ENV) delete process.env[name];
   requests = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -110,6 +111,24 @@ describe("preview titles route without a server key", () => {
     expect(body.titles.length).toBeGreaterThan(0);
     for (const title of body.titles) expect(Object.keys(title).sort()).toEqual(["imdbId", "title", "type"]);
     expect(JSON.stringify(body)).not.toContain("0123456789abcdef0123456789abcdef");
+  });
+});
+
+describe("preview titles POST limit", () => {
+  test("answers 429 once one client posts too often, without blocking other clients", async () => {
+    const post = (client: string) =>
+      POST(
+        new Request("http://polis.test/api/preview/titles", {
+          method: "POST",
+          headers: { "x-forwarded-for": client },
+          body: JSON.stringify({ tmdbKey: "0123456789abcdef0123456789abcdef" }),
+        }),
+      );
+    const statuses: number[] = [];
+    for (let index = 0; index < 21; index += 1) statuses.push((await post("198.51.100.20")).status);
+    expect(statuses.slice(0, 20).every((status) => status === 200)).toBe(true);
+    expect(statuses[20]).toBe(429);
+    expect((await post("198.51.100.21")).status).toBe(200);
   });
 });
 
