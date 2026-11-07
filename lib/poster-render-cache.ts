@@ -152,7 +152,7 @@ function memoryHit(cacheKey: string): Buffer | null {
   return hit.image;
 }
 
-async function withLiveTrendRank(params: {
+export async function withLiveTrendRank(params: {
   imdbId: string;
   overlay: PosterOverlayQuery;
   credential: TmdbCredential;

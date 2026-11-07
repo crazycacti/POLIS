@@ -236,6 +236,17 @@ export async function sweepPolisDiskCache(now = Date.now()): Promise<{ removed: 
   return { removed };
 }
 
+export async function trimPolisDiskNamespace(namespace: string, maxFiles: number): Promise<{ removed: number }> {
+  const files = await listCacheFiles(path.join(polisCacheRoot(), namespace));
+  if (files.length <= maxFiles) return { removed: 0 };
+  files.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  let removed = 0;
+  for (const file of files.slice(0, files.length - maxFiles)) {
+    if (await removeCacheFile(file.path)) removed += 1;
+  }
+  return { removed };
+}
+
 export async function purgePolisConfigDiskCache(configId: string): Promise<void> {
   const id = configId.trim();
   if (!id) return;

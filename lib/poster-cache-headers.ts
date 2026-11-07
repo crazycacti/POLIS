@@ -15,6 +15,14 @@ export function degradedPosterHttpCacheControl(maxAgeSec: number): string {
   return `public, max-age=${maxAgeSec}`;
 }
 
+export function previewPosterHttpCacheControl(degradedMaxAgeSec?: number): string {
+  if (process.env.NODE_ENV === "development") {
+    return "no-store, no-cache, must-revalidate";
+  }
+  if (degradedMaxAgeSec != null) return `private, max-age=${degradedMaxAgeSec}`;
+  return `private, max-age=${POSTER_MAX_AGE_SEC}, stale-while-revalidate=${POSTER_STALE_SEC}`;
+}
+
 export function demoPosterHttpCacheControl(): string {
   if (process.env.NODE_ENV === "development") {
     return "public, max-age=300, stale-while-revalidate=3600";
