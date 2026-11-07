@@ -11,7 +11,7 @@ export class SlidingWindowLimiter {
 
   private live(key: string, now: number): number[] {
     const times = this.hits.get(key) ?? [];
-    while (times.length > 0 && now - times[0]! >= this.windowMs) times.shift();
+    for (let oldest = times[0]; oldest != null && now - oldest >= this.windowMs; oldest = times[0]) times.shift();
     return times;
   }
 

@@ -1,10 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { PosterPart } from "@/components/setup/setup-poster-parts";
 import { SelectionCheck, SetupSegmented } from "@/components/setup/setup-ui";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
+import {
+  usePreviewFallbacks,
+  withPreviewRetry,
+  withPreviewRetrySrcSet,
+} from "@/components/setup/use-preview-fallbacks";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
 import { demoPosterThumbPath, resolveSetupDemoPosterSrc } from "@/lib/demo-poster-urls";
 import { overlayQueryStringFromRaw } from "@/lib/demo-poster-query";
@@ -17,7 +22,14 @@ const CHIP_SIZES = "48px";
 
 export type PreviewImageSrcs = { full: string; thumb: string; thumbSrcSet?: string };
 
-type TitleOption = { key: string; label: string; src: string; thumb: string; thumbSrcSet?: string; live: boolean };
+type TitleOption = {
+  key: string;
+  label: string;
+  src: string;
+  thumb: string;
+  thumbSrcSet?: string;
+  fallbackKey: string | null;
+};
 
 function demoOption(
   key: string,
@@ -25,7 +37,8 @@ function demoOption(
   overlayQueryString: string,
   showcaseQueryString: string,
 ): TitleOption {
-  const demo = DEMO_TITLES[demoIndex % DEMO_TITLES.length]!;
+  const demo = DEMO_TITLES[demoIndex % DEMO_TITLES.length];
+  if (!demo) throw new Error("The demo title list is empty.");
   const src = resolveSetupDemoPosterSrc(demo.id, overlayQueryString, showcaseQueryString);
   const usesStatic = overlayQueryStringFromRaw(overlayQueryString) === overlayQueryStringFromRaw(showcaseQueryString);
   return {
@@ -36,7 +49,7 @@ function demoOption(
     thumbSrcSet: usesStatic
       ? undefined
       : previewThumbSrcSet((width) => demoPosterThumbPath(demo.id, overlayQueryString, width)),
-    live: false,
+    fallbackKey: null,
   };
 }
 
@@ -96,7 +109,7 @@ export function SetupPreviewSidebar(props: {
   onEditPart: (part: PosterPart) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [failedSrcs, setFailedSrcs] = useState<ReadonlySet<string>>(() => new Set());
+  const { stateFor, reportError } = usePreviewFallbacks();
 
   const { liveTitles, previewForImdb, overlayQueryString, showcaseQueryString } = props;
   const options = useMemo<TitleOption[]>(
@@ -104,26 +117,31 @@ export function SetupPreviewSidebar(props: {
       liveTitles.length > 0
         ? liveTitles.map((title, index) => {
             const srcs = previewForImdb(title.imdbId);
-            if (failedSrcs.has(srcs.full)) {
-              return demoOption(title.imdbId, index, overlayQueryString, showcaseQueryString);
-            }
-            return { key: title.imdbId, label: title.title, src: srcs.full, thumb: srcs.thumb, thumbSrcSet: srcs.thumbSrcSet, live: true };
+            const state = stateFor(srcs.full);
+            if (state?.fallback) return demoOption(title.imdbId, index, overlayQueryString, showcaseQueryString);
+            const retried = state?.retried === true;
+            return {
+              key: title.imdbId,
+              label: title.title,
+              src: retried ? withPreviewRetry(srcs.full) : srcs.full,
+              thumb: retried ? withPreviewRetry(srcs.thumb) : srcs.thumb,
+              thumbSrcSet: srcs.thumbSrcSet && retried ? withPreviewRetrySrcSet(srcs.thumbSrcSet) : srcs.thumbSrcSet,
+              fallbackKey: srcs.full,
+            };
           })
         : DEMO_TITLES.map((demo, index) => demoOption(demo.id, index, overlayQueryString, showcaseQueryString)),
-    [failedSrcs, liveTitles, overlayQueryString, previewForImdb, showcaseQueryString],
+    [liveTitles, overlayQueryString, previewForImdb, showcaseQueryString, stateFor],
   );
-  const markFailed = useCallback((src: string) => {
-    setFailedSrcs((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
-  }, []);
   const usingCustom = selected === CUSTOM_TITLE;
   const activeOption = usingCustom
     ? null
     : (options.find((option) => option.key === selected) ?? options[0] ?? null);
   const targetSrc = usingCustom ? props.livePreviewSrc : (activeOption?.src ?? null);
   const { displaySrc, isLoading, loadFailed } = usePreloadedPosterSrc(targetSrc);
+  const activeFallbackKey = activeOption?.fallbackKey ?? null;
   useEffect(() => {
-    if (loadFailed && targetSrc && activeOption?.live) markFailed(targetSrc);
-  }, [activeOption?.live, loadFailed, markFailed, targetSrc]);
+    if (loadFailed && targetSrc && activeFallbackKey) reportError(activeFallbackKey, targetSrc);
+  }, [activeFallbackKey, loadFailed, reportError, targetSrc]);
   const waitingForPreview = Boolean(targetSrc) && !displaySrc && !loadFailed;
   const showPoster = Boolean(displaySrc) && !loadFailed;
 
@@ -177,6 +195,7 @@ export function SetupPreviewSidebar(props: {
       <div aria-label="Preview title" className="mt-3 flex justify-center gap-2 lg:justify-start" role="group">
         {options.map((option) => {
           const isSelected = option.key === activeOption?.key;
+          const fallbackKey = option.fallbackKey;
           return (
             <button
               aria-label={option.label}
@@ -192,7 +211,11 @@ export function SetupPreviewSidebar(props: {
                 className={`${props.landscape ? "aspect-video" : "aspect-2/3"} w-full rounded-md object-cover ${isSelected ? "ring-2 ring-cyan-400" : ""}`}
                 decoding="async"
                 loading="lazy"
-                onError={option.live ? () => markFailed(option.src) : undefined}
+                onError={
+                  fallbackKey
+                    ? (event) => reportError(fallbackKey, event.currentTarget.currentSrc || option.thumb)
+                    : undefined
+                }
                 sizes={option.thumbSrcSet ? CHIP_SIZES : undefined}
                 src={option.thumb}
                 srcSet={option.thumbSrcSet}
