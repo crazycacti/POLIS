@@ -4,6 +4,8 @@ import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tvdbLoginResult } from "@/lib/tvdb-client";
 import { parseTvdbCredentials } from "@/lib/tvdb-credentials";
 
+const HTTP_TOO_MANY_REQUESTS = 429;
+
 export type ApiKeyProvider = "tmdb" | "mdblist" | "fanart" | "tvdb";
 
 export type ApiKeyValidateResult = {
@@ -72,6 +74,14 @@ export async function validateMdblistKey(raw: string): Promise<ApiKeyValidateRes
     }
     if (response.status === 401 || response.status === 403) {
       return { ok: false, message: "MDBList rejected this key." };
+    }
+    // MDBList answers 429 only for keys it recognizes, so a limited key is still a valid key.
+    if (response.status === HTTP_TOO_MANY_REQUESTS) {
+      await response.body?.cancel();
+      return {
+        ok: true,
+        message: "Key saved. MDBList's daily limit is used up, so ratings return after the daily reset.",
+      };
     }
     return { ok: false, message: `MDBList returned ${response.status}.` };
   } catch {
