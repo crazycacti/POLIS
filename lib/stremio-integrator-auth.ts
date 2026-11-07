@@ -14,6 +14,7 @@ export type ResolvedPolisIntegratorAuth = {
   tmdb: ResolvedTmdbAuth | null;
   mdblistApiKey: string | null;
   mdblistKeySource: UpstreamKeySource | null;
+  mdblistAccountApiKey: string | null;
 };
 
 function tmdbFromIntegratorSecret(raw: string | null | undefined): ResolvedTmdbAuth | null {
@@ -46,7 +47,10 @@ type MdblistKeyChoice = { apiKey: string; source: UpstreamKeySource };
 function mdblistFromRequest(request: NextRequest): MdblistKeyChoice | null {
   const q = request.nextUrl.searchParams;
   const fromQuery = q.get("mdblist_api_key")?.trim() || q.get("mdblist_key")?.trim();
-  if (fromQuery) return { apiKey: fromQuery, source: "request" };
+  return fromQuery ? { apiKey: fromQuery, source: "request" } : null;
+}
+
+function mdblistFromServer(): MdblistKeyChoice | null {
   const fromServer = process.env.MDBLIST_API_KEY?.trim();
   return fromServer ? { apiKey: fromServer, source: "server" } : null;
 }
@@ -60,14 +64,17 @@ export function resolvePolisIntegratorAuth(
   const tmdb = fromRequest ?? fromConfig;
 
   const mdblistFromConfig = config?.mdblistIntegratorKey?.trim() || null;
-  const mdblist: MdblistKeyChoice | null =
+  const account: MdblistKeyChoice | null =
     mdblistFromRequest(request) ??
     (mdblistFromConfig ? { apiKey: mdblistFromConfig, source: "profile" } : null);
+  const mdblist = account ?? mdblistFromServer();
 
   return {
     tmdb,
     mdblistApiKey: mdblist?.apiKey ?? null,
     mdblistKeySource: mdblist?.source ?? null,
+    // The server key reads the operator's own watchlist and lists, so account catalogs never use it.
+    mdblistAccountApiKey: account?.apiKey ?? null,
   };
 }
 

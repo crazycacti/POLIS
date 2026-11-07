@@ -187,7 +187,7 @@ async function handleStremioCatalogRequestInner(
       type: rawType,
       catalogId,
       credential: integrator.tmdb?.credential ?? null,
-      mdblistApiKey: integrator.mdblistApiKey,
+      mdblistApiKey: integrator.mdblistAccountApiKey,
       language,
       publicBase,
       extra,

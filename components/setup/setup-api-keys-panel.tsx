@@ -216,7 +216,7 @@ export function SetupApiKeysPanel(props: {
         const server = envConfigured(card.id);
         const value = valueFor(card.id);
         const st = status[card.id];
-        const inputDisabled = server;
+        const inputDisabled = server && card.id !== "mdblist";
 
         return (
           <div

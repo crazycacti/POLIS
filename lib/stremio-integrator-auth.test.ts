@@ -28,13 +28,22 @@ function source(url: string, withConfig: boolean) {
 }
 
 describe("mdblist key source", () => {
-  test("labels request, server and profile keys", () => {
+  test("uses the request key, then the profile key, then the server key", () => {
     process.env.MDBLIST_API_KEY = "server-key";
     expect(source("http://polis.test/p?mdblist_key=req", true)).toBe("request");
-    expect(source("http://polis.test/p", true)).toBe("server");
-    delete process.env.MDBLIST_API_KEY;
     expect(source("http://polis.test/p", true)).toBe("profile");
+    expect(source("http://polis.test/p", false)).toBe("server");
+    delete process.env.MDBLIST_API_KEY;
     expect(source("http://polis.test/p", false)).toBeNull();
+  });
+
+  test("never offers the server key for watchlists and lists", () => {
+    process.env.MDBLIST_API_KEY = "server-key";
+    const anonymous = resolvePolisIntegratorAuth(new NextRequest("http://polis.test/p"), null);
+    expect(anonymous.mdblistApiKey).toBe("server-key");
+    expect(anonymous.mdblistAccountApiKey).toBeNull();
+    const profile = resolvePolisIntegratorAuth(new NextRequest("http://polis.test/p"), config);
+    expect(profile.mdblistAccountApiKey).toBe("profile-key");
   });
 
   test("only server keys used by a saved profile are charged to its share", () => {
