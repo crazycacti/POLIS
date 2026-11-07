@@ -44,7 +44,8 @@ export async function fetchUpstream(
 // Fetch errors carry the request URL (with api keys) in fields such as `path`; rethrow without them.
 function redactedFetchError(error: unknown): Error {
   const source = error instanceof Error ? error : null;
-  const redacted = new Error(redactUpstreamSecrets(source?.message ?? String(error)));
+  const code = source && "code" in source && typeof source.code === "string" ? ` (${source.code})` : "";
+  const redacted = new Error(redactUpstreamSecrets(`${source?.message ?? String(error)}${code}`));
   redacted.name = source?.name ?? "Error";
   return redacted;
 }

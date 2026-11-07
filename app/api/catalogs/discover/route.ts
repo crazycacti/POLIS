@@ -14,17 +14,18 @@ import { SlidingWindowLimiter } from "@/lib/sliding-window-limiter";
 export const runtime = "nodejs";
 
 const DISCOVER_SERVER_KEY_PROFILE = "list-search";
+const DISCOVER_WINDOW_MS = 60 * 1000;
 const DEFAULT_DISCOVERS_PER_CLIENT_PER_MIN = 10;
 
 const discovers = new SlidingWindowLimiter(
-  60 * 1000,
+  DISCOVER_WINDOW_MS,
   () => polisEnvPositiveInt("POLIS_LIST_DISCOVERS_PER_CLIENT_PER_MIN") ?? DEFAULT_DISCOVERS_PER_CLIENT_PER_MIN,
 );
 
 type DiscoverBody = {
-  mdblistApiKey?: string;
-  username?: string;
-  search?: string;
+  mdblistApiKey?: unknown;
+  username?: unknown;
+  search?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -70,8 +71,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const search = body.search?.trim();
-    const username = body.username?.trim();
+    const search = typeof body.search === "string" ? body.search.trim() : "";
+    const username = typeof body.username === "string" ? body.username.trim() : "";
     if (search) {
       response.mdblistLists = await searchMdblistLists(search, mdblistKey, listsOptions);
     } else if (username) {

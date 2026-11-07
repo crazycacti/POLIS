@@ -12,10 +12,11 @@ import { SlidingWindowLimiter } from "@/lib/sliding-window-limiter";
 export const runtime = "nodejs";
 
 const PROVIDERS: ApiKeyProvider[] = ["tmdb", "mdblist", "fanart", "tvdb"];
+const VALIDATION_WINDOW_MS = 60 * 1000;
 const DEFAULT_VALIDATIONS_PER_CLIENT_PER_MIN = 20;
 
 const validations = new SlidingWindowLimiter(
-  60 * 1000,
+  VALIDATION_WINDOW_MS,
   () => polisEnvPositiveInt("POLIS_KEY_VALIDATIONS_PER_CLIENT_PER_MIN") ?? DEFAULT_VALIDATIONS_PER_CLIENT_PER_MIN,
 );
 
@@ -32,14 +33,14 @@ export async function POST(request: Request) {
   if (!parsed.ok) {
     return NextResponse.json({ ok: false, message: "Invalid JSON body" }, { status: parsed.status });
   }
-  const body = (parsed.value ?? {}) as { provider?: string; key?: string };
+  const body = (parsed.value ?? {}) as { provider?: unknown; key?: unknown };
 
-  const provider = body.provider?.trim().toLowerCase() as ApiKeyProvider;
+  const provider = (typeof body.provider === "string" ? body.provider.trim().toLowerCase() : "") as ApiKeyProvider;
   if (!PROVIDERS.includes(provider)) {
     return NextResponse.json({ ok: false, message: "Unknown provider" }, { status: 400 });
   }
 
-  const key = body.key?.trim() ?? "";
+  const key = typeof body.key === "string" ? body.key.trim() : "";
   if (!key) {
     return NextResponse.json({ ok: false, message: "Key is empty" }, { status: 400 });
   }
