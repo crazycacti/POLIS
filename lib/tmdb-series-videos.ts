@@ -6,7 +6,7 @@ import { tmdbApiGet } from "@/lib/tmdb-api-get";
 export type StremioMetaVideo = {
   id: string;
   title: string;
-  released: string;
+  released?: string;
   season: number;
   episode: number;
   overview?: string;
@@ -33,9 +33,9 @@ function maxEpisodes(): number | null {
   return polisEnvPositiveInt("POLIS_META_MAX_EPISODES");
 }
 
-function isoReleased(airDate: string | undefined): string {
+function isoReleased(airDate: string | undefined): string | undefined {
   const d = airDate?.trim();
-  if (!d) return new Date(0).toISOString();
+  if (!d) return undefined;
   return `${d}T00:00:00.000Z`;
 }
 
