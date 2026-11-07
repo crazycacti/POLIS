@@ -1,3 +1,4 @@
+import { effectiveArtworkSource } from "@/lib/artwork-poster";
 import { getPosterBaseBufferCached } from "@/lib/poster-artwork-cache";
 import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
 import { fetchMdblistMediaInfo, type MdblistMediaInfo } from "@/lib/mdblist-client";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/ratings";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { findTmdbTitle, resolveTitleForArtwork } from "@/lib/tmdb-resolve";
+import { resolveTitleLogoRefs, titleLogoSourceOrder } from "@/lib/title-logo";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
 export async function renderPosterForImdb(params: {
@@ -59,8 +61,14 @@ export async function renderPosterForImdb(params: {
   );
   if (!resolved) return null;
 
+  const logoOrder = titleLogoSourceOrder(
+    effectiveArtworkSource(resolved, params.overlay.artwork, params.overlay.artworkMovie),
+    params.overlay.logoSources,
+  );
   const prefetchedLogo =
-    params.overlay.logoOnPoster && resolved.logoPath ? prefetchPosterLogo(resolved.logoPath) : null;
+    params.overlay.logoOnPoster && logoOrder[0] === "tmdb" && resolved.logoPath
+      ? prefetchPosterLogo(resolved.logoPath)
+      : null;
 
   const base = await getPosterBaseBufferCached({
     imdbId: params.imdbId,
@@ -117,11 +125,19 @@ export async function renderPosterForImdb(params: {
     ? buildAgeBadge(mdblist, resolved.certification)
     : null;
 
-  const logoPath =
-    params.overlay.logoOnPoster && base.textless ? (resolved.logoPath ?? null) : null;
-  const logoAlternates = logoPath
-    ? (resolved.logoPaths ?? []).filter((p) => p !== logoPath).slice(0, MAX_LOGO_ALTERNATES)
-    : [];
+  const logos =
+    params.overlay.logoOnPoster && base.textless
+      ? await resolveTitleLogoRefs({
+          resolved,
+          order: logoOrder,
+          language: params.language,
+          fanartApiKey: params.fanartApiKey,
+          tvdbCredentials: params.tvdbCredentials,
+        })
+      : null;
+  if (logos?.degraded) params.onDegraded?.();
+  const [logoPath = null, ...otherLogos] = logos?.refs ?? [];
+  const logoAlternates = otherLogos.slice(0, MAX_LOGO_ALTERNATES);
 
   if (params.overlay.posterShape === "landscape" && softFontAvailable()) {
     return renderLandscapeSoft({

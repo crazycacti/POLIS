@@ -1,6 +1,6 @@
-export const POLIS_ADDON_VERSION = "0.1.18";
+export const POLIS_ADDON_VERSION = "0.1.19";
 
-export const POLIS_RENDERER_REVISION = 74;
+export const POLIS_RENDERER_REVISION = 75;
 
 export const POLIS_ARTWORK_CACHE_GENERATION = 1;
 export const POLIS_STREMIO_CACHE_GENERATION = 4;
