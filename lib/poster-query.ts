@@ -15,6 +15,12 @@ export type PosterArtworkFallback = "metahub" | "tmdb" | "fanart" | "tvdb";
 
 export type PosterArtworkMovieSource = Exclude<PosterArtworkSource, "tvdb">;
 
+export type TitleLogoSource = "tmdb" | "fanart" | "tvdb";
+
+export const TITLE_LOGO_SOURCES: readonly TitleLogoSource[] = ["tmdb", "fanart", "tvdb"];
+
+export const LOGO_SOURCES_AUTO = "auto";
+
 export type GenreMode = "first" | "top3";
 
 export type RatingStyle = "min" | "score" | "votes";
@@ -46,6 +52,7 @@ export type PosterOverlayQuery = {
   layout: OverlayLayout;
   look: PosterLook;
   logoSize: LogoSize;
+  logoSources: string;
   posterShape: PosterShape;
   gridCell: GridCell;
   genreColor: string;
@@ -81,6 +88,7 @@ export const POSTER_OVERLAY_DEFAULTS: PosterOverlayQuery = {
   layout: "row",
   look: "soft",
   logoSize: "medium",
+  logoSources: LOGO_SOURCES_AUTO,
   posterShape: "poster",
   gridCell: 7,
   genreColor: "auto",
@@ -110,6 +118,7 @@ const OVERLAY_STYLE_DEFAULT_KEYS = [
   "layout",
   "look",
   "logoSize",
+  "logoSources",
   "gridCell",
   "genreColor",
   "ratingColor",
@@ -244,6 +253,22 @@ function parseLogoSize(raw: string | null): LogoSize {
   return raw === "small" || raw === "large" ? raw : "medium";
 }
 
+function isTitleLogoSource(value: string): value is TitleLogoSource {
+  return (TITLE_LOGO_SOURCES as readonly string[]).includes(value);
+}
+
+export function titleLogoSourceList(raw: string | null): TitleLogoSource[] | null {
+  const parts = (raw ?? "").trim().toLowerCase().split(",").map((part) => part.trim());
+  if (parts.length > TITLE_LOGO_SOURCES.length) return null;
+  if (!parts.every(isTitleLogoSource)) return null;
+  const sources = parts.filter(isTitleLogoSource);
+  return new Set(sources).size === sources.length ? sources : null;
+}
+
+function parseLogoSources(raw: string | null): string {
+  return titleLogoSourceList(raw)?.join(",") ?? LOGO_SOURCES_AUTO;
+}
+
 const LEGACY_ANCHOR_TO_GRID: Record<string, GridCell> = {
   tl: 0,
   tc: 1,
@@ -328,6 +353,7 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     layout: parseLayout(searchParams.get("layout")),
     look: parseLook(searchParams.get("look")),
     logoSize: parseLogoSize(searchParams.get("logo_size")),
+    logoSources: parseLogoSources(searchParams.get("logo_src")),
     posterShape: parsePosterShape(searchParams.get("shape")),
     gridCell: parseGridCell(searchParams),
     genreColor: parseColorParam(searchParams.get("genre_color"), d.genreColor),
@@ -378,6 +404,10 @@ export function serializePosterQuery(opts: PosterOverlayQuery): string {
   p.set("layout", synced.layout);
   p.set("look", synced.look);
   p.set("logo_size", synced.logoSize);
+  const logoSources = parseLogoSources(synced.logoSources);
+  if (logoSources !== LOGO_SOURCES_AUTO) {
+    p.set("logo_src", logoSources);
+  }
   if (synced.posterShape !== POSTER_OVERLAY_DEFAULTS.posterShape) {
     p.set("shape", synced.posterShape);
   }

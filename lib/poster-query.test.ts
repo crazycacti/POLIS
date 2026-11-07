@@ -193,3 +193,32 @@ describe("poster shape", () => {
     expect(reset.look).toBe("soft");
   });
 });
+
+describe("title logo sources", () => {
+  const parse = (query: string) => parsePosterOverlayQuery(new URLSearchParams(query));
+
+  test("defaults to auto and leaves it out of the query", () => {
+    expect(parse("").logoSources).toBe("auto");
+    expect(serializePosterQuery(POSTER_OVERLAY_DEFAULTS)).not.toContain("logo_src");
+  });
+
+  test("round trips an explicit order", () => {
+    const parsed = parse("logo_src=Fanart,%20tmdb");
+    expect(parsed.logoSources).toBe("fanart,tmdb");
+    const query = serializePosterQuery(parsed);
+    expect(new URLSearchParams(query).get("logo_src")).toBe("fanart,tmdb");
+    expect(parse(query).logoSources).toBe("fanart,tmdb");
+  });
+
+  test("falls back to auto for unknown, repeated or too many sources", () => {
+    for (const raw of ["imdb", "tmdb,tmdb", "tmdb,fanart,tvdb,tmdb", "", "tmdb,,fanart", "auto"]) {
+      expect(parse(`logo_src=${encodeURIComponent(raw)}`).logoSources).toBe("auto");
+    }
+    expect(serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, logoSources: "nope" })).not.toContain("logo_src");
+  });
+
+  test("resetting the style returns the logo order to auto", () => {
+    const reset = resetOverlayStyleToDefaults({ ...POSTER_OVERLAY_DEFAULTS, logoSources: "tvdb" });
+    expect(reset.logoSources).toBe("auto");
+  });
+});

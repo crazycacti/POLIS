@@ -64,6 +64,18 @@ describe("look json", () => {
     expect(applied.trendFontSize).toBeLessThanOrEqual(72);
   });
 
+  test("carries the title logo order and rejects an invalid one", () => {
+    const parsed = parseLookJson(lookToJson({ ...custom, logoSources: "tvdb,tmdb" }));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(applyLookFields(POSTER_OVERLAY_DEFAULTS, parsed.fields).logoSources).toBe("tvdb,tmdb");
+    const bad = parseLookJson("{\"logoSources\": \"imdb\"}");
+    expect(bad.ok).toBe(true);
+    if (!bad.ok) return;
+    expect(rejectedLookFields(POSTER_OVERLAY_DEFAULTS, bad.fields)).toEqual(["logoSources"]);
+    expect(parseLookJson("{\"logoSources\": [\"tmdb\"]}").ok).toBe(false);
+  });
+
   test("names the problem for unknown keys, wrong types and non objects", () => {
     expect(parseLookJson("{\"sparkle\": true}")).toEqual({ ok: false, error: "Unknown setting: sparkle" });
     expect(parseLookJson("{\"genre\": \"yes\"}")).toEqual({ ok: false, error: "genre must be a boolean." });
