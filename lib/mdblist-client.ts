@@ -161,6 +161,7 @@ async function fetchMdblistModernPayload(params: {
     `https://api.mdblist.com/imdb/${mediaType}/${encodeURIComponent(params.imdbId)}`,
   );
   url.searchParams.set("apikey", params.apiKey);
+  url.searchParams.set("append_to_response", "keyword");
 
   const response = await fetchUpstream(url, {
     headers: { Accept: "application/json" },
