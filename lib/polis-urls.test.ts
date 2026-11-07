@@ -38,4 +38,17 @@ describe("landscapePosterArtUrl", () => {
     });
     expect(url).toBe("https://polis.example/abc/poster/imdb/poster-default/tt0111161.jpg?rating=1&shape=landscape");
   });
+
+  it("keeps one landscape shape and other params when the query already has one", () => {
+    const url = landscapePosterArtUrl({
+      publicBase: "https://polis.example",
+      imdbId: "tt0111161",
+      query: "shape=landscape&trend_rank=3",
+      configId: "abc",
+    });
+    const query = new URL(url).searchParams;
+    expect(url.startsWith("https://polis.example/abc/poster/imdb/poster-default/tt0111161.jpg?")).toBe(true);
+    expect(query.getAll("shape")).toEqual(["landscape"]);
+    expect(query.get("trend_rank")).toBe("3");
+  });
 });
