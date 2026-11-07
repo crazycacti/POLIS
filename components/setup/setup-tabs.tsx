@@ -9,6 +9,8 @@ const TABS: { id: SetupTab; label: string }[] = [
   { id: "export", label: "Install" },
 ];
 
+const INSTALL_LOCK_TOOLTIP_ID = "setup-install-lock-reason";
+
 export function SetupTabs(props: {
   active: SetupTab;
   onChange: (tab: SetupTab) => void;
@@ -27,9 +29,9 @@ export function SetupTabs(props: {
         const button = (
           <button
             aria-current={props.active === tab.id ? "page" : undefined}
-            aria-disabled={locked}
+            aria-describedby={tooltip ? INSTALL_LOCK_TOOLTIP_ID : undefined}
+            aria-disabled={locked ? true : undefined}
             className={`polis-tab ${props.active === tab.id ? "polis-tab-active" : ""} ${locked ? "polis-tab-locked" : ""}`}
-            disabled={locked}
             onClick={() => {
               if (!locked) props.onChange(tab.id);
             }}
@@ -46,7 +48,7 @@ export function SetupTabs(props: {
         return (
           <span className="polis-tab-tooltip-wrap" key={tab.id}>
             {button}
-            <span className="polis-tab-tooltip" role="tooltip">
+            <span className="polis-tab-tooltip" id={INSTALL_LOCK_TOOLTIP_ID} role="tooltip">
               {tooltip}
             </span>
           </span>

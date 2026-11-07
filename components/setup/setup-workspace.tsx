@@ -621,9 +621,7 @@ export function SetupWorkspace(props: {
       />
 
       {tab === "style" && overlayKeysMessage ? (
-        <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/95">
-          {overlayKeysMessage}
-        </p>
+        <KeysRequiredNotice message={overlayKeysMessage} onGoToKeys={() => setTab("keys")} />
       ) : null}
 
       {tab === "style" ? (
@@ -642,7 +640,7 @@ export function SetupWorkspace(props: {
             artworkControls={
               <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-xs text-zinc-400">
+              <span className="mb-1.5 block text-sm text-zinc-300">
                 Poster art source
                 {overlay.artwork === "tvdb" ? " (TV series)" : ""}
               </span>
@@ -670,7 +668,7 @@ export function SetupWorkspace(props: {
             </label>
             {overlay.artwork === "tvdb" ? (
               <label className="block">
-                <span className="mb-1.5 block text-xs text-zinc-400">Movie poster source</span>
+                <span className="mb-1.5 block text-sm text-zinc-300">Movie poster source</span>
                 <select
                   className="polis-select w-full"
                   onChange={(e) =>
@@ -693,7 +691,7 @@ export function SetupWorkspace(props: {
               </label>
             ) : null}
             <label className="block">
-              <span className="mb-1.5 block text-xs text-zinc-400">Poster fallback</span>
+              <span className="mb-1.5 block text-sm text-zinc-300">Poster fallback</span>
               <select
                 className="polis-select w-full"
                 onChange={(e) =>
@@ -779,9 +777,7 @@ export function SetupWorkspace(props: {
       {tab === "export" ? (
         <>
           {overlayKeysMessage ? (
-            <p className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100/95">
-              {overlayKeysMessage}
-            </p>
+            <KeysRequiredNotice message={overlayKeysMessage} onGoToKeys={() => setTab("keys")} />
           ) : null}
 
           <SetupPanel
@@ -789,7 +785,7 @@ export function SetupWorkspace(props: {
             hint="Save to update this profile, then install the URL in Stremio."
           >
             <button
-              className="polis-btn mb-4 text-xs"
+              className="polis-btn mb-4"
               disabled={configSaving || !hasRequiredKeys}
               onClick={handleSaveClick}
               type="button"
@@ -798,11 +794,11 @@ export function SetupWorkspace(props: {
             </button>
             {configError ? <p className="mb-3 text-sm text-amber-200/95">{configError}</p> : null}
             {installUrl ? (
-              <CopyRow label="Install URL (Stremio)" value={installUrl} />
+              <InstallLinks installUrl={installUrl} />
             ) : (
               <p className="text-sm text-zinc-400">
-                Your install URL appears here after you save. Change overlays? Save again to refresh
-                the link.
+                Your install URL appears here after you save. Saving again updates this profile; the
+                URL stays the same.
               </p>
             )}
           </SetupPanel>
@@ -829,10 +825,50 @@ export function SetupWorkspace(props: {
 function CopyRow({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
-      <p className="mb-1 text-xs text-zinc-400">{label}</p>
+      <p className="mb-1.5 text-sm text-zinc-300">{label}</p>
       <div className="polis-code flex flex-wrap items-center justify-between gap-3">
         <code className="break-all text-xs text-zinc-300">{value ?? "Set POLIS_PUBLIC_URL"}</code>
         {value ? <CopyButton text={value} /> : null}
+      </div>
+    </div>
+  );
+}
+
+function KeysRequiredNotice(props: { message: string; onGoToKeys: () => void }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+      <p className="min-w-0 flex-1 text-sm text-amber-100/95">{props.message}</p>
+      <button className="polis-btn-secondary" onClick={props.onGoToKeys} type="button">
+        Go to API keys
+      </button>
+    </div>
+  );
+}
+
+const HTTP_SCHEME = /^https?:\/\//i;
+const STREMIO_WEB_ADDONS_URL = "https://web.stremio.com/#/addons?addon=";
+
+function InstallLinks({ installUrl }: { installUrl: string }) {
+  const stremioDeepLink = HTTP_SCHEME.test(installUrl)
+    ? installUrl.replace(HTTP_SCHEME, "stremio://")
+    : null;
+  return (
+    <div className="space-y-3">
+      <CopyRow label="Install URL (Stremio)" value={installUrl} />
+      <div className="flex flex-wrap gap-2">
+        {stremioDeepLink ? (
+          <a className="polis-btn-secondary" href={stremioDeepLink}>
+            Install in Stremio
+          </a>
+        ) : null}
+        <a
+          className="polis-btn-secondary"
+          href={`${STREMIO_WEB_ADDONS_URL}${encodeURIComponent(installUrl)}`}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          Open in Stremio Web
+        </a>
       </div>
     </div>
   );
