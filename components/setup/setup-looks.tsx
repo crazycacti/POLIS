@@ -67,8 +67,8 @@ function LookTile(props: {
     <div className="relative">
       <button
         aria-pressed={props.selected}
-        className={`group flex w-full flex-col gap-2 rounded-lg p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 ${
-          props.selected ? "bg-cyan-500/15" : "hover:bg-white/5"
+        className={`group flex w-full flex-col gap-2 rounded-lg p-1.5 text-left transition-colors ${
+          props.selected ? "polis-selected" : "hover:bg-white/5"
         }`}
         onClick={props.onSelect}
         type="button"
@@ -89,7 +89,7 @@ function LookTile(props: {
       {props.onRemove ? (
         <button
           aria-label={`Remove ${props.label}`}
-          className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-zinc-300 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60"
+          className="absolute right-0 top-0 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-zinc-300 hover:text-white"
           onClick={props.onRemove}
           type="button"
         >
@@ -279,7 +279,7 @@ export function SetupLooks(props: {
         })}
         {saved.length < MAX_SAVED_LOOKS ? (
           <button
-            className={`flex ${overlay.posterShape === "landscape" ? "aspect-video" : "aspect-2/3"} flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 text-sm text-zinc-400 transition-colors hover:border-white/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60`}
+            className={`flex ${overlay.posterShape === "landscape" ? "aspect-video" : "aspect-2/3"} flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 text-sm text-zinc-400 transition-colors hover:border-white/30 hover:text-white`}
             onClick={() => openDialog("save")}
             type="button"
           >
@@ -303,7 +303,7 @@ export function SetupLooks(props: {
         title="Save this look"
       >
         <label className="block">
-          <span className="mb-1.5 block text-xs text-zinc-400">Name</span>
+          <span className="mb-1.5 block text-sm text-zinc-300">Name</span>
           <input
             className="polis-input w-full text-sm"
             maxLength={MAX_LOOK_NAME_LENGTH}
@@ -357,7 +357,7 @@ export function SetupLooks(props: {
         title="Import a look"
       >
         <label className="block">
-          <span className="mb-1.5 block text-xs text-zinc-400">Look link or code</span>
+          <span className="mb-1.5 block text-sm text-zinc-300">Look link or code</span>
           <input
             className="polis-input w-full font-mono text-xs"
             onChange={(e) => setImportText(e.target.value)}

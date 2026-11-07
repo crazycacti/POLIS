@@ -45,7 +45,7 @@ export function ConfigureUnlockPanel(props: {
       </p>
       <form className="mt-8 space-y-4" onSubmit={submit}>
         <label className="block">
-          <span className="mb-1.5 block text-xs text-zinc-400">Password</span>
+          <span className="mb-1.5 block text-sm text-zinc-300">Password</span>
           <div className="relative">
             <input
               autoComplete="current-password"
@@ -58,7 +58,7 @@ export function ConfigureUnlockPanel(props: {
             />
             <button
               aria-label={visible ? "Hide password" : "Show password"}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200 polis-focus"
               disabled={loading}
               onClick={() => setVisible((v) => !v)}
               type="button"

@@ -39,7 +39,7 @@
 }
 
 @utility polis-btn {
-  @apply inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200;
+  @apply inline-flex min-h-10 items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition-all duration-200 polis-focus;
   background: rgba(0, 153, 204, 0.18);
   color: var(--aurora-text);
   border: 1px solid var(--aurora-neon-blue);
@@ -48,12 +48,34 @@
   }
 }
 
+@utility polis-focus {
+  @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-400;
+}
+
+@utility polis-selected {
+  @apply bg-cyan-500/20 text-white ring-1 ring-cyan-400/60;
+}
+
+@utility polis-btn-secondary {
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-zinc-600 bg-transparent px-4 py-2 text-sm font-medium text-zinc-200 transition-colors polis-focus;
+  &:hover:not(:disabled) {
+    @apply border-cyan-500/70 bg-white/5 text-white;
+  }
+  &:disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+}
+
+@utility polis-icon-btn {
+  @apply inline-flex h-9 w-9 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-30 polis-focus;
+}
+
 @utility polis-link-btn {
-  @apply inline-flex min-h-9 items-center rounded-full px-3 text-sm text-cyan-300 transition-colors hover:bg-white/5 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60;
+  @apply inline-flex min-h-9 items-center rounded-full px-3 text-sm text-cyan-300 transition-colors hover:bg-white/5 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400;
 }
 
 @utility polis-btn-glow {
-  @apply relative inline-flex items-center justify-center overflow-hidden rounded-full px-6 py-3 text-sm font-semibold text-white transition-shadow duration-300;
+  @apply relative inline-flex items-center justify-center overflow-hidden rounded-full px-6 py-3 text-sm font-semibold text-white transition-shadow duration-300 polis-focus;
   background: rgba(0, 153, 204, 0.22);
   border: 1px solid rgba(0, 212, 255, 0.45);
   &::before {
@@ -91,9 +113,9 @@
 }
 
 @utility polis-input {
-  @apply w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 outline-hidden transition-shadow;
-  &:focus {
-    @apply ring-2 ring-cyan-600/40;
+  @apply w-full rounded-lg border border-zinc-500 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 outline-hidden transition-shadow;
+  &:focus-visible {
+    @apply ring-2 ring-cyan-400/90;
   }
 }
 
@@ -102,18 +124,18 @@
 }
 
 @utility polis-tab {
-  @apply rounded-full border border-transparent px-4 py-2 text-sm font-medium text-zinc-400 transition-colors;
+  @apply min-h-10 rounded-full border border-transparent px-4 py-2 text-sm font-medium text-zinc-400 transition-colors polis-focus;
   &:hover {
-    @apply text-zinc-300;
+    @apply text-zinc-200;
   }
 }
 
 @utility polis-tab-active {
-  @apply border-cyan-800/60 bg-cyan-950/50 text-cyan-100;
+  @apply polis-selected;
 }
 
 @utility polis-tab-locked {
-  @apply cursor-not-allowed opacity-40;
+  @apply cursor-not-allowed opacity-60;
   &:hover {
     @apply text-zinc-400;
   }
@@ -375,7 +397,7 @@
     display: inline-flex;
     align-items: center;
     min-height: 2rem;
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     line-height: 1.25rem;
     color: rgb(161 161 170);
   }
@@ -497,6 +519,10 @@
 }
 
 @layer base {
+  :where(a, button, summary, select, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-cyan-400);
+    outline-offset: 2px;
+  }
   html {
     @apply scroll-smooth antialiased;
   }
@@ -525,5 +551,29 @@
   }
   50% {
     transform: translateY(-12px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .polis-btn-glow::before,
+  .polis-orb-a,
+  .polis-orb-b {
+    animation: none;
+  }
+  .polis-switch {
+    --switch-transition: none;
+    --icon-transition: none;
+    --effect-transition: none;
+  }
+  .polis-poster-frame,
+  .polis-poster-frame:hover {
+    transition: none;
+    transform: none;
+  }
+  .polis-password-strength-segment {
+    transition: none;
   }
 }

@@ -72,7 +72,7 @@ export function SetupPreviewSidebar(props: {
               {isLoading ? (
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1 animate-pulse bg-cyan-400/70"
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1 animate-pulse motion-reduce:animate-none bg-cyan-400/70"
                 />
               ) : null}
             </>
@@ -89,7 +89,7 @@ export function SetupPreviewSidebar(props: {
           <button
             aria-label={demo.title}
             aria-pressed={selected === demo.id}
-            className={`w-12 shrink-0 overflow-hidden rounded-md transition-opacity lg:w-auto lg:flex-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 ${
+            className={`w-12 shrink-0 overflow-hidden rounded-md transition-opacity lg:w-auto lg:flex-1 ${
               selected === demo.id ? "ring-2 ring-cyan-400/80" : "opacity-60 hover:opacity-100"
             }`}
             key={demo.id}

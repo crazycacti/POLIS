@@ -54,8 +54,8 @@ function Segmented<T extends string>(props: {
       {props.options.map((option) => (
         <button
           aria-pressed={props.value === option.value}
-          className={`min-h-9 rounded-full px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 ${
-            props.value === option.value ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-white"
+          className={`min-h-9 rounded-full px-4 text-sm transition-colors ${
+            props.value === option.value ? "polis-selected" : "text-zinc-400 hover:bg-white/5 hover:text-white"
           }`}
           key={option.value}
           onClick={() => props.onChange(option.value)}
@@ -72,9 +72,9 @@ function ChipToggle(props: { label: string; pressed: boolean; onChange: (pressed
   return (
     <button
       aria-pressed={props.pressed}
-      className={`min-h-10 rounded-full border px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 ${
+      className={`min-h-10 rounded-full border px-4 text-sm transition-colors ${
         props.pressed
-          ? "border-cyan-400/80 bg-cyan-500/15 text-white"
+          ? "border-cyan-400/80 bg-cyan-500/20 text-white"
           : "border-white/15 text-zinc-400 hover:border-white/30 hover:text-white"
       }`}
       onClick={() => props.onChange(!props.pressed)}
