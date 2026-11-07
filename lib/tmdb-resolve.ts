@@ -7,6 +7,7 @@ import {
 import type { TmdbCastMember, TmdbCreatedBy } from "@/lib/tmdb-credits-parse";
 import { fetchTmdbSeriesVideos, type StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
+import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 
 type FindResponse = {
   movie_results?: { id: number }[];
@@ -327,11 +328,48 @@ export function rankLogoPaths(rawLogos: LogoImageJson[] | undefined): string[] {
 
 export type TmdbFindHit = { stremioType: "movie" | "series"; tmdbId: number };
 
+const TMDB_ID_HINT_NAMESPACE = "tmdb-id";
+const TMDB_ID_HINT_SCOPE = "g";
+export const TMDB_ID_HINT_TTL_SEC = 30 * 24 * 60 * 60;
+
+function isTmdbFindHit(raw: unknown): raw is TmdbFindHit {
+  if (!raw || typeof raw !== "object") return false;
+  const record = raw as Record<string, unknown>;
+  return (
+    (record.stremioType === "movie" || record.stremioType === "series") &&
+    typeof record.tmdbId === "number" &&
+    Number.isInteger(record.tmdbId) &&
+    record.tmdbId > 0
+  );
+}
+
+async function readTmdbIdHint(imdbId: string): Promise<TmdbFindHit | null> {
+  const raw = await readPolisDiskJson<unknown>(
+    TMDB_ID_HINT_NAMESPACE,
+    TMDB_ID_HINT_SCOPE,
+    imdbId,
+    TMDB_ID_HINT_TTL_SEC * 1000,
+  );
+  return isTmdbFindHit(raw) ? { stremioType: raw.stremioType, tmdbId: raw.tmdbId } : null;
+}
+
+export async function rememberTmdbIdHint(imdbId: string, hit: TmdbFindHit): Promise<void> {
+  const known = await readTmdbIdHint(imdbId);
+  if (known?.stremioType === hit.stremioType && known.tmdbId === hit.tmdbId) return;
+  await writePolisDiskJson(TMDB_ID_HINT_NAMESPACE, TMDB_ID_HINT_SCOPE, imdbId, {
+    stremioType: hit.stremioType,
+    tmdbId: hit.tmdbId,
+  });
+}
+
 export async function findTmdbTitle(
   imdbId: string,
   credential: TmdbCredential,
   language: string,
 ): Promise<TmdbFindHit | null> {
+  const hint = await readTmdbIdHint(imdbId);
+  if (hint) return hint;
+
   const findUrl = new URL(`https://api.themoviedb.org/3/find/${encodeURIComponent(imdbId)}`);
   findUrl.searchParams.set("external_source", "imdb_id");
   findUrl.searchParams.set("language", language);

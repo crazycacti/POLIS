@@ -13,6 +13,7 @@ import {
 import { isImdbId } from "@/lib/stremio-imdb-id";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
+import { rememberTmdbIdHint } from "@/lib/tmdb-resolve";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
 
@@ -129,7 +130,13 @@ export async function tmdbImdbIdForItem(params: {
     ttlSec: TMDB_EXTERNAL_IDS_TTL_SEC,
   })) as { imdb_id?: string | null } | null;
   const imdb = raw?.imdb_id;
-  return typeof imdb === "string" && isImdbId(imdb) ? imdb : null;
+  if (typeof imdb !== "string" || !isImdbId(imdb)) return null;
+  try {
+    await rememberTmdbIdHint(imdb, { stremioType: params.stremioType, tmdbId: params.tmdbId });
+  } catch (error) {
+    console.warn(`[polis] tmdb id hint write failed for ${imdb}`, error);
+  }
+  return imdb;
 }
 
 async function tmdbRowToCatalogMeta(params: {
