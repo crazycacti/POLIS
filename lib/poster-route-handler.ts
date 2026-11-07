@@ -7,10 +7,10 @@ import { getPolisConfig } from "@/lib/polis-config-store";
 import { resolveFanartAuth } from "@/lib/fanart-auth";
 import { resolveTvdbAuth } from "@/lib/tvdb-auth";
 import { posterContentType } from "@/lib/poster-output-format";
-import { posterHttpCacheControl } from "@/lib/poster-cache-headers";
+import { degradedPosterHttpCacheControl, posterHttpCacheControl } from "@/lib/poster-cache-headers";
 import { parsePosterOverlayQuery } from "@/lib/poster-query";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
-import { renderPosterForImdbCached } from "@/lib/poster-render-cache";
+import { DEGRADED_POSTER_TTL_SEC, renderPosterForImdbCached } from "@/lib/poster-render-cache";
 import { resolvePolisIntegratorAuth, serverKeyProfileFor } from "@/lib/stremio-integrator-auth";
 import { resolveTmdbAuth } from "@/lib/tmdb-auth";
 import { stremioCorsHeaders } from "@/lib/stremio-cors";
@@ -70,7 +70,9 @@ async function handlePosterDefaultRequestInner(
 
   const headers = {
     "Content-Type": posterContentType(),
-    "Cache-Control": posterHttpCacheControl(),
+    "Cache-Control": cached.degraded
+      ? degradedPosterHttpCacheControl(DEGRADED_POSTER_TTL_SEC)
+      : posterHttpCacheControl(),
     "X-Polis-Renderer": String(POLIS_RENDERER_REVISION),
     ...stremioCorsHeaders(),
   };

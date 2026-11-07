@@ -24,14 +24,16 @@ type MemoryEntry = { image: Buffer; at: number };
 const memory = new Map<string, MemoryEntry>();
 
 export type PosterCacheResult =
-  | { source: "disk"; path: string }
-  | { source: "buffer"; image: Buffer };
+  | { source: "disk"; path: string; degraded?: boolean }
+  | { source: "buffer"; image: Buffer; degraded?: boolean };
 
 function posterMemoryCacheMax(): number | null {
   return polisEnvPositiveInt("POLIS_CACHE_MEMORY_POSTERS");
 }
 
 const DEFAULT_POSTER_DISK_TTL_SEC = 7 * 24 * 60 * 60;
+export const DEGRADED_POSTER_TTL_SEC = 15 * 60;
+const DEGRADED_POSTER_NAMESPACE = "poster-degraded";
 const STALE_RETRY_BACKOFF_MS = 10 * 60 * 1000;
 const STALE_BACKOFF_MAX_KEYS = 5_000;
 
@@ -194,6 +196,17 @@ export async function renderPosterForImdbCached(params: {
     return { source: "disk", path: diskPath };
   }
 
+  const findDegradedPoster = async () => {
+    const path = await resolvePolisDiskCachePath(
+      DEGRADED_POSTER_NAMESPACE,
+      scope,
+      cacheKey,
+      ext,
+      DEGRADED_POSTER_TTL_SEC * 1000,
+    );
+    return path ? { source: "disk" as const, path, degraded: true } : null;
+  };
+
   const findStalePoster = async () =>
     (await resolvePolisDiskCachePath("poster", scope, cacheKey, ext)) ??
     (await resolvePolisDiskCachePath("poster", scope, aliasKey, ext));
@@ -203,6 +216,8 @@ export async function renderPosterForImdbCached(params: {
     polisSingleflight(flightKey, async () => {
       const racedPath = await resolvePolisDiskCachePath("poster", scope, cacheKey, ext, ttlMs);
       if (racedPath) return { source: "disk" as const, path: racedPath };
+      const racedDegraded = await findDegradedPoster();
+      if (racedDegraded) return racedDegraded;
 
       const staleFallback = async () => {
         const stalePath = await findStalePoster();
@@ -238,7 +253,12 @@ export async function renderPosterForImdbCached(params: {
       }
       if (!image) return staleFallback();
       if (degraded) {
-        return (await staleFallback()) ?? { source: "buffer" as const, image };
+        const stale = await staleFallback();
+        if (stale) return stale;
+        void writePolisDiskBytes(DEGRADED_POSTER_NAMESPACE, scope, cacheKey, ext, image).catch((error) =>
+          console.warn(`[polis] degraded poster cache write failed for ${params.imdbId}`, error),
+        );
+        return { source: "buffer" as const, image, degraded: true };
       }
       void writePolisDiskBytes("poster", scope, cacheKey, ext, image)
         .then(() => linkPolisDiskCacheAlias("poster", scope, cacheKey, aliasKey, ext))
@@ -258,8 +278,8 @@ export async function renderPosterForImdbCached(params: {
     return { source: "disk", path: stalePath };
   }
 
-  const rendered = await renderFresh();
-  if (!rendered) return null;
-  if (rendered.source === "disk") return rendered;
-  return { source: "buffer", image: rendered.image };
+  const degradedHit = await findDegradedPoster();
+  if (degradedHit) return degradedHit;
+
+  return renderFresh();
 }

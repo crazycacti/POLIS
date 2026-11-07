@@ -218,7 +218,7 @@ export async function purgePolisConfigDiskCache(configId: string): Promise<void>
   const id = configId.trim();
   if (!id) return;
   const scopeDir = path.join(polisCacheRoot());
-  const namespaces = ["poster", "backdrop", "logo", "meta", "catalog", "tmdb"];
+  const namespaces = ["poster", "poster-degraded", "backdrop", "logo", "meta", "catalog", "tmdb"];
   await Promise.all(
     namespaces.map(async (ns) => {
       const dir = path.join(scopeDir, ns, `c/${id}`);
