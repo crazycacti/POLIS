@@ -30,8 +30,8 @@ const STATUS_DOT: Record<SetupSaveStatus, string> = {
 export function SetupSaveBar(props: {
   status: SetupSaveStatus;
   error: string | null;
-  keysMissingReason: string | null;
-  onGoToKeys: () => void;
+  lockReason: string | null;
+  lockAction: { label: string; onClick: () => void } | null;
   installUrl: string | null;
   posterPattern: string | null;
   landscapePattern: string | null;
@@ -41,7 +41,7 @@ export function SetupSaveBar(props: {
 }) {
   const [optionsOpen, setOptionsOpen] = useState(false);
   const reasonId = useId();
-  const locked = Boolean(props.keysMissingReason);
+  const locked = Boolean(props.lockReason);
   const deepLink = props.installUrl ? stremioDeepLink(props.installUrl) : null;
 
   return (
@@ -58,9 +58,9 @@ export function SetupSaveBar(props: {
             className={`flex min-w-0 items-center gap-2 text-zinc-300 ${props.error ? "sr-only" : ""}`}
             role="status"
           >
-            {props.error ? null : locked && !props.saving ? (
+            {locked ? (
               <span className="text-amber-100/95" id={reasonId}>
-                {props.keysMissingReason}
+                {props.lockReason}
               </span>
             ) : (
               <>
@@ -69,13 +69,13 @@ export function SetupSaveBar(props: {
               </>
             )}
           </p>
-          {locked && !props.error ? (
+          {locked && props.lockAction && !props.error ? (
             <button
               className="polis-link-btn shrink-0 pointer-coarse:min-h-11"
-              onClick={props.onGoToKeys}
+              onClick={props.lockAction.onClick}
               type="button"
             >
-              Go to API keys
+              {props.lockAction.label}
             </button>
           ) : null}
         </div>

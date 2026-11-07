@@ -16,12 +16,13 @@ export function SetupChecklist(props: {
   onSelect: (tab: SetupTab) => void;
   keysDetail: string;
   keysDone: boolean;
+  lookDone: boolean;
   lookName: string;
   catalogCount: number;
 }) {
   const items: ChecklistItem[] = [
     { tab: "keys", label: "API keys", detail: props.keysDetail, done: props.keysDone },
-    { tab: "style", label: "Look", detail: props.lookName, done: true },
+    { tab: "style", label: "Look", detail: props.lookName, done: props.lookDone },
     {
       tab: "catalogs",
       label: "Catalogs",

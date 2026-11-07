@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
@@ -42,6 +42,7 @@ import {
   mapLegacyArtworkSource,
   shouldAutoResetArtworkMovieSource,
   shouldAutoResetArtworkSource,
+  type ArtworkSourceKey,
   POSTER_ARTWORK_FALLBACK_UI_OPTIONS,
   POSTER_ARTWORK_MOVIE_UI_OPTIONS,
   POSTER_ARTWORK_UI_OPTIONS,
@@ -50,7 +51,13 @@ import { hasMdblistCredential } from "@/lib/overlay-requirements";
 import { hasRequiredSetupKeys, hasTmdbCredential } from "@/lib/setup-required-keys";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
-import { hasUnsavedSetupChanges, setupSnapshot } from "@/lib/setup-dirty-state";
+import {
+  hasUnsavedSetupChanges,
+  NO_KEY_CHANGES,
+  setupKeyChanges,
+  setupSnapshot,
+  type SetupKeyInputs,
+} from "@/lib/setup-dirty-state";
 import { isImdbId } from "@/lib/stremio-imdb-id";
 
 const LS_SECRET = "polis_user_tmdb_secret";
@@ -62,6 +69,20 @@ const LS_CATALOGS = "polis_user_catalogs";
 const LS_CATALOGS_CUSTOMIZED = "polis_catalogs_customized";
 
 const CONFIG_FETCH_INIT = { credentials: "include" as const };
+
+const ARTWORK_KEY_NOTICE: Partial<Record<NonNullable<ArtworkSourceKey>, string>> = {
+  fanart: "Fanart.tv art needs a Fanart key in this browser. Add it under API keys or choose another source.",
+  tvdb: "TheTVDB art needs a TVDB key in this browser. Add it under API keys or choose another source.",
+};
+
+type BaselineSource = { query: string; catalogs: PolisCatalogDefinition[] | null };
+
+function artworkResetKey(
+  options: readonly { value: string; key: ArtworkSourceKey }[],
+  value: string,
+): ArtworkSourceKey {
+  return options.find((o) => o.value === value)?.key ?? null;
+}
 
 function clearStoredConfigId(): void {
   try {
@@ -103,9 +124,29 @@ export function SetupWorkspace(props: {
   const [catalogsCustomized, setCatalogsCustomized] = useState(false);
   const [catalogsHydrated, setCatalogsHydrated] = useState(false);
   const [setupHydrated, setSetupHydrated] = useState(false);
-  const [baselineArmed, setBaselineArmed] = useState(false);
+  const [baselineSource, setBaselineSource] = useState<BaselineSource | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const [sentKeyInputs, setSentKeyInputs] = useState<SetupKeyInputs>({ tmdb: "", mdblist: "" });
+  const [lookTouched, setLookTouched] = useState(false);
+  const [artworkResetFrom, setArtworkResetFrom] = useState<ArtworkSourceKey>(null);
   const origin = props.initialOrigin.trim();
+  const initialQueryString = useMemo(
+    () => serializePosterQuery(props.initialOverlay),
+    [props.initialOverlay],
+  );
+
+  const changeOverlay = useCallback((next: SetStateAction<PosterOverlayQuery>) => {
+    setLookTouched(true);
+    setOverlay(next);
+  }, []);
+
+  const changeArtwork = useCallback(
+    (next: SetStateAction<PosterOverlayQuery>) => {
+      setArtworkResetFrom(null);
+      changeOverlay(next);
+    },
+    [changeOverlay],
+  );
 
   function markCatalogsCustomized() {
     setCatalogsCustomized(true);
@@ -130,6 +171,7 @@ export function SetupWorkspace(props: {
       setMdblistInput(m);
       setFanartInput(f);
       setTvdbInput(t);
+      setSentKeyInputs({ tmdb: s.trim(), mdblist: m.trim() });
       if (cid?.trim()) setConfigId(cid.trim());
       if (localStorage.getItem(LS_CATALOGS_CUSTOMIZED) === "1") {
         setCatalogsCustomized(true);
@@ -149,7 +191,10 @@ export function SetupWorkspace(props: {
       setConfigExists(false);
       setConfigHasTmdbKey(false);
       setConfigHasMdblistKey(false);
-      if (catalogsHydrated) setOverlaySettled(true);
+      if (catalogsHydrated) {
+        setBaselineSource({ query: initialQueryString, catalogs: null });
+        setOverlaySettled(true);
+      }
       return;
     }
     let cancelled = false;
@@ -165,6 +210,7 @@ export function SetupWorkspace(props: {
           setConfigExists(false);
           setConfigHasTmdbKey(false);
           setConfigHasMdblistKey(false);
+          setBaselineSource({ query: initialQueryString, catalogs: null });
           return;
         }
         setConfigExists(true);
@@ -179,13 +225,19 @@ export function SetupWorkspace(props: {
         setConfigHasPassword(Boolean(data.hasPassword));
         setConfigHasTmdbKey(Boolean(data.hasTmdbIntegrator));
         setConfigHasMdblistKey(Boolean(data.hasMdblistIntegrator));
+        let baselineQuery = initialQueryString;
         if (typeof data.posterQuery === "string" && data.posterQuery.trim()) {
-          setOverlay(parsePosterOverlayQuery(new URLSearchParams(data.posterQuery)));
+          const serverOverlay = parsePosterOverlayQuery(new URLSearchParams(data.posterQuery));
+          baselineQuery = serializePosterQuery(serverOverlay);
+          setOverlay(serverOverlay);
         }
-        if (Array.isArray(data.catalogs) && data.catalogs.length > 0) {
-          setSelectedCatalogs(data.catalogs);
+        const serverCatalogs =
+          Array.isArray(data.catalogs) && data.catalogs.length > 0 ? data.catalogs : null;
+        if (serverCatalogs) {
+          setSelectedCatalogs(serverCatalogs);
           markCatalogsCustomized();
         }
+        setBaselineSource({ query: baselineQuery, catalogs: serverCatalogs });
         if (origin) {
           setInstallUrl(stremioUserInstallUrl(origin, cid));
         }
@@ -196,7 +248,7 @@ export function SetupWorkspace(props: {
     return () => {
       cancelled = true;
     };
-  }, [catalogsHydrated, configId, origin]);
+  }, [catalogsHydrated, configId, initialQueryString, origin]);
 
   useEffect(() => {
     setLookCodeParam(lookCodeFromSearch(window.location.search));
@@ -366,18 +418,23 @@ export function SetupWorkspace(props: {
     const artworkMovie = mapLegacyArtworkMovieSource(overlay.artworkMovie);
     const fbOpt = POSTER_ARTWORK_FALLBACK_UI_OPTIONS.find((o) => o.value === overlay.artworkFallback);
 
+    let resetKey: ArtworkSourceKey = null;
+
     let nextArtwork = artwork;
     if (shouldAutoResetArtworkSource(artwork, artworkKeys)) {
+      resetKey = artworkResetKey(POSTER_ARTWORK_UI_OPTIONS, artwork);
       nextArtwork = pickDefaultArtworkSource(artworkKeys);
     }
 
     let nextMovie = artworkMovie;
     if (shouldAutoResetArtworkMovieSource(artworkMovie, artworkKeys)) {
+      resetKey ??= artworkResetKey(POSTER_ARTWORK_MOVIE_UI_OPTIONS, artworkMovie);
       nextMovie = pickDefaultArtworkMovieSource(artworkKeys);
     }
 
     let nextFb = overlay.artworkFallback;
     if (!fbOpt || !isArtworkKeySatisfied(fbOpt.key, artworkKeys)) {
+      resetKey ??= fbOpt?.key ?? null;
       nextFb = "metahub";
     }
 
@@ -386,6 +443,7 @@ export function SetupWorkspace(props: {
       nextMovie !== overlay.artworkMovie ||
       nextFb !== overlay.artworkFallback
     ) {
+      if (resetKey) setArtworkResetFrom(resetKey);
       setOverlay((o) => ({
         ...o,
         artwork: nextArtwork,
@@ -424,19 +482,35 @@ export function SetupWorkspace(props: {
   ]);
   const patterns = origin ? aiometadataArtPatterns(origin, queryString) : null;
 
+  const keyChanges = useMemo(
+    () => setupKeyChanges({ tmdb: secretInput, mdblist: mdblistInput }, sentKeyInputs),
+    [mdblistInput, secretInput, sentKeyInputs],
+  );
   const currentSnapshot = useMemo(
-    () => setupSnapshot(queryString, selectedCatalogs),
-    [queryString, selectedCatalogs],
+    () => setupSnapshot(queryString, selectedCatalogs, keyChanges),
+    [keyChanges, queryString, selectedCatalogs],
   );
   const hasUnsavedChanges = hasUnsavedSetupChanges(savedSnapshot, currentSnapshot);
 
   useEffect(() => {
-    if (overlaySettled && !baselineArmed) setBaselineArmed(true);
-  }, [baselineArmed, overlaySettled]);
+    if (!overlaySettled || !baselineSource) return;
+    setSavedSnapshot(
+      setupSnapshot(
+        baselineSource.query,
+        baselineSource.catalogs ?? selectedCatalogs,
+        NO_KEY_CHANGES,
+      ),
+    );
+    setBaselineSource(null);
+  }, [baselineSource, overlaySettled, selectedCatalogs]);
 
-  useEffect(() => {
-    if (baselineArmed && savedSnapshot === null) setSavedSnapshot(currentSnapshot);
-  }, [baselineArmed, currentSnapshot, savedSnapshot]);
+  const artworkNotice =
+    artworkResetFrom && !isArtworkKeySatisfied(artworkResetFrom, artworkKeys)
+      ? (ARTWORK_KEY_NOTICE[artworkResetFrom] ?? null)
+      : null;
+  const catalogsMissingReason =
+    overlaySettled && selectedCatalogs.length === 0 ? "Add at least one catalog" : null;
+  const lockReason = keysMissingReason ?? catalogsMissingReason;
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -460,6 +534,7 @@ export function SetupWorkspace(props: {
       ? "dirty"
       : "saved";
   function handleSaveClick() {
+    if (lockReason) return;
     if (!origin) {
       setConfigError("Set POLIS_PUBLIC_URL on the server first.");
       return;
@@ -484,10 +559,9 @@ export function SetupWorkspace(props: {
     setConfigSaving(true);
     setConfigError(null);
     setPasswordDialogError(null);
-    const sentSnapshot = setupSnapshot(queryString, selectedCatalogs);
+    const sentSnapshot = setupSnapshot(queryString, selectedCatalogs, NO_KEY_CHANGES);
+    const sentKeys: SetupKeyInputs = { tmdb: secretInput.trim(), mdblist: mdblistInput.trim() };
     try {
-      const catalogsToSave =
-        selectedCatalogs.length > 0 ? selectedCatalogs : defaultCatalogSelection;
       const integrator: { tmdbSecret?: string | null; mdblistApiKey?: string | null } = {};
       if (secretInput.trim()) integrator.tmdbSecret = secretInput.trim();
       if (mdblistInput.trim()) integrator.mdblistApiKey = mdblistInput.trim();
@@ -497,7 +571,7 @@ export function SetupWorkspace(props: {
 
       const body: Record<string, unknown> = {
         posterQuery: queryString,
-        catalogs: catalogsToSave,
+        catalogs: selectedCatalogs,
         ...(Object.keys(integrator).length > 0 ? { integrator } : {}),
       };
       if (existingConfigId) body.configId = existingConfigId;
@@ -551,6 +625,10 @@ export function SetupWorkspace(props: {
       if (integrator.mdblistApiKey) setConfigHasMdblistKey(true);
       setInstallUrl(stremioUserInstallUrl(origin, data.configId));
       setSavedSnapshot(sentSnapshot);
+      setSentKeyInputs((prev) => ({
+        tmdb: sentKeys.tmdb || prev.tmdb,
+        mdblist: sentKeys.mdblist || prev.mdblist,
+      }));
     } catch {
       const message = "Network error saving config.";
       if (password !== undefined) {
@@ -654,6 +732,7 @@ export function SetupWorkspace(props: {
           catalogCount={selectedCatalogs.length}
           keysDetail={hasRequiredKeys ? "Ready" : `${missingKeyNames.join(" and ")} missing`}
           keysDone={hasRequiredKeys}
+          lookDone={configExists || lookTouched}
           lookName={starterLookName}
           onSelect={setTab}
         />
@@ -665,13 +744,17 @@ export function SetupWorkspace(props: {
         <KeysRequiredNotice message={overlayKeysMessage} onGoToKeys={() => setTab("keys")} />
       ) : null}
 
+      {tab === "style" && artworkNotice ? (
+        <KeysRequiredNotice message={artworkNotice} onGoToKeys={() => setTab("keys")} />
+      ) : null}
+
       {tab === "style" ? (
         <>
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
           <SetupLooks
             initialLookCode={overlaySettled ? lookCodeParam : null}
-            onChange={setOverlay}
+            onChange={changeOverlay}
             onLookLinkConsumed={consumeLookLink}
             origin={origin}
             overlay={overlay}
@@ -689,7 +772,7 @@ export function SetupWorkspace(props: {
                 className="polis-select w-full"
                 onChange={(e) => {
                   const artwork = e.target.value as PosterArtworkSource;
-                  setOverlay((o) => ({
+                  changeArtwork((o) => ({
                     ...o,
                     artwork,
                     ...(artwork === "tvdb" ? { artworkMovie: o.artworkMovie ?? "tmdb" } : {}),
@@ -713,7 +796,7 @@ export function SetupWorkspace(props: {
                 <select
                   className="polis-select w-full"
                   onChange={(e) =>
-                    setOverlay((o) => ({
+                    changeArtwork((o) => ({
                       ...o,
                       artworkMovie: e.target.value as PosterArtworkMovieSource,
                     }))
@@ -736,7 +819,7 @@ export function SetupWorkspace(props: {
               <select
                 className="polis-select w-full"
                 onChange={(e) =>
-                  setOverlay((o) => ({
+                  changeArtwork((o) => ({
                     ...o,
                     artworkFallback: e.target.value as PosterArtworkFallback,
                   }))
@@ -756,7 +839,7 @@ export function SetupWorkspace(props: {
               </div>
             }
             overlay={overlay}
-            setOverlay={setOverlay}
+            setOverlay={changeOverlay}
           />
           </div>
           <SetupPreviewSidebar
@@ -819,8 +902,14 @@ export function SetupWorkspace(props: {
       <SetupSaveBar
         error={configError}
         installUrl={installUrl}
-        keysMissingReason={keysMissingReason}
-        onGoToKeys={() => setTab("keys")}
+        lockAction={
+          keysMissingReason
+            ? { label: "Go to API keys", onClick: () => setTab("keys") }
+            : catalogsMissingReason && tab !== "catalogs"
+              ? { label: "Go to catalogs", onClick: () => setTab("catalogs") }
+              : null
+        }
+        lockReason={lockReason}
         onSave={handleSaveClick}
         landscapePattern={patterns?.landscapePattern ?? null}
         posterPattern={patterns?.posterPattern ?? null}
