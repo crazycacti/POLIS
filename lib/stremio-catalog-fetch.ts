@@ -88,6 +88,12 @@ function mdblistRowsForCatalogType(
   return [];
 }
 
+// Upstream URLs carry api keys; keep them out of logged messages.
+function errorMessageWithout(error: unknown, secret: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return secret ? message.split(secret).join("[redacted]") : message;
+}
+
 export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
@@ -172,6 +178,7 @@ async function fetchTmdbCatalogMetas(params: {
   const { def, credential, language, publicBase, skip } = params;
   const stremioType = def.type;
   const posterQs = params.posterQueryString?.trim() || defaultPosterQueryString();
+  const credentialSecret = credential.kind === "api_key" ? credential.key : credential.token;
 
   let path: string;
   if (def.provider.kind !== "tmdb") return [];
@@ -209,6 +216,8 @@ async function fetchTmdbCatalogMetas(params: {
     const slice = rows.slice(offsetInPage);
     offsetInPage = 0;
 
+    let failedRows = 0;
+    let lastRowError: unknown = null;
     const resolved = await mapWithConcurrency(
       slice.map((row, index) => ({ row, index })),
       TMDB_EXTERNAL_ID_CONCURRENCY,
@@ -221,8 +230,17 @@ async function fetchTmdbCatalogMetas(params: {
           posterQs,
           trendRank: isTrendingCatalog ? globalOffset + index + 1 : null,
           configId: params.configId,
+        }).catch((error: unknown) => {
+          failedRows += 1;
+          lastRowError = error;
+          return null;
         }),
     );
+    if (failedRows > 0) {
+      console.warn(
+        `[polis] ${failedRows} of ${slice.length} tmdb catalog rows failed for ${def.id}: ${errorMessageWithout(lastRowError, credentialSecret)}`,
+      );
+    }
 
     globalOffset += slice.length;
 
@@ -272,13 +290,22 @@ async function fetchMdblistCatalogMetas(params: {
   url.searchParams.set("offset", String(skip));
   url.searchParams.set("limit", String(STREMIO_CATALOG_PAGE_SIZE));
 
-  const response = await fetchUpstream(url, {
-    headers: { Accept: "application/json" },
-    revalidateSeconds: 600,
-  });
-  if (!response.ok) return [];
-
-  const payload = (await response.json()) as unknown;
+  let payload: unknown;
+  try {
+    const response = await fetchUpstream(url, {
+      headers: { Accept: "application/json" },
+      revalidateSeconds: 600,
+    });
+    if (!response.ok) {
+      await response.body?.cancel();
+      console.warn(`[polis] mdblist catalog ${def.id} returned HTTP ${response.status}`);
+      return [];
+    }
+    payload = (await response.json()) as unknown;
+  } catch (error) {
+    console.warn(`[polis] mdblist catalog ${def.id} failed: ${errorMessageWithout(error, apiKey)}`);
+    return [];
+  }
   const rows = mdblistRowsForCatalogType(payload, def.type);
 
   const posterQs = params.posterQueryString?.trim() || defaultPosterQueryString();

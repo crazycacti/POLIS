@@ -66,7 +66,7 @@ describe("tmdb catalog pages", () => {
     provider: { kind: "tmdb", list: "trending" },
   };
 
-  async function page(skip: number) {
+  async function page(skip: number, failingExternalId?: number) {
     const realFetch = globalThis.fetch;
     const savedCacheFlag = process.env.POLIS_CACHE_DISABLE;
     process.env.POLIS_CACHE_DISABLE = "1";
@@ -75,6 +75,7 @@ describe("tmdb catalog pages", () => {
       const external = /\/movie\/(\d+)\/external_ids$/.exec(url.pathname);
       if (external) {
         const id = Number(external[1]);
+        if (id === failingExternalId) throw new TypeError("network down");
         return Response.json({ imdb_id: id === MISSING_IMDB_ID ? null : `tt${1000000 + id}` });
       }
       const tmdbPage = Number(url.searchParams.get("page"));
@@ -123,5 +124,63 @@ describe("tmdb catalog pages", () => {
 
   it("starts at the raw row past the exact skip limit", async () => {
     expect((await page(220))[0]?.id).toBe("tt1000221");
+  });
+
+  it("drops a row whose external id request throws and keeps the rest of the page", async () => {
+    const FAILING_ID = 2;
+    const realWarn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "));
+    };
+    try {
+      const metas = await page(0, FAILING_ID);
+      expect(metas).toHaveLength(20);
+      expect(metas.map((m) => m.id)).not.toContain(`tt${1000000 + FAILING_ID}`);
+      expect(warnings.filter((w) => w.includes("tmdb catalog rows failed"))).toHaveLength(1);
+      expect(warnings.join("\n")).not.toContain("api_key=test");
+    } finally {
+      console.warn = realWarn;
+    }
+  });
+});
+
+describe("mdblist catalog failures", () => {
+  it("returns no titles and logs the failure without the api key when the request throws", async () => {
+    const apiKey = "secret-test-key";
+    const def: PolisCatalogDefinition = {
+      id: "mdblist-watchlist-movie",
+      type: "movie",
+      name: "Watchlist",
+      provider: { kind: "mdblist", list: "watchlist" },
+    };
+    const realFetch = globalThis.fetch;
+    const realWarn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "));
+    };
+    globalThis.fetch = (async (input: RequestInfo | URL): Promise<Response> => {
+      throw new TypeError(`failed to reach ${input instanceof Request ? input.url : String(input)}`);
+    }) as typeof fetch;
+    try {
+      const metas = await fetchPolisCatalogMetas({
+        type: "movie",
+        catalogId: def.id,
+        credential: null,
+        mdblistApiKey: apiKey,
+        language: "en-US",
+        publicBase: "http://localhost:3050",
+        extra: new URLSearchParams(),
+        catalogDefinitions: [def],
+      });
+      expect(metas).toEqual([]);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(def.id);
+      expect(warnings[0]).not.toContain(apiKey);
+    } finally {
+      globalThis.fetch = realFetch;
+      console.warn = realWarn;
+    }
   });
 });
