@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import {
   redactUpstreamSecrets,
@@ -7,6 +10,7 @@ import {
   type UpstreamCallScope,
   type UpstreamProviderPolicy,
 } from "@/lib/upstream-guard";
+import { guardStateStore } from "@/lib/upstream-guard-store";
 
 const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;
@@ -81,6 +85,20 @@ describe("global provider limits", () => {
     finish(new Response("{}"));
     expect(await first).toEqual({ ok: true, value: 200 });
     expect(await call(guard, scope)).toBe(200);
+  });
+});
+
+describe("mdblist burst window", () => {
+  test("stops at 1,000 reads in five minutes and resumes after the window", async () => {
+    const { guard, clock } = clockedGuard({ mdblistPolicy: { dailyLimit: () => null } });
+    const mdblist: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "key-m" };
+    for (let i = 0; i < 1000; i++) {
+      expect(await call(guard, mdblist)).toBe(200);
+      clock.now += 200;
+    }
+    expect(await call(guard, mdblist)).toBe("busy");
+    clock.now += 5 * MINUTE_MS;
+    expect(await call(guard, mdblist)).toBe(200);
   });
 });
 
@@ -176,6 +194,62 @@ describe("per profile share of the server key", () => {
     const { guard } = clockedGuard({ sharePercent: 1 });
     const server: UpstreamCallScope = { ...scope, serverKeyProfile: "p1" };
     for (let i = 0; i < 5; i += 1) expect(await call(guard, server)).toBe(200);
+  });
+});
+
+describe("usage across restarts", () => {
+  const server: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "server", serverKeyProfile: "p1" };
+
+  function restarted(snapshot: unknown, start: number) {
+    const { guard, clock } = clockedGuard({ start, mdblistPolicy: { dailyLimit: () => 10 }, sharePercent: 20 });
+    guard.restore(JSON.parse(JSON.stringify(snapshot)));
+    return { guard, clock };
+  }
+
+  test("keeps a profile's used share after a restart the same day", async () => {
+    const before = clockedGuard({ mdblistPolicy: { dailyLimit: () => 10 }, sharePercent: 20 });
+    expect(await call(before.guard, server)).toBe(200);
+    expect(await call(before.guard, server)).toBe(200);
+    const after = restarted(before.guard.snapshot(), before.clock.now + MINUTE_MS);
+    expect(await call(after.guard, server)).toBe("profile_budget");
+  });
+
+  test("starts fresh when the saved usage is from an earlier day", async () => {
+    const before = clockedGuard({ mdblistPolicy: { dailyLimit: () => 10 }, sharePercent: 20 });
+    await call(before.guard, server);
+    await call(before.guard, server);
+    const after = restarted(before.guard.snapshot(), before.clock.now + 24 * 60 * MINUTE_MS);
+    expect(await call(after.guard, server)).toBe(200);
+  });
+
+  test("keeps a running rate limit pause", async () => {
+    const before = clockedGuard({});
+    const mdblist: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "key-r" };
+    await call(before.guard, mdblist, ok({ "retry-after": "600" }, 429));
+    const after = restarted(before.guard.snapshot(), before.clock.now + MINUTE_MS);
+    expect(await call(after.guard, mdblist)).toBe("rate_limited");
+  });
+
+  test("ignores malformed saved state", async () => {
+    const { guard } = restarted({ keys: [{ id: 5 }, null, { id: "x", used: -1 }], profiles: "nope" }, Date.UTC(2026, 10, 7, 12));
+    expect(await call(guard, server)).toBe(200);
+  });
+
+  test("saves through the file store and loads it back", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "polis-guard-"));
+    const file = path.join(dir, "upstream-guard.json");
+    try {
+      const before = clockedGuard({ mdblistPolicy: { dailyLimit: () => 10 }, sharePercent: 20 });
+      await call(before.guard, server);
+      await call(before.guard, server);
+      await writeFile(file, JSON.stringify(before.guard.snapshot()));
+      const loaded = guardStateStore(() => null, file).load();
+      const after = restarted(loaded, before.clock.now);
+      expect(await call(after.guard, server)).toBe("profile_budget");
+      expect(guardStateStore(() => null, path.join(dir, "missing.json")).load()).toBeNull();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
+import { guardStatePersistenceEnabled, guardStateStore, type GuardStateStore } from "@/lib/upstream-guard-store";
 import { upstreamCallIsBackground } from "@/lib/upstream-priority";
 
 export type UpstreamProvider = "tmdb" | "mdblist" | "fanart" | "tvdb" | "anilist" | "jikan" | "kitsu";
@@ -39,6 +40,11 @@ type KeyState = {
 
 type ProfileUsage = { day: string; used: number };
 
+export type UpstreamGuardSnapshot = {
+  keys: { id: string; day: string; used: number; cooldownUntil: number; cooldownReason: KeyState["cooldownReason"] }[];
+  profiles: { id: string; day: string; used: number }[];
+};
+
 const SECOND_MS = 1000;
 const MINUTE_MS = 60 * SECOND_MS;
 const DAY_MS = 24 * 60 * MINUTE_MS;
@@ -54,6 +60,9 @@ const WARN_INTERVAL_MS = MINUTE_MS;
 const EPOCH_SECONDS_THRESHOLD = 1_000_000_000;
 const EPOCH_MILLISECONDS_THRESHOLD = 1_000_000_000_000;
 const DEFAULT_MDBLIST_DAILY_LIMIT = 1_000;
+// MDBList's API docs cap reads at 1,000 per fixed 5-minute window on every tier.
+const MDBLIST_READS_PER_BURST_WINDOW = 1_000;
+const MDBLIST_BURST_WINDOW_MS = 5 * MINUTE_MS;
 const DEFAULT_SERVER_KEY_SHARE_PERCENT = 20;
 const MAX_PERCENT = 100;
 
@@ -67,7 +76,10 @@ export const UPSTREAM_PROVIDER_POLICIES: Record<UpstreamProvider, UpstreamProvid
     dailyLimit: () => null,
   },
   mdblist: {
-    windows: [{ limit: 10, windowMs: SECOND_MS }],
+    windows: [
+      { limit: 10, windowMs: SECOND_MS },
+      { limit: MDBLIST_READS_PER_BURST_WINDOW, windowMs: MDBLIST_BURST_WINDOW_MS },
+    ],
     maxConcurrent: 4,
     defaultCooldownMs: MINUTE_MS,
     dailyLimit: () => polisEnvPositiveInt("POLIS_MDBLIST_DAILY_LIMIT") ?? DEFAULT_MDBLIST_DAILY_LIMIT,
@@ -166,6 +178,10 @@ function serverKeySharePercent(): number {
   return Math.min(MAX_PERCENT, percent ?? DEFAULT_SERVER_KEY_SHARE_PERCENT);
 }
 
+function isCount(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 function setBounded<V>(map: Map<string, V>, key: string, value: V, max: number): void {
   map.delete(key);
   map.set(key, value);
@@ -182,6 +198,7 @@ export type UpstreamGuardOptions = {
   maxWaitMs?: number;
   policies?: Partial<Record<UpstreamProvider, UpstreamProviderPolicy>>;
   sharePercent?: () => number;
+  onStateChange?: () => void;
 };
 
 export type UpstreamGuardResult<T> = { ok: true; value: T } | { ok: false; reason: UpstreamBlockReason };
@@ -197,6 +214,7 @@ export class UpstreamGuard {
   private readonly keys = new Map<string, KeyState>();
   private readonly profiles = new Map<string, ProfileUsage>();
   private readonly warnedAt = new Map<string, number>();
+  private readonly onStateChange: () => void;
 
   constructor(options: UpstreamGuardOptions = {}) {
     this.now = options.now ?? Date.now;
@@ -204,6 +222,62 @@ export class UpstreamGuard {
     this.maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
     this.policies = { ...UPSTREAM_PROVIDER_POLICIES, ...options.policies };
     this.sharePercent = options.sharePercent ?? serverKeySharePercent;
+    this.onStateChange = options.onStateChange ?? (() => undefined);
+  }
+
+  snapshot(): UpstreamGuardSnapshot {
+    const now = this.now();
+    const today = utcDay(now);
+    const keys: UpstreamGuardSnapshot["keys"] = [];
+    for (const [id, state] of this.keys) {
+      const counted = state.day === today && state.used > 0;
+      if (!counted && state.cooldownUntil <= now) continue;
+      keys.push({
+        id,
+        day: state.day,
+        used: counted ? state.used : 0,
+        cooldownUntil: state.cooldownUntil,
+        cooldownReason: state.cooldownReason,
+      });
+    }
+    const profiles: UpstreamGuardSnapshot["profiles"] = [];
+    for (const [id, usage] of this.profiles) {
+      if (usage.day === today && usage.used > 0) profiles.push({ id, day: usage.day, used: usage.used });
+    }
+    return { keys, profiles };
+  }
+
+  restore(snapshot: unknown): void {
+    if (!snapshot || typeof snapshot !== "object") return;
+    const now = this.now();
+    const today = utcDay(now);
+    const { keys, profiles } = snapshot as { keys?: unknown; profiles?: unknown };
+    for (const row of Array.isArray(keys) ? keys : []) {
+      const entry = row as Partial<UpstreamGuardSnapshot["keys"][number]> | null;
+      if (!entry || typeof entry.id !== "string" || !isCount(entry.used) || !isCount(entry.cooldownUntil)) continue;
+      const usedToday = entry.day === today ? entry.used : 0;
+      const cooldownUntil = Math.min(entry.cooldownUntil, now + MAX_COOLDOWN_MS);
+      if (usedToday === 0 && cooldownUntil <= now) continue;
+      setBounded(
+        this.keys,
+        entry.id,
+        {
+          cooldownUntil,
+          cooldownReason: entry.cooldownReason === "auth_rejected" ? "auth_rejected" : "rate_limited",
+          limit: null,
+          remaining: null,
+          resetAt: null,
+          day: today,
+          used: usedToday,
+        },
+        MAX_TRACKED_KEYS,
+      );
+    }
+    for (const row of Array.isArray(profiles) ? profiles : []) {
+      const entry = row as Partial<UpstreamGuardSnapshot["profiles"][number]> | null;
+      if (!entry || typeof entry.id !== "string" || entry.day !== today || !isCount(entry.used)) continue;
+      setBounded(this.profiles, entry.id, { day: today, used: entry.used }, MAX_TRACKED_PROFILES);
+    }
   }
 
   warnOnce(key: string, message: string, error?: unknown): void {
@@ -240,7 +314,7 @@ export class UpstreamGuard {
   }
 
   private profileUsage(scope: UpstreamCallScope, profile: string): ProfileUsage {
-    const id = `${scope.provider}\0${scope.credentialFingerprint}\0${profile}`;
+    const id = `${scope.provider}\0${scope.credentialFingerprint}\0${upstreamCredentialFingerprint(profile)}`;
     const today = utcDay(this.now());
     const existing = this.profiles.get(id);
     if (existing && existing.day === today) return existing;
@@ -392,6 +466,7 @@ export class UpstreamGuard {
     if (until <= state.cooldownUntil) return;
     state.cooldownUntil = until;
     state.cooldownReason = reason;
+    this.onStateChange();
   }
 
   async request<T>(
@@ -413,6 +488,7 @@ export class UpstreamGuard {
     if (scope.serverKeyProfile != null && this.profileBudget(scope.provider) != null) {
       this.profileUsage(scope, scope.serverKeyProfile).used += 1;
     }
+    if (this.policies[scope.provider].dailyLimit() != null) this.onStateChange();
 
     try {
       const response = await call();
@@ -426,4 +502,13 @@ export class UpstreamGuard {
   }
 }
 
-export const upstreamGuard = new UpstreamGuard();
+function createUpstreamGuard(): UpstreamGuard {
+  if (!guardStatePersistenceEnabled()) return new UpstreamGuard();
+  let store: GuardStateStore | null = null;
+  const guard = new UpstreamGuard({ onStateChange: () => store?.scheduleSave() });
+  store = guardStateStore(() => guard.snapshot());
+  guard.restore(store.load());
+  return guard;
+}
+
+export const upstreamGuard = createUpstreamGuard();
