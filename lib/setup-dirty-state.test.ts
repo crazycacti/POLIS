@@ -2,7 +2,12 @@ import { describe, expect, it } from "bun:test";
 
 import { MDBLIST_WATCHLIST_PRESETS, TMDB_CATALOG_PRESETS } from "@/lib/catalog-presets";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
-import { hasUnsavedSetupChanges, setupSnapshot } from "@/lib/setup-dirty-state";
+import {
+  hasUnsavedSetupChanges,
+  NO_KEY_CHANGES,
+  setupKeyChanges,
+  setupSnapshot,
+} from "@/lib/setup-dirty-state";
 
 describe("setupSnapshot", () => {
   const a = TMDB_CATALOG_PRESETS[0]!;
@@ -46,5 +51,54 @@ describe("hasUnsavedSetupChanges", () => {
     const base = setupSnapshot("x=1", []);
     expect(hasUnsavedSetupChanges(base, base)).toBe(false);
     expect(hasUnsavedSetupChanges(base, setupSnapshot("x=2", []))).toBe(true);
+  });
+});
+
+describe("setupKeyChanges", () => {
+  const sent = { tmdb: "tmdb-a", mdblist: "mdb-a" };
+
+  it("ignores inputs that match what was sent, after trimming", () => {
+    expect(setupKeyChanges({ tmdb: " tmdb-a ", mdblist: "mdb-a" }, sent)).toEqual(NO_KEY_CHANGES);
+  });
+
+  it("flags a non-empty input that differs from what was sent", () => {
+    expect(setupKeyChanges({ tmdb: "tmdb-b", mdblist: "mdb-a" }, sent)).toEqual({
+      tmdb: true,
+      mdblist: false,
+    });
+    expect(setupKeyChanges({ tmdb: "tmdb-a", mdblist: "mdb-b" }, sent)).toEqual({
+      tmdb: false,
+      mdblist: true,
+    });
+  });
+
+  it("does not flag a cleared input", () => {
+    expect(setupKeyChanges({ tmdb: "  ", mdblist: "" }, sent)).toEqual(NO_KEY_CHANGES);
+  });
+
+  it("flags a first key when nothing was sent", () => {
+    expect(setupKeyChanges({ tmdb: "tmdb-a", mdblist: "" }, { tmdb: "", mdblist: "" })).toEqual({
+      tmdb: true,
+      mdblist: false,
+    });
+  });
+});
+
+describe("setupSnapshot key changes", () => {
+  it("marks the snapshot dirty when a key input changed", () => {
+    const base = setupSnapshot("x=1", []);
+    const changed = setupSnapshot("x=1", [], { tmdb: true, mdblist: false });
+    expect(hasUnsavedSetupChanges(base, changed)).toBe(true);
+    expect(hasUnsavedSetupChanges(base, setupSnapshot("x=1", [], NO_KEY_CHANGES))).toBe(false);
+  });
+
+  it("never contains key values", () => {
+    const snapshot = setupSnapshot(
+      "x=1",
+      [],
+      setupKeyChanges({ tmdb: "secret-tmdb", mdblist: "secret-mdb" }, { tmdb: "", mdblist: "" }),
+    );
+    expect(snapshot).not.toContain("secret-tmdb");
+    expect(snapshot).not.toContain("secret-mdb");
   });
 });
