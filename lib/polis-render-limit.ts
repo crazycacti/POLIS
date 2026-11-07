@@ -1,3 +1,5 @@
+import { availableParallelism } from "node:os";
+
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 
 let active = 0;
@@ -22,11 +24,12 @@ function acquire(max: number): Promise<void> {
   });
 }
 
-export async function withPolisRenderLimit<T>(fn: () => Promise<T>): Promise<T> {
-  const max = polisEnvPositiveInt("POLIS_RENDER_MAX_CONCURRENT");
-  if (max == null) return fn();
+export function polisRenderMaxConcurrent(): number {
+  return polisEnvPositiveInt("POLIS_RENDER_MAX_CONCURRENT") ?? Math.max(1, availableParallelism());
+}
 
-  await acquire(max);
+export async function withPolisRenderLimit<T>(fn: () => Promise<T>): Promise<T> {
+  await acquire(polisRenderMaxConcurrent());
   try {
     return await fn();
   } finally {
