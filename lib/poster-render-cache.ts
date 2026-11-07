@@ -17,6 +17,7 @@ import { findTmdbTitle } from "@/lib/tmdb-resolve";
 import { fetchTmdbTrendingRank } from "@/lib/tmdb-trending-rank";
 import { runAsBackgroundUpstreamWork } from "@/lib/upstream-priority";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
+import type { RenderAdmission } from "@/lib/client-render-budget";
 
 type MemoryEntry = { image: Buffer; at: number };
 
@@ -179,6 +180,7 @@ export async function renderPosterForImdbCached(params: {
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
   configId: string | null;
+  admitRender?: RenderAdmission;
 }): Promise<PosterCacheResult | null> {
   const overlay = await withLiveTrendRank(params);
   const overlayQueryString = serializePosterQuery(overlay);
@@ -245,6 +247,7 @@ export async function renderPosterForImdbCached(params: {
         return { source: "disk" as const, path: stalePath };
       };
 
+      params.admitRender?.();
       let degraded = false;
       const degradedRetryAts: (number | undefined)[] = [];
       let image: Buffer | null;

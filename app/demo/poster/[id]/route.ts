@@ -8,6 +8,7 @@ import { posterContentType } from "@/lib/poster-output-format";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { demoRenderCacheKey, renderDemoPosterJpegCached } from "@/lib/demo-render-cache";
 import { proxyClientKey } from "@/lib/client-request-context";
+import { RenderLimitedError, renderAdmissionFor, renderLimitedResponseInit } from "@/lib/client-render-budget";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import {
   cachedPreviewThumb,
@@ -102,7 +103,19 @@ export async function GET(
     return new NextResponse("Demo artwork missing", { status: 404 });
   }
 
-  const image = await renderDemoPosterJpegCached(demoId, queryString);
+  let image: Buffer | null;
+  try {
+    image = await renderDemoPosterJpegCached(
+      demoId,
+      queryString,
+      renderAdmissionFor(demoThumbRenders, proxyClientKey(request)),
+    );
+  } catch (error) {
+    if (error instanceof RenderLimitedError) {
+      return new NextResponse("Too many previews", renderLimitedResponseInit(error));
+    }
+    throw error;
+  }
   if (!image) {
     return new NextResponse("Demo artwork missing", { status: 404 });
   }

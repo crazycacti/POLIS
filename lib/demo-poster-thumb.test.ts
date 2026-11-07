@@ -65,4 +65,15 @@ describe("demo poster thumbnails", () => {
     const meta = await sharp(Buffer.from(await response.arrayBuffer())).metadata();
     expect(meta.width).toBeGreaterThan(320);
   });
+
+  test("limits new full-size variants per client but keeps serving cached ones", async () => {
+    process.env.POLIS_DEMO_THUMB_RENDERS_PER_CLIENT_PER_MIN = "1";
+    const client = { "x-forwarded-for": "198.51.100.77" };
+    expect((await demo("trend=0&pad_x=8", client)).status).toBe(200);
+    const refused = await demo("trend=0&pad_x=9", client);
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("cache-control")).toBe("no-store");
+    expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(0);
+    expect((await demo("trend=0&pad_x=8", client)).status).toBe(200);
+  });
 });

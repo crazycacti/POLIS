@@ -9,6 +9,7 @@ import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { parsePosterOverlayQuery } from "@/lib/poster-query";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import { renderDemoPosterJpeg } from "@/lib/render-demo-poster";
+import type { RenderAdmission } from "@/lib/client-render-budget";
 
 type Entry = { jpeg: Buffer; at: number };
 
@@ -65,6 +66,7 @@ function memoryHit(key: string): Buffer | null {
 export async function renderDemoPosterJpegCached(
   demoId: string,
   rawQueryString: string,
+  admitRender?: RenderAdmission,
 ): Promise<Buffer | null> {
   const key = demoRenderCacheKey(demoId, rawQueryString);
 
@@ -80,6 +82,7 @@ export async function renderDemoPosterJpegCached(
   const jpeg = await polisSingleflight(`demo:${key}`, async () => {
     const racedPath = await resolveDemoRenderDiskCachePath(key);
     if (racedPath) return readDemoRenderDiskCache(key);
+    admitRender?.();
 
     const overlay = parsePosterOverlayQuery(
       new URLSearchParams(overlayQueryStringFromRaw(rawQueryString)),

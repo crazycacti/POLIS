@@ -2,6 +2,13 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { imageResponse } from "@/lib/cached-file-response";
+import { proxyClientKey } from "@/lib/client-request-context";
+import {
+  posterRendersPerClient,
+  RenderLimitedError,
+  renderAdmissionFor,
+  renderLimitedResponseInit,
+} from "@/lib/client-render-budget";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { resolveFanartAuth } from "@/lib/fanart-auth";
 import { resolveTvdbAuth } from "@/lib/tvdb-auth";
@@ -49,17 +56,26 @@ async function handlePosterDefaultRequestInner(
   const language = process.env.TMDB_LANGUAGE?.trim() || "en-US";
   const overlay = parsePosterOverlayQuery(request.nextUrl.searchParams);
 
-  const cached = await renderPosterForImdbCached({
-    imdbId,
-    overlay,
-    credential: auth.credential,
-    language,
-    mdblistApiKey,
-    mdblistServerKeyProfile: serverKeyProfileFor(integrator.mdblistKeySource, configId),
-    fanartApiKey,
-    tvdbCredentials,
-    configId,
-  });
+  let cached: Awaited<ReturnType<typeof renderPosterForImdbCached>>;
+  try {
+    cached = await renderPosterForImdbCached({
+      imdbId,
+      overlay,
+      credential: auth.credential,
+      language,
+      mdblistApiKey,
+      mdblistServerKeyProfile: serverKeyProfileFor(integrator.mdblistKeySource, configId),
+      fanartApiKey,
+      tvdbCredentials,
+      configId,
+      admitRender: renderAdmissionFor(posterRendersPerClient, proxyClientKey(request)),
+    });
+  } catch (error) {
+    if (error instanceof RenderLimitedError) {
+      return new NextResponse("Too many new posters", renderLimitedResponseInit(error, stremioCorsHeaders()));
+    }
+    throw error;
+  }
 
   if (!cached) {
     return new NextResponse("Not found", { status: 404 });
