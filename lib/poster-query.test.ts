@@ -4,6 +4,7 @@ import {
   FOOTER_PAD_Y_MAX,
   parsePosterOverlayQuery,
   POSTER_OVERLAY_DEFAULTS,
+  resetOverlayStyleToDefaults,
   resolveFooterPadBottom,
   serializePosterQuery,
   syncFooterPadsWhenBothEnabled,
@@ -161,5 +162,34 @@ describe("layout param", () => {
       POSTER_OVERLAY_DEFAULTS.layout,
     );
     expect(parsePosterOverlayQuery(new URLSearchParams("layout=stack")).layout).toBe("stack");
+  });
+});
+
+describe("poster shape", () => {
+  test("defaults to portrait and leaves shape out of portrait urls", () => {
+    const parsed = parsePosterOverlayQuery(new URLSearchParams());
+    expect(parsed.posterShape).toBe("poster");
+    expect(serializePosterQuery(parsed)).not.toContain("shape=");
+  });
+
+  test("shape=landscape survives a round trip", () => {
+    const parsed = parsePosterOverlayQuery(new URLSearchParams("shape=landscape"));
+    expect(parsed.posterShape).toBe("landscape");
+    const qs = serializePosterQuery(parsed);
+    expect(new URLSearchParams(qs).get("shape")).toBe("landscape");
+    expect(parsePosterOverlayQuery(new URLSearchParams(qs)).posterShape).toBe("landscape");
+  });
+
+  test("shape=poster and unknown values mean portrait", () => {
+    for (const raw of ["shape=poster", "shape=square", "shape=", "shape=LANDSCAPEX"]) {
+      expect(parsePosterOverlayQuery(new URLSearchParams(raw)).posterShape).toBe("poster");
+    }
+  });
+
+  test("a style reset keeps the chosen shape", () => {
+    const overlay = { ...POSTER_OVERLAY_DEFAULTS, posterShape: "landscape" as const, look: "classic" as const };
+    const reset = resetOverlayStyleToDefaults(overlay);
+    expect(reset.posterShape).toBe("landscape");
+    expect(reset.look).toBe("soft");
   });
 });

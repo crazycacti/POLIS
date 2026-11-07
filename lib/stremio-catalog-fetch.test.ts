@@ -66,7 +66,11 @@ describe("tmdb catalog pages", () => {
     provider: { kind: "tmdb", list: "trending" },
   };
 
-  async function page(skip: number, failingExternalId?: number) {
+  async function page(
+    skip: number,
+    options: { failingExternalId?: number; posterQueryString?: string } = {},
+  ) {
+    const { failingExternalId, posterQueryString } = options;
     const realFetch = globalThis.fetch;
     const savedCacheFlag = process.env.POLIS_CACHE_DISABLE;
     process.env.POLIS_CACHE_DISABLE = "1";
@@ -95,6 +99,7 @@ describe("tmdb catalog pages", () => {
         publicBase: "http://localhost:3050",
         extra: new URLSearchParams(skip ? { skip: String(skip) } : {}),
         catalogDefinitions: [def],
+        posterQueryString,
       });
     } finally {
       globalThis.fetch = realFetch;
@@ -102,6 +107,18 @@ describe("tmdb catalog pages", () => {
       else process.env.POLIS_CACHE_DISABLE = savedCacheFlag;
     }
   }
+
+  it("marks every preview landscape when the poster query asks for it", async () => {
+    const metas = await page(0, { posterQueryString: "rating=1&shape=landscape" });
+    expect(metas.length).toBeGreaterThan(0);
+    expect(metas.every((m) => m.posterShape === "landscape")).toBe(true);
+    expect(metas[0]?.poster).toContain("shape=landscape");
+  });
+
+  it("keeps previews portrait by default", async () => {
+    const metas = await page(0);
+    expect(metas.every((m) => m.posterShape === "poster")).toBe(true);
+  });
 
   it("returns 20 titles and skips ones without an imdb id", async () => {
     const metas = await page(0);
@@ -134,7 +151,7 @@ describe("tmdb catalog pages", () => {
       warnings.push(args.map(String).join(" "));
     };
     try {
-      const metas = await page(0, FAILING_ID);
+      const metas = await page(0, { failingExternalId: FAILING_ID });
       expect(metas).toHaveLength(20);
       expect(metas.map((m) => m.id)).not.toContain(`tt${1000000 + FAILING_ID}`);
       expect(warnings.filter((w) => w.includes("tmdb catalog rows failed"))).toHaveLength(1);

@@ -1,5 +1,6 @@
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import { fetchArtworkBytes } from "@/lib/artwork-url-allow";
+import { fetchLandscapeBase } from "@/lib/landscape-artwork";
 import sharp from "sharp";
 
 import {
@@ -19,6 +20,7 @@ import type {
   PosterArtworkFallback,
   PosterArtworkMovieSource,
   PosterArtworkSource,
+  PosterShape,
 } from "@/lib/poster-query";
 import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
 import { fetchUpstream } from "@/lib/upstream-fetch";
@@ -53,10 +55,21 @@ export function posterArtworkCacheKey(params: {
   artworkMovie: PosterArtworkMovieSource;
   artworkFallback: PosterArtworkFallback;
   logoOnPoster: boolean;
+  posterShape?: PosterShape;
 }): string {
   const scope = params.configId?.trim() || "_";
   const integrator =
     scope === "_" ? (params.integratorFingerprint?.trim() || "_") : "_";
+  if (params.posterShape === "landscape") {
+    return [
+      `a${POLIS_ARTWORK_CACHE_GENERATION}`,
+      "landscape",
+      scope,
+      integrator,
+      params.language,
+      params.imdbId,
+    ].join("\0");
+  }
   return [
     `a${POLIS_ARTWORK_CACHE_GENERATION}`,
     scope,
@@ -109,7 +122,7 @@ async function fetchPosterBaseBuffer(params: {
   imdbId: string;
   overlay: Pick<
     PosterOverlayQuery,
-    "artwork" | "artworkMovie" | "artworkFallback" | "logoOnPoster"
+    "artwork" | "artworkMovie" | "artworkFallback" | "logoOnPoster" | "posterShape"
   >;
   resolved: ResolvedTitle;
   credential: TmdbCredential;
@@ -118,6 +131,14 @@ async function fetchPosterBaseBuffer(params: {
   tvdbCredentials: TvdbCredentials | null;
 }): Promise<PosterBase | null> {
   ensurePolisSharpConfigured();
+
+  if (params.overlay.posterShape === "landscape") {
+    return fetchLandscapeBase({
+      imdbId: params.imdbId,
+      resolved: params.resolved,
+      credential: params.credential,
+    });
+  }
 
   const tmdbPosters =
     params.overlay.artwork === "tmdb"
@@ -161,7 +182,7 @@ export async function getPosterBaseBufferCached(params: {
   imdbId: string;
   overlay: Pick<
     PosterOverlayQuery,
-    "artwork" | "artworkMovie" | "artworkFallback" | "logoOnPoster"
+    "artwork" | "artworkMovie" | "artworkFallback" | "logoOnPoster" | "posterShape"
   >;
   resolved: ResolvedTitle;
   credential: TmdbCredential;
@@ -180,6 +201,7 @@ export async function getPosterBaseBufferCached(params: {
     artworkMovie: params.overlay.artworkMovie,
     artworkFallback: params.overlay.artworkFallback,
     logoOnPoster: params.overlay.logoOnPoster,
+    posterShape: params.overlay.posterShape,
   });
   const scope = polisCacheScope(params.configId);
 

@@ -50,9 +50,14 @@ export type TmdbPosterImage = {
   iso_639_1?: string | null;
 };
 
+export type TmdbBackdropImage = TmdbPosterImage & {
+  vote_average?: number | null;
+};
+
 type ImagesJson = {
   logos?: LogoImageJson[];
   posters?: TmdbPosterImage[];
+  backdrops?: TmdbBackdropImage[];
 };
 
 type ExternalIdsJson = {
@@ -86,6 +91,7 @@ export type ResolvedTitle = {
   certification: string | null;
   videos: StremioMetaVideo[] | null;
   posterImages?: TmdbPosterImage[];
+  backdropImages?: TmdbBackdropImage[];
   logoPaths?: string[];
 };
 
@@ -364,6 +370,7 @@ function mapArtworkResolved(
   return {
     ...resolved,
     posterImages: d.images?.posters ?? [],
+    backdropImages: d.images?.backdrops ?? [],
     logoPaths: rankLogoPaths(d.images?.logos),
   };
 }

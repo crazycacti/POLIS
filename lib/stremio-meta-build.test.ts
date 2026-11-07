@@ -37,6 +37,17 @@ function resolvedTitle(overrides: Partial<ResolvedTitle> = {}): ResolvedTitle {
 }
 
 describe("buildStremioMetaRecord", () => {
+  test("uses the landscape shape when the poster query asks for it", () => {
+    const meta = buildStremioMetaRecord(resolvedTitle(), "https://polis.test", undefined, "shape=landscape");
+    expect(meta.posterShape).toBe("landscape");
+    expect(String(meta.poster)).toContain("shape=landscape");
+  });
+
+  test("stays portrait without a shape", () => {
+    const meta = buildStremioMetaRecord(resolvedTitle(), "https://polis.test", undefined, "logo=1");
+    expect(meta.posterShape).toBe("poster");
+  });
+
   test("sends the logo when the poster also draws it", () => {
     const meta = buildStremioMetaRecord(resolvedTitle(), "https://polis.test", undefined, "logo=1");
     expect(meta.logo).toBe("https://polis.test/logo/imdb/default/tt0000001.png");

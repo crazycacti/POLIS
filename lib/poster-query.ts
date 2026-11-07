@@ -25,6 +25,8 @@ export type PosterLook = "soft" | "classic";
 
 export type LogoSize = "small" | "medium" | "large";
 
+export type PosterShape = "poster" | "landscape";
+
 export type GridCell = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export type PosterOverlayQuery = {
@@ -44,6 +46,7 @@ export type PosterOverlayQuery = {
   layout: OverlayLayout;
   look: PosterLook;
   logoSize: LogoSize;
+  posterShape: PosterShape;
   gridCell: GridCell;
   genreColor: string;
   ratingColor: string;
@@ -78,6 +81,7 @@ export const POSTER_OVERLAY_DEFAULTS: PosterOverlayQuery = {
   layout: "row",
   look: "soft",
   logoSize: "medium",
+  posterShape: "poster",
   gridCell: 7,
   genreColor: "auto",
   ratingColor: "auto",
@@ -156,6 +160,7 @@ export function overlayStyleMatchesDefaults(overlay: PosterOverlayQuery): boolea
 
 export function resetOverlayStyleToDefaults(overlay: PosterOverlayQuery): PosterOverlayQuery {
   const preserved = {
+    posterShape: overlay.posterShape,
     artwork: overlay.artwork,
     artworkMovie: overlay.artworkMovie,
     artworkFallback: overlay.artworkFallback,
@@ -229,6 +234,10 @@ function parseLayout(raw: string | null): OverlayLayout {
 
 function parseLook(raw: string | null): PosterLook {
   return raw === "classic" ? "classic" : "soft";
+}
+
+function parsePosterShape(raw: string | null): PosterShape {
+  return raw?.trim().toLowerCase() === "landscape" ? "landscape" : POSTER_OVERLAY_DEFAULTS.posterShape;
 }
 
 function parseLogoSize(raw: string | null): LogoSize {
@@ -319,6 +328,7 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     layout: parseLayout(searchParams.get("layout")),
     look: parseLook(searchParams.get("look")),
     logoSize: parseLogoSize(searchParams.get("logo_size")),
+    posterShape: parsePosterShape(searchParams.get("shape")),
     gridCell: parseGridCell(searchParams),
     genreColor: parseColorParam(searchParams.get("genre_color"), d.genreColor),
     ratingColor: parseColorParam(searchParams.get("rating_color"), d.ratingColor),
@@ -368,6 +378,9 @@ export function serializePosterQuery(opts: PosterOverlayQuery): string {
   p.set("layout", synced.layout);
   p.set("look", synced.look);
   p.set("logo_size", synced.logoSize);
+  if (synced.posterShape !== POSTER_OVERLAY_DEFAULTS.posterShape) {
+    p.set("shape", synced.posterShape);
+  }
   p.set("grid", String(synced.gridCell));
   p.set("genre_color", serializeColorParam(synced.genreColor));
   p.set("rating_color", serializeColorParam(synced.ratingColor));
@@ -384,6 +397,10 @@ export function serializePosterQuery(opts: PosterOverlayQuery): string {
     p.set("trend_rank", String(synced.trendRank));
   }
   return p.toString();
+}
+
+export function posterShapeFromQuery(queryString: string): PosterShape {
+  return parsePosterShape(new URLSearchParams(queryString).get("shape"));
 }
 
 export function defaultPosterQueryString(): string {
