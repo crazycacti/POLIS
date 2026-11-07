@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { GET, POST } from "@/app/api/preview/titles/route";
 import { fetchPreviewTitles, PREVIEW_TITLE_LIMIT } from "@/lib/preview-titles";
+import { previewWarmupIdle } from "@/lib/preview-warmup";
 import { tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 
 let root = "";
@@ -49,6 +50,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await new Promise((resolve) => setTimeout(resolve, 20));
+  await previewWarmupIdle();
   globalThis.fetch = realFetch;
   process.env = { ...savedEnv };
   await rm(root, { recursive: true, force: true });

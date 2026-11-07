@@ -6,15 +6,16 @@ import { NextRequest } from "next/server";
 import sharp from "sharp";
 
 import { trimPolisDiskNamespace } from "@/lib/polis-disk-cache";
-import { POSTER_OVERLAY_DEFAULTS } from "@/lib/poster-query";
+import { POSTER_OVERLAY_DEFAULTS, serializePosterQuery } from "@/lib/poster-query";
 import { PREVIEW_CACHE_NAMESPACE } from "@/lib/preview-image-cache";
 import { NO_PREVIEW_CALLER_KEYS, PREVIEW_KEYS_COOKIE, serializePreviewKeysCookie } from "@/lib/preview-keys";
-import { previewPoster, resolvePreviewAuth } from "@/lib/preview-poster";
+import { previewPoster, previewPosterCached, resolvePreviewAuth } from "@/lib/preview-poster";
 import { handlePreviewPosterRequest } from "@/lib/preview-poster-route";
 import { PreviewRenderBudget } from "@/lib/preview-render-budget";
+import { previewWarmupIdle, previewWarmupOverlays, warmPreviewPosters } from "@/lib/preview-warmup";
 
-const KEY_A = "0123456789abcdef0123456789abcdef";
-const KEY_B = "fedcba9876543210fedcba9876543210";
+const KEY_A = "1111111111aaaaaa1111111111aaaaaa";
+const KEY_B = "2222222222bbbbbb2222222222bbbbbb";
 const OVERLAY_QUERY = "trend=0&logo=0";
 const SERVER_KEY_ENV = ["TMDB_API_KEY", "TMDB_ACCESS_TOKEN", "MDBLIST_API_KEY", "FANART_API_KEY", "TVDB_API_KEY"];
 
@@ -56,6 +57,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await new Promise((resolve) => setTimeout(resolve, 20));
+  await previewWarmupIdle();
   globalThis.fetch = realFetch;
   process.env = { ...savedEnv };
   await rm(root, { recursive: true, force: true });
@@ -182,5 +184,48 @@ describe("preview cache size", () => {
     }
     expect((await trimPolisDiskNamespace(PREVIEW_CACHE_NAMESPACE, 2)).removed).toBe(3);
     expect((await readdir(dir)).sort()).toEqual(["f3.webp", "f4.webp"]);
+  });
+});
+
+describe("preview warm-up", () => {
+  const titles = [
+    { imdbId: "tt0671", title: "Title 671", type: "movie" as const },
+    { imdbId: "tt0672", title: "Title 672", type: "movie" as const },
+  ];
+
+  test("renders every starter look at full and thumbnail sizes, then skips cached work", async () => {
+    const caller = { ...NO_PREVIEW_CALLER_KEYS, tmdb: KEY_A, fanart: "warm-fanart" };
+    const run = warmPreviewPosters(titles, caller, 0);
+    expect(run).not.toBeNull();
+    await run;
+
+    const auth = resolvePreviewAuth(caller);
+    for (const overlay of previewWarmupOverlays(auth)) {
+      for (const title of titles) {
+        for (const width of [null, 160, 320] as const) {
+          expect(await previewPosterCached({ imdbId: title.imdbId, overlay, width, auth, language: "en-US" })).toBe(true);
+        }
+      }
+    }
+
+    const callsAfterWarm = upstream.length;
+    const keyless = await handlePreviewPosterRequest(
+      previewRequest("tt0672.webp", `${OVERLAY_QUERY}&w=160`, null),
+      "tt0672.webp",
+    );
+    expect(keyless.status).toBe(404);
+    const warmedQuery = serializePosterQuery(previewWarmupOverlays(auth)[0]!);
+    const keylessWarm = await handlePreviewPosterRequest(
+      previewRequest("tt0672.webp", `${warmedQuery}&w=160`, null),
+      "tt0672.webp",
+    );
+    expect(keylessWarm.status).toBe(200);
+    expect(warmPreviewPosters(titles, caller, 1)).toBeNull();
+    expect(upstream.length).toBe(callsAfterWarm);
+  });
+
+  test("does nothing without a TMDB key", () => {
+    expect(warmPreviewPosters(titles, NO_PREVIEW_CALLER_KEYS, 0)).toBeNull();
+    expect(upstream).toHaveLength(0);
   });
 });
