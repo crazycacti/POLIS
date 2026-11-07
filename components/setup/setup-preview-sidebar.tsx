@@ -77,7 +77,7 @@ export function SetupPreviewSidebar(props: {
               ) : null}
             </>
           ) : (
-            <div className={`flex items-center ${props.landscape ? "aspect-video" : "aspect-2/3"} justify-center bg-zinc-950 px-4 text-center text-sm leading-snug text-zinc-500`}>
+            <div className={`flex items-center ${props.landscape ? "aspect-video" : "aspect-2/3"} justify-center bg-zinc-950 px-4 text-center text-sm leading-snug text-zinc-400`}>
               {liveMessage ?? "Choose a title to preview"}
             </div>
           )}
@@ -108,7 +108,7 @@ export function SetupPreviewSidebar(props: {
       </div>
 
       <label className="mt-3 flex items-center gap-2">
-        <span className="shrink-0 text-xs text-zinc-500">Any title</span>
+        <span className="shrink-0 text-xs text-zinc-400">Any title</span>
         <input
           className="polis-input min-w-0 flex-1 font-mono text-xs"
           onChange={(e) => {

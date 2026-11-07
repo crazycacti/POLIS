@@ -33,7 +33,7 @@ export function SetupOverlayOption(props: {
 export function SetupOverlayField(props: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={`block ${props.className ?? ""}`}>
-      <span className="mb-1.5 block text-xs text-zinc-500">{props.label}</span>
+      <span className="mb-1.5 block text-xs text-zinc-400">{props.label}</span>
       {props.children}
     </label>
   );
@@ -49,7 +49,7 @@ export function SetupOverlayRange(props: {
 }) {
   return (
     <SetupOverlayField className={props.className} label={props.label}>
-      <span className="mb-1 flex justify-end font-mono text-[11px] text-zinc-600">{props.value}px</span>
+      <span className="mb-1 flex justify-end font-mono text-xs text-zinc-400">{props.value}px</span>
       <input
         className="w-full accent-cyan-500"
         max={props.max}

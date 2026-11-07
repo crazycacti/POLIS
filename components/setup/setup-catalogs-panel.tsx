@@ -26,7 +26,7 @@ function CatalogToggleRow(props: {
   return (
     <div className="polis-catalog-toggle-row">
       <SetupToggle checked={props.checked} label={props.label} onChange={props.onChange} />
-      {props.detail ? <p className="mt-1 pl-1 text-xs text-zinc-600">{props.detail}</p> : null}
+      {props.detail ? <p className="mt-1 pl-1 text-xs text-zinc-400">{props.detail}</p> : null}
     </div>
   );
 }
@@ -127,7 +127,7 @@ export function SetupCatalogsPanel(props: {
         title="Catalogs"
         hint="Add a TMDB or MDBList key on the API keys tab to browse catalogs."
       >
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-zinc-400">
           Catalogs need TMDB (trending and popular) and/or MDBList (watchlist and custom lists).
         </p>
       </SetupPanel>
@@ -249,7 +249,7 @@ export function SetupCatalogsPanel(props: {
                 })}
               </div>
             ) : (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-zinc-400">
                 Load lists from a user profile or search, then enable the rows you want.
               </p>
             )}
@@ -262,7 +262,7 @@ export function SetupCatalogsPanel(props: {
         hint="Order here is the order shown in Stremio. Toggle off to remove. Save on the Install tab to apply."
       >
         {props.selected.length === 0 ? (
-          <p className="text-sm text-zinc-500">No catalogs enabled yet.</p>
+          <p className="text-sm text-zinc-400">No catalogs enabled yet.</p>
         ) : (
           <ul className="polis-catalog-selected-list space-y-2">
             {props.selected.map((c, index) => {
@@ -284,10 +284,10 @@ export function SetupCatalogsPanel(props: {
                     />
                   </div>
                   <span className="flex shrink-0 items-center justify-end gap-0.5 sm:pl-2">
-                    <span className="mr-1 font-mono text-xs text-zinc-600">{index + 1}</span>
+                    <span className="mr-1 font-mono text-xs text-zinc-400">{index + 1}</span>
                     <button
                       aria-label={`Move ${c.name} up`}
-                      className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30"
+                      className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30"
                       disabled={index === 0}
                       onClick={() =>
                         props.onChange(moveCatalogSelection(props.selected, key, "up"))
@@ -298,7 +298,7 @@ export function SetupCatalogsPanel(props: {
                     </button>
                     <button
                       aria-label={`Move ${c.name} down`}
-                      className="rounded-md p-1 text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30"
+                      className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30"
                       disabled={index === props.selected.length - 1}
                       onClick={() =>
                         props.onChange(moveCatalogSelection(props.selected, key, "down"))

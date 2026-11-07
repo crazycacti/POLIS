@@ -17,7 +17,7 @@ const CELL_LABELS = [
 export function SetupLogoPosition(props: { value: GridCell; onChange: (cell: GridCell) => void }) {
   return (
     <fieldset className="block">
-      <legend className="mb-1.5 block text-xs text-zinc-500">Position</legend>
+      <legend className="mb-1.5 block text-xs text-zinc-400">Position</legend>
       <div className="grid w-fit grid-cols-3 gap-1.5 rounded-lg border border-zinc-800 p-1.5">
         {CELL_LABELS.map((label, index) => {
           const selected = props.value === index;

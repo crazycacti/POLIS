@@ -89,7 +89,7 @@ function ApiKeyInput(props: {
         aria-controls={`polis-api-key-${props.id}`}
         aria-label={visible ? "Hide API key" : "Show API key"}
         aria-pressed={visible}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-500 transition-colors hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40"
         disabled={props.disabled}
         onClick={() => setVisible((v) => !v)}
         type="button"
@@ -227,12 +227,12 @@ export function SetupApiKeysPanel(props: {
               <span className="text-sm font-medium text-zinc-200">{card.label}</span>
               <div className="flex flex-wrap items-center gap-1.5">
                 {card.required ? (
-                  <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-200/95">
+                  <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-200/95">
                     Required
                   </span>
                 ) : null}
                 {server ? (
-                  <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-[11px] font-medium text-cyan-300/95">
+                  <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-medium text-cyan-300/95">
                     Configured on server
                   </span>
                 ) : null}
@@ -240,7 +240,7 @@ export function SetupApiKeysPanel(props: {
             </div>
 
             {card.requiredNote ? (
-              <p className="mb-2 text-xs text-zinc-500">{card.requiredNote}</p>
+              <p className="mb-2 text-xs text-zinc-400">{card.requiredNote}</p>
             ) : null}
 
             <ApiKeyInput
@@ -272,7 +272,7 @@ export function SetupApiKeysPanel(props: {
                 ) : null}
               </div>
             ) : (
-              <p className="mb-2 text-xs text-zinc-500">
+              <p className="mb-2 text-xs text-zinc-400">
                 Or set <code className="text-zinc-400">{card.envVar}</code> on the server.
               </p>
             )}
@@ -291,7 +291,7 @@ export function SetupApiKeysPanel(props: {
               </p>
             ) : null}
 
-            <p className="text-xs text-zinc-600">
+            <p className="text-xs text-zinc-400">
               <a
                 className="text-cyan-500/90 underline underline-offset-2 hover:text-cyan-400"
                 href={card.href}

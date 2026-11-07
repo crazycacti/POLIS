@@ -19,9 +19,9 @@ export function SetupPasswordFields(props: {
 
   return (
     <div className="space-y-3">
-      {props.hint ? <p className="text-sm text-zinc-500">{props.hint}</p> : null}
+      {props.hint ? <p className="text-sm text-zinc-400">{props.hint}</p> : null}
       <label className="block">
-        <span className="mb-1.5 block text-xs text-zinc-500">Password</span>
+        <span className="mb-1.5 block text-xs text-zinc-400">Password</span>
         <div className="relative">
           <input
             autoComplete="new-password"
@@ -35,7 +35,7 @@ export function SetupPasswordFields(props: {
           />
           <button
             aria-label={passwordVisible ? "Hide password" : "Show password"}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-500 transition-colors hover:text-zinc-200"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200"
             disabled={props.disabled}
             onClick={() => setPasswordVisible((v) => !v)}
             type="button"
@@ -50,7 +50,7 @@ export function SetupPasswordFields(props: {
         <PasswordStrengthMeter password={props.password} />
       </label>
       <label className="block">
-        <span className="mb-1.5 block text-xs text-zinc-500">Confirm password</span>
+        <span className="mb-1.5 block text-xs text-zinc-400">Confirm password</span>
         <div className="relative">
           <input
             autoComplete="new-password"
@@ -64,7 +64,7 @@ export function SetupPasswordFields(props: {
           />
           <button
             aria-label={confirmVisible ? "Hide confirmation" : "Show confirmation"}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-500 transition-colors hover:text-zinc-200"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200"
             disabled={props.disabled}
             onClick={() => setConfirmVisible((v) => !v)}
             type="button"

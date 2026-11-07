@@ -100,7 +100,7 @@ export function SetupOverlayPanel(props: {
       <SetupSection title="Style">
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
           {landscape ? (
-            <span className="text-sm text-zinc-500">Landscape uses the soft style.</span>
+            <span className="text-sm text-zinc-400">Landscape uses the soft style.</span>
           ) : (
             <Segmented
               label="Style"
@@ -131,7 +131,7 @@ export function SetupOverlayPanel(props: {
           />
         </div>
         {landscape ? (
-          <p className="py-3 text-sm text-zinc-500">Landscape uses TMDB backdrops.</p>
+          <p className="py-3 text-sm text-zinc-400">Landscape uses TMDB backdrops.</p>
         ) : (
           <div className="py-3">{props.artworkControls}</div>
         )}

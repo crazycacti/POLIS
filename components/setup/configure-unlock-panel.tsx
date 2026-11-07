@@ -39,13 +39,13 @@ export function ConfigureUnlockPanel(props: {
   return (
     <div className="mx-auto max-w-md px-6 py-16">
       <h1 className="text-2xl font-semibold tracking-tight text-white">Unlock configuration</h1>
-      <p className="mt-2 text-sm text-zinc-500">
+      <p className="mt-2 text-sm text-zinc-400">
         Enter the password for profile{" "}
         <code className="font-mono text-xs text-zinc-400">{props.configId}</code>.
       </p>
       <form className="mt-8 space-y-4" onSubmit={submit}>
         <label className="block">
-          <span className="mb-1.5 block text-xs text-zinc-500">Password</span>
+          <span className="mb-1.5 block text-xs text-zinc-400">Password</span>
           <div className="relative">
             <input
               autoComplete="current-password"
@@ -58,7 +58,7 @@ export function ConfigureUnlockPanel(props: {
             />
             <button
               aria-label={visible ? "Hide password" : "Show password"}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-500 transition-colors hover:text-zinc-200"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200"
               disabled={loading}
               onClick={() => setVisible((v) => !v)}
               type="button"

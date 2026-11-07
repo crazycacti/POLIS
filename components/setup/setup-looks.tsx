@@ -303,7 +303,7 @@ export function SetupLooks(props: {
         title="Save this look"
       >
         <label className="block">
-          <span className="mb-1.5 block text-xs text-zinc-500">Name</span>
+          <span className="mb-1.5 block text-xs text-zinc-400">Name</span>
           <input
             className="polis-input w-full text-sm"
             maxLength={MAX_LOOK_NAME_LENGTH}
@@ -314,7 +314,7 @@ export function SetupLooks(props: {
             value={name}
           />
         </label>
-        <p className="mt-3 text-xs text-zinc-500">Saved in this browser.</p>
+        <p className="mt-3 text-xs text-zinc-400">Saved in this browser.</p>
         {error ? (
           <p className="mt-3 text-sm text-amber-200/95" role="alert">
             {error}
@@ -340,7 +340,7 @@ export function SetupLooks(props: {
             <CopyButton className="self-end" text={currentCode} />
           </div>
         )}
-        <p className="mt-3 text-xs text-zinc-500">Style only. Keys, catalogs and passwords are never included.</p>
+        <p className="mt-3 text-xs text-zinc-400">Style only. Keys, catalogs and passwords are never included.</p>
       </SetupDialog>
 
       <SetupDialog
@@ -357,7 +357,7 @@ export function SetupLooks(props: {
         title="Import a look"
       >
         <label className="block">
-          <span className="mb-1.5 block text-xs text-zinc-500">Look link or code</span>
+          <span className="mb-1.5 block text-xs text-zinc-400">Look link or code</span>
           <input
             className="polis-input w-full font-mono text-xs"
             onChange={(e) => setImportText(e.target.value)}

@@ -102,7 +102,7 @@
 }
 
 @utility polis-tab {
-  @apply rounded-full border border-transparent px-4 py-2 text-sm font-medium text-zinc-500 transition-colors;
+  @apply rounded-full border border-transparent px-4 py-2 text-sm font-medium text-zinc-400 transition-colors;
   &:hover {
     @apply text-zinc-300;
   }
@@ -115,7 +115,7 @@
 @utility polis-tab-locked {
   @apply cursor-not-allowed opacity-40;
   &:hover {
-    @apply text-zinc-500;
+    @apply text-zinc-400;
   }
 }
 
@@ -416,7 +416,7 @@
 }
 
 @utility polis-step-body {
-  @apply block text-zinc-500;
+  @apply block text-zinc-400;
 }
 
 @utility polis-dialog {

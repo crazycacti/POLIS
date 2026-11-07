@@ -15,7 +15,7 @@ function segmentClass(active: boolean, score: number): string {
 }
 
 function labelClass(score: number, hasInput: boolean): string {
-  if (!hasInput) return "text-zinc-500";
+  if (!hasInput) return "text-zinc-400";
   if (score <= 1) return "text-red-300/90";
   if (score === 2) return "text-amber-200/90";
   if (score === 3) return "text-cyan-300/90";
@@ -44,7 +44,7 @@ export function PasswordStrengthMeter(props: { password: string }) {
           );
         })}
       </div>
-      <p className="mt-2 text-xs text-zinc-500">
+      <p className="mt-2 text-xs text-zinc-400">
         Strength:{" "}
         <span className={labelClass(filledSegments, hasInput)}>
           {hasInput ? strength.label : "Enter a password"}

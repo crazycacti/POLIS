@@ -19,7 +19,7 @@ export function LandingHero() {
           className="polis-hero-title mx-auto h-auto w-[min(320px,80vw)]"
           colorClassName="text-white"
         />
-        <p className="polis-hero-expansion mt-4 text-[0.65rem] font-medium uppercase leading-snug tracking-[0.2em] text-zinc-500 sm:text-xs sm:tracking-[0.24em]">
+        <p className="polis-hero-expansion mt-4 text-xs font-medium uppercase leading-snug tracking-[0.2em] text-zinc-400 sm:tracking-[0.24em]">
           {POLIS_EXPANSION}
         </p>
       </header>
@@ -42,7 +42,7 @@ export function LandingHero() {
       </Link>
 
       <div className="mt-14 w-full">
-        <p className="mb-4 text-center text-xs font-medium uppercase tracking-[0.2em] text-zinc-600">
+        <p className="mb-4 text-center text-xs font-medium uppercase tracking-[0.2em] text-zinc-400">
           Sample overlays
         </p>
         <div className="flex justify-center gap-3 overflow-x-auto pb-2">

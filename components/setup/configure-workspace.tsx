@@ -49,7 +49,7 @@ export function ConfigureWorkspace(
     return (
       <div className="mx-auto max-w-lg px-6 py-16 text-center">
         <h1 className="text-xl font-semibold text-white">Profile not found</h1>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="mt-2 text-sm text-zinc-400">
           No configuration exists for this id. Start a new profile at{" "}
           <a className="text-cyan-400/90 underline" href="/configure">
             /configure
@@ -62,7 +62,7 @@ export function ConfigureWorkspace(
 
   if (!authChecked) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-16 text-center text-sm text-zinc-500">
+      <div className="mx-auto max-w-4xl px-6 py-16 text-center text-sm text-zinc-400">
         Loading…
       </div>
     );

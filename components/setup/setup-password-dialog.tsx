@@ -64,7 +64,7 @@ export function SetupPasswordDialog(props: {
         <h2 className="text-lg font-semibold text-white">
           {props.isNewProfile ? "Protect your profile" : "Set a profile password"}
         </h2>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="mt-2 text-sm text-zinc-400">
           {props.isNewProfile
             ? "Choose a password before saving. You will use it to open configure again later."
             : "This profile has no password yet. Set one so only you can change it."}

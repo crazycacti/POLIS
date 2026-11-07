@@ -602,7 +602,7 @@ export function SetupWorkspace(props: {
         <h1 className="text-2xl font-semibold tracking-tight text-white">
           {props.pageTitle ?? "Setup"}
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-zinc-400">
           {props.pageHint ?? "Tune posters, then copy install links."}
         </p>
       </header>
@@ -642,7 +642,7 @@ export function SetupWorkspace(props: {
             artworkControls={
               <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1.5 block text-xs text-zinc-500">
+              <span className="mb-1.5 block text-xs text-zinc-400">
                 Poster art source
                 {overlay.artwork === "tvdb" ? " (TV series)" : ""}
               </span>
@@ -670,7 +670,7 @@ export function SetupWorkspace(props: {
             </label>
             {overlay.artwork === "tvdb" ? (
               <label className="block">
-                <span className="mb-1.5 block text-xs text-zinc-500">Movie poster source</span>
+                <span className="mb-1.5 block text-xs text-zinc-400">Movie poster source</span>
                 <select
                   className="polis-select w-full"
                   onChange={(e) =>
@@ -693,7 +693,7 @@ export function SetupWorkspace(props: {
               </label>
             ) : null}
             <label className="block">
-              <span className="mb-1.5 block text-xs text-zinc-500">Poster fallback</span>
+              <span className="mb-1.5 block text-xs text-zinc-400">Poster fallback</span>
               <select
                 className="polis-select w-full"
                 onChange={(e) =>
@@ -800,7 +800,7 @@ export function SetupWorkspace(props: {
             {installUrl ? (
               <CopyRow label="Install URL (Stremio)" value={installUrl} />
             ) : (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-zinc-400">
                 Your install URL appears here after you save. Change overlays? Save again to refresh
                 the link.
               </p>
@@ -816,7 +816,7 @@ export function SetupWorkspace(props: {
                 <PatternRow label="Poster" value={patterns.posterPattern} />
               </div>
             ) : (
-              <p className="text-sm text-zinc-600">Set POLIS_PUBLIC_URL first.</p>
+              <p className="text-sm text-zinc-400">Set POLIS_PUBLIC_URL first.</p>
             )}
           </SetupPanel>
 
@@ -829,7 +829,7 @@ export function SetupWorkspace(props: {
 function CopyRow({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
-      <p className="mb-1 text-xs text-zinc-500">{label}</p>
+      <p className="mb-1 text-xs text-zinc-400">{label}</p>
       <div className="polis-code flex flex-wrap items-center justify-between gap-3">
         <code className="break-all text-xs text-zinc-300">{value ?? "Set POLIS_PUBLIC_URL"}</code>
         {value ? <CopyButton text={value} /> : null}
