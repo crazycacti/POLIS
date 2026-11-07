@@ -25,7 +25,9 @@ export async function POST(request: Request) {
   }
 
   const mdblistKey =
-    body.mdblistApiKey?.trim() || process.env.MDBLIST_API_KEY?.trim() || "";
+    (typeof body.mdblistApiKey === "string" ? body.mdblistApiKey.trim() : "") ||
+    process.env.MDBLIST_API_KEY?.trim() ||
+    "";
   const hasServerTmdb = Boolean(
     process.env.TMDB_ACCESS_TOKEN?.trim() || process.env.TMDB_API_KEY?.trim(),
   );
