@@ -1,5 +1,8 @@
 import type { ArtworkCandidate } from "@/lib/artwork-candidate";
+import { polisSingleflight } from "@/lib/polis-singleflight";
 import { fetchUpstream } from "@/lib/upstream-fetch";
+import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
+import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
 export const TVDB_V4_API_BASE = "https://api4.thetvdb.com/v4";
@@ -65,12 +68,49 @@ function tvdbLoginFailureMessage(status: number, bodyText: string): string {
   return `http_${status}`;
 }
 
+const LOGIN_FAILURE_TTL_MS = 15 * 60 * 1000;
+const LOGIN_TRANSIENT_FAILURE_TTL_MS = 60 * 1000;
+const TOKEN_TTL_MS = 23 * 60 * 60 * 1000;
+const TOKEN_REFRESH_MARGIN_MS = 60 * 1000;
+const HTTP_TOO_MANY_REQUESTS = 429;
+
+type TvdbLoginFailure = Extract<TvdbLoginResult, { ok: false }>;
+
+const loginFailures = new Map<string, { result: TvdbLoginFailure; until: number }>();
+
+function rememberLoginFailure(cacheKey: string, result: TvdbLoginFailure, ttlMs: number): TvdbLoginFailure {
+  loginFailures.delete(cacheKey);
+  loginFailures.set(cacheKey, { result, until: Date.now() + ttlMs });
+  if (loginFailures.size > TVDB_TOKEN_CACHE_MAX) {
+    const oldest = loginFailures.keys().next().value;
+    if (oldest !== undefined) loginFailures.delete(oldest);
+  }
+  return result;
+}
+
 export async function tvdbLoginResult(credentials: TvdbCredentials): Promise<TvdbLoginResult> {
   const now = Date.now();
   const cacheKey = tvdbLoginCacheKey(credentials);
   const cachedToken = cachedTokens.get(cacheKey);
-  if (cachedToken && cachedToken.expiresAt > now + 60_000) {
+  if (cachedToken && cachedToken.expiresAt > now + TOKEN_REFRESH_MARGIN_MS) {
     return { ok: true, token: cachedToken.token };
+  }
+  const failure = loginFailures.get(cacheKey);
+  if (failure && failure.until > now) return failure.result;
+
+  return polisSingleflight(`tvdb-login:${upstreamCredentialFingerprint(cacheKey)}`, () =>
+    tvdbLoginFresh(credentials, cacheKey),
+  );
+}
+
+async function tvdbLoginFresh(credentials: TvdbCredentials, cacheKey: string): Promise<TvdbLoginResult> {
+  const scope = {
+    provider: "tvdb" as const,
+    credentialFingerprint: upstreamCredentialFingerprint(credentials.apiKey),
+    authFailureCooldown: false,
+  };
+  if (upstreamGuard.inCooldown(scope.provider, scope.credentialFingerprint)) {
+    return { ok: false, status: HTTP_TOO_MANY_REQUESTS, message: "rate_limited" };
   }
 
   const body: { apikey: string; pin?: string } = { apikey: credentials.apiKey };
@@ -87,32 +127,45 @@ export async function tvdbLoginResult(credentials: TvdbCredentials): Promise<Tvd
       cache: "no-store",
     });
   } catch {
-    return { ok: false, status: 0, message: "network" };
+    return rememberLoginFailure(cacheKey, { ok: false, status: 0, message: "network" }, LOGIN_TRANSIENT_FAILURE_TTL_MS);
   }
+  upstreamGuard.observe(scope, response);
 
   const bodyText = await response.text();
   if (!response.ok) {
-    return {
+    const result: TvdbLoginFailure = {
       ok: false,
       status: response.status,
       message: tvdbLoginFailureMessage(response.status, bodyText),
     };
+    if (response.status === HTTP_TOO_MANY_REQUESTS) return result;
+    const ttlMs = response.status >= 500 ? LOGIN_TRANSIENT_FAILURE_TTL_MS : LOGIN_FAILURE_TTL_MS;
+    return rememberLoginFailure(cacheKey, result, ttlMs);
   }
 
   let payload: TvdbLoginResponse;
   try {
     payload = JSON.parse(bodyText) as TvdbLoginResponse;
   } catch {
-    return { ok: false, status: response.status, message: "invalid_json" };
+    return rememberLoginFailure(
+      cacheKey,
+      { ok: false, status: response.status, message: "invalid_json" },
+      LOGIN_TRANSIENT_FAILURE_TTL_MS,
+    );
   }
 
   const token = payload.data?.token?.trim();
   if (!token) {
-    return { ok: false, status: response.status, message: "no_token" };
+    return rememberLoginFailure(
+      cacheKey,
+      { ok: false, status: response.status, message: "no_token" },
+      LOGIN_TRANSIENT_FAILURE_TTL_MS,
+    );
   }
 
+  loginFailures.delete(cacheKey);
   cachedTokens.delete(cacheKey);
-  cachedTokens.set(cacheKey, { token, expiresAt: now + 23 * 3600 * 1000 });
+  cachedTokens.set(cacheKey, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
   if (cachedTokens.size > TVDB_TOKEN_CACHE_MAX) {
     const oldest = cachedTokens.keys().next().value;
     if (oldest !== undefined) cachedTokens.delete(oldest);
@@ -152,30 +205,54 @@ export function pickTvdbPoster(
   return url ? { url, textless: best?.includesText === false } : null;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const TVDB_ARTWORK_TTL_MS = 7 * DAY_MS;
+const TVDB_ARTWORK_MISSING_TTL_MS = DAY_MS;
+
+function parseTvdbArtworks(payload: unknown): TvdbArtworkRecordWithText[] | null {
+  if (!payload || typeof payload !== "object") return null;
+  return tvdbArtworkRecords(payload as TvdbArtworksResponse).flatMap((row): TvdbArtworkRecordWithText[] => {
+    if (!row || typeof row !== "object") return [];
+    const r = row as TvdbArtworkRecordWithText;
+    return [{
+      image: typeof r.image === "string" ? r.image : undefined,
+      thumbnail: typeof r.thumbnail === "string" ? r.thumbnail : undefined,
+      type: typeof r.type === "number" ? r.type : undefined,
+      score: typeof r.score === "number" ? r.score : undefined,
+      language: typeof r.language === "string" ? r.language : null,
+      includesText: typeof r.includesText === "boolean" ? r.includesText : undefined,
+    }];
+  });
+}
+
 export async function fetchTvdbSeriesPoster(params: {
   tvdbId: number;
   credentials: TvdbCredentials;
   language: string;
   preferTextless?: boolean;
 }): Promise<ArtworkCandidate | null> {
-  const token = await tvdbLogin(params.credentials);
-  if (!token) return null;
-
   const url = new URL(`${TVDB_V4_API_BASE}/series/${params.tvdbId}/artworks`);
   url.searchParams.set("type", String(TVDB_POSTER_ARTWORK_TYPE));
 
-  const response = await fetchUpstream(url, {
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-    revalidateSeconds: 86400,
+  const result = await cachedUpstreamJson<TvdbArtworkRecordWithText[]>({
+    provider: "tvdb",
+    cacheKey: ["series-artworks", TVDB_POSTER_ARTWORK_TYPE, params.tvdbId].join("\0"),
+    ttlMs: TVDB_ARTWORK_TTL_MS,
+    negativeTtlMs: TVDB_ARTWORK_MISSING_TTL_MS,
+    label: `series ${params.tvdbId}`,
+    credentialFingerprint: upstreamCredentialFingerprint(params.credentials.apiKey),
+    authFailureCooldown: false,
+    request: async () => {
+      const login = await tvdbLoginResult(params.credentials);
+      if (!login.ok) throw new Error(`TVDB login failed: ${login.message}`);
+      const response = await fetchUpstream(url, {
+        headers: { Authorization: `Bearer ${login.token}`, Accept: "application/json" },
+        revalidateSeconds: upstreamNextRevalidateSeconds(TVDB_ARTWORK_TTL_MS),
+      });
+      if (response.status === 401) cachedTokens.delete(tvdbLoginCacheKey(params.credentials));
+      return response;
+    },
+    parse: parseTvdbArtworks,
   });
-  if (response.status === 401) cachedTokens.delete(tvdbLoginCacheKey(params.credentials));
-  if (!response.ok) return null;
-
-  let payload: TvdbArtworksResponse;
-  try {
-    payload = (await response.json()) as TvdbArtworksResponse;
-  } catch {
-    return null;
-  }
-  return pickTvdbPoster(tvdbArtworkRecords(payload), params.language, params.preferTextless);
+  return pickTvdbPoster(result.value ?? [], params.language, params.preferTextless);
 }
