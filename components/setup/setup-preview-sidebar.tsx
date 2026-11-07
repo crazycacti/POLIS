@@ -22,6 +22,7 @@ export function SetupPreviewSidebar(props: {
   hasPreviewCredential: boolean;
   overlayQueryString: string;
   showcaseQueryString: string;
+  landscape: boolean;
 }) {
   const [selected, setSelected] = useState<string>(DEMO_TITLES[0]!.id);
   const [view, setView] = useState<ClientPreviewView>("poster");
@@ -54,9 +55,9 @@ export function SetupPreviewSidebar(props: {
       className="order-first w-full shrink-0 lg:order-none lg:sticky lg:top-4 lg:z-10 lg:w-[min(320px,32vw)]"
     >
       {showPoster && view !== "poster" ? (
-        <ClientPreview neighborSrcs={neighborSrcs} src={displaySrc!} view={view} />
+        <ClientPreview landscape={props.landscape} neighborSrcs={neighborSrcs} src={displaySrc!} view={view} />
       ) : (
-        <div className="polis-poster-frame relative mx-auto max-w-[220px] overflow-hidden rounded-xl lg:max-w-none">
+        <div className={`polis-poster-frame relative mx-auto overflow-hidden rounded-xl lg:max-w-none ${props.landscape ? "max-w-[400px]" : "max-w-[220px]"}`}>
           {showPoster ? (
             <>
               <img
@@ -76,7 +77,7 @@ export function SetupPreviewSidebar(props: {
               ) : null}
             </>
           ) : (
-            <div className="flex aspect-2/3 items-center justify-center bg-zinc-950 px-4 text-center text-sm leading-snug text-zinc-500">
+            <div className={`flex items-center ${props.landscape ? "aspect-video" : "aspect-2/3"} justify-center bg-zinc-950 px-4 text-center text-sm leading-snug text-zinc-500`}>
               {liveMessage ?? "Choose a title to preview"}
             </div>
           )}

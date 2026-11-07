@@ -14,6 +14,7 @@ import {
   lookShareUrl,
   lookToJson,
   parseLookJson,
+  rejectedLookFields,
 } from "@/lib/poster-look-code";
 import { applyStarterLook, matchesStarterLook, STARTER_LOOKS } from "@/lib/poster-looks";
 import { serializePosterQuery, type PosterOverlayQuery } from "@/lib/poster-query";
@@ -74,7 +75,7 @@ function LookTile(props: {
       >
         <img
           alt=""
-          className={`aspect-2/3 w-full rounded-md object-cover ${props.selected ? "ring-2 ring-cyan-400/70" : ""}`}
+          className={`${props.preview.posterShape === "landscape" ? "aspect-video" : "aspect-2/3"} w-full rounded-md object-cover ${props.selected ? "ring-2 ring-cyan-400/70" : ""}`}
           decoding="async"
           height={198}
           loading="lazy"
@@ -101,37 +102,53 @@ function LookTile(props: {
 
 export function SetupLooks(props: {
   overlay: PosterOverlayQuery;
+  previewOverlay: PosterOverlayQuery;
   onChange: (overlay: PosterOverlayQuery) => void;
   origin: string;
   initialLookCode: string | null;
+  onLookLinkConsumed: () => void;
 }) {
-  const { overlay, onChange } = props;
+  const { overlay, previewOverlay, onChange, onLookLinkConsumed } = props;
   const [saved, setSaved] = useState<SavedLook[]>([]);
   const [dialog, setDialog] = useState<LookDialog>(null);
   const [name, setName] = useState("");
   const [importText, setImportText] = useState("");
   const [jsonText, setJsonText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [linkNotice, setLinkNotice] = useState<{ previous: PosterOverlayQuery } | null>(null);
-  const [linkChecked, setLinkChecked] = useState(false);
+  const [linkNotice, setLinkNotice] = useState<{
+    previous: PosterOverlayQuery;
+    appliedCode: string;
+  } | null>(null);
 
   useEffect(() => {
     setSaved(readSavedLooks());
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === LS_MY_LOOKS) setSaved(readSavedLooks());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   useEffect(() => {
-    if (linkChecked || !props.initialLookCode) return;
-    setLinkChecked(true);
+    if (!props.initialLookCode) return;
     const fields = decodeLookCode(props.initialLookCode);
+    onLookLinkConsumed();
     if (!fields) {
       setError("That look link is not valid.");
       return;
     }
-    setLinkNotice({ previous: overlay });
-    onChange(applyLookFields(overlay, fields));
-  }, [linkChecked, onChange, overlay, props.initialLookCode]);
+    const applied = applyLookFields(overlay, fields);
+    setLinkNotice({ previous: overlay, appliedCode: encodeLookCode(applied) });
+    onChange(applied);
+  }, [onChange, onLookLinkConsumed, overlay, props.initialLookCode]);
 
   const currentCode = encodeLookCode(overlay);
+  const showLinkNotice = linkNotice != null && linkNotice.appliedCode === currentCode;
+
+  function closeDialog() {
+    setError(null);
+    setDialog(null);
+  }
 
   function openDialog(next: LookDialog) {
     setError(null);
@@ -147,22 +164,26 @@ export function SetupLooks(props: {
       setError("Give the look a name.");
       return;
     }
-    if (saved.length >= MAX_SAVED_LOOKS) {
+    const latest = readSavedLooks();
+    if (latest.length >= MAX_SAVED_LOOKS) {
       setError(`You can keep up to ${MAX_SAVED_LOOKS} looks. Remove one first.`);
       return;
     }
-    const next = [...saved, { id: crypto.randomUUID(), name: trimmed, code: currentCode }];
+    const next = [...latest, { id: crypto.randomUUID(), name: trimmed, code: currentCode }];
     if (!writeSavedLooks(next)) {
       setError("This browser blocked saving. Use Share to keep a link instead.");
       return;
     }
     setSaved(next);
-    setDialog(null);
+    closeDialog();
   }
 
   function removeSaved(id: string) {
-    const next = saved.filter((look) => look.id !== id);
-    writeSavedLooks(next);
+    const next = readSavedLooks().filter((look) => look.id !== id);
+    if (!writeSavedLooks(next)) {
+      setError("This browser blocked the change. Try again.");
+      return;
+    }
     setSaved(next);
   }
 
@@ -173,7 +194,7 @@ export function SetupLooks(props: {
       return;
     }
     onChange(applyLookFields(overlay, fields));
-    setDialog(null);
+    closeDialog();
   }
 
   function applyJson() {
@@ -182,8 +203,13 @@ export function SetupLooks(props: {
       setError(result.error);
       return;
     }
+    const rejected = rejectedLookFields(overlay, result.fields);
+    if (rejected.length > 0) {
+      setError(`Value not allowed for ${rejected.join(", ")}. Use one the editor offers.`);
+      return;
+    }
     onChange(applyLookFields(overlay, result.fields));
-    setDialog(null);
+    closeDialog();
   }
 
   return (
@@ -205,7 +231,7 @@ export function SetupLooks(props: {
         </div>
       </div>
 
-      {linkNotice ? (
+      {showLinkNotice && linkNotice ? (
         <p className="mb-4 flex flex-wrap items-center gap-3 text-sm text-zinc-300" role="status">
           Look applied from a shared link. Save to keep it.
           <button
@@ -226,34 +252,34 @@ export function SetupLooks(props: {
         </p>
       ) : null}
 
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+      <div aria-labelledby="looks-heading" className="grid grid-cols-3 gap-3 sm:grid-cols-6" role="group">
         {STARTER_LOOKS.map((look) => (
           <LookTile
             key={look.id}
             label={look.label}
             onSelect={() => onChange(applyStarterLook(overlay, look))}
-            preview={applyStarterLook(overlay, look)}
+            preview={applyStarterLook(previewOverlay, look)}
             selected={matchesStarterLook(overlay, look)}
           />
         ))}
         {saved.map((look) => {
           const fields = decodeLookCode(look.code);
           if (!fields) return null;
-          const preview = applyLookFields(overlay, fields);
+          const applied = applyLookFields(overlay, fields);
           return (
             <LookTile
               key={look.id}
               label={look.name}
               onRemove={() => removeSaved(look.id)}
-              onSelect={() => onChange(preview)}
-              preview={preview}
-              selected={encodeLookCode(preview) === currentCode}
+              onSelect={() => onChange(applied)}
+              preview={applyLookFields(previewOverlay, fields)}
+              selected={encodeLookCode(applied) === currentCode}
             />
           );
         })}
         {saved.length < MAX_SAVED_LOOKS ? (
           <button
-            className="flex aspect-2/3 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 text-sm text-zinc-400 transition-colors hover:border-white/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60"
+            className={`flex ${overlay.posterShape === "landscape" ? "aspect-video" : "aspect-2/3"} flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-white/15 text-sm text-zinc-400 transition-colors hover:border-white/30 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60`}
             onClick={() => openDialog("save")}
             type="button"
           >
@@ -266,13 +292,13 @@ export function SetupLooks(props: {
       <SetupDialog
         actions={
           <>
-            <SetupDialogCancel onClick={() => setDialog(null)} />
+            <SetupDialogCancel onClick={closeDialog} />
             <button className="polis-btn text-sm" onClick={saveCurrent} type="button">
               Save look
             </button>
           </>
         }
-        onClose={() => setDialog(null)}
+        onClose={closeDialog}
         open={dialog === "save"}
         title="Save this look"
       >
@@ -297,8 +323,8 @@ export function SetupLooks(props: {
       </SetupDialog>
 
       <SetupDialog
-        actions={<SetupDialogCancel label="Close" onClick={() => setDialog(null)} />}
-        onClose={() => setDialog(null)}
+        actions={<SetupDialogCancel label="Close" onClick={closeDialog} />}
+        onClose={closeDialog}
         open={dialog === "share"}
         title="Share this look"
         wide
@@ -320,13 +346,13 @@ export function SetupLooks(props: {
       <SetupDialog
         actions={
           <>
-            <SetupDialogCancel onClick={() => setDialog(null)} />
+            <SetupDialogCancel onClick={closeDialog} />
             <button className="polis-btn text-sm" onClick={applyImport} type="button">
               Apply
             </button>
           </>
         }
-        onClose={() => setDialog(null)}
+        onClose={closeDialog}
         open={dialog === "import"}
         title="Import a look"
       >
@@ -349,13 +375,13 @@ export function SetupLooks(props: {
       <SetupDialog
         actions={
           <>
-            <SetupDialogCancel onClick={() => setDialog(null)} />
+            <SetupDialogCancel onClick={closeDialog} />
             <button className="polis-btn text-sm" onClick={applyJson} type="button">
               Apply
             </button>
           </>
         }
-        onClose={() => setDialog(null)}
+        onClose={closeDialog}
         open={dialog === "json"}
         title="Edit look as JSON"
         wide

@@ -8,6 +8,7 @@ import {
   lookShareUrl,
   lookToJson,
   parseLookJson,
+  rejectedLookFields,
 } from "@/lib/poster-look-code";
 import { POSTER_OVERLAY_DEFAULTS, type PosterOverlayQuery } from "@/lib/poster-query";
 
@@ -71,10 +72,20 @@ describe("look json", () => {
     expect(parseLookJson("{").ok).toBe(false);
   });
 
-  test("unknown enum values fall back to defaults instead of breaking the render", () => {
-    const parsed = parseLookJson("{\"look\": \"neon\"}");
+  test("reports values the renderer would not accept instead of changing them silently", () => {
+    const parsed = parseLookJson("{\"look\": \"neon\", \"trendFontSize\": 999, \"genre\": true}");
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
-    expect(applyLookFields(POSTER_OVERLAY_DEFAULTS, parsed.fields).look).toBe(POSTER_OVERLAY_DEFAULTS.look);
+    expect(rejectedLookFields(POSTER_OVERLAY_DEFAULTS, parsed.fields).sort()).toEqual(["look", "trendFontSize"]);
+  });
+
+  test("treats object built-ins as unknown settings", () => {
+    expect(parseLookJson("{\"toString\": 1}")).toEqual({ ok: false, error: "Unknown setting: toString" });
+    expect(parseLookJson("{\"__proto__\": {}}")).toEqual({ ok: false, error: "Unknown setting: __proto__" });
+  });
+
+  test("imports a pasted link without a scheme", () => {
+    const link = lookShareUrl("https://polis.example", custom).replace("https://", "");
+    expect(decodeLookCode(link)?.look).toBe("classic");
   });
 });

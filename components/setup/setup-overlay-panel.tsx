@@ -17,6 +17,7 @@ import type {
   LogoSize,
   PosterLook,
   PosterOverlayQuery,
+  PosterShape,
   RatingStyle,
 } from "@/lib/poster-query";
 import {
@@ -61,6 +62,36 @@ const STYLES: { value: PosterLook; label: string }[] = [
   { value: "classic", label: "Classic" },
 ];
 
+const SHAPES: { value: PosterShape; label: string }[] = [
+  { value: "poster", label: "Portrait" },
+  { value: "landscape", label: "Landscape" },
+];
+
+function Segmented<T extends string>(props: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div aria-label={props.label} className="flex gap-1 rounded-full bg-zinc-900 p-1" role="group">
+      {props.options.map((option) => (
+        <button
+          aria-pressed={props.value === option.value}
+          className={`min-h-9 rounded-full px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 ${
+            props.value === option.value ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-white"
+          }`}
+          key={option.value}
+          onClick={() => props.onChange(option.value)}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function ChipToggle(props: { label: string; pressed: boolean; onChange: (pressed: boolean) => void }) {
   return (
     <button
@@ -85,27 +116,23 @@ export function SetupOverlayPanel(props: {
 }) {
   const { overlay, setOverlay } = props;
   const atDefaults = overlayStyleMatchesDefaults(overlay);
-  const classic = overlay.look === "classic";
+  const landscape = overlay.posterShape === "landscape";
+  const classic = overlay.look === "classic" && !landscape;
 
   return (
     <>
       <SetupSection title="Style">
         <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-          <div aria-label="Style" className="flex gap-1 rounded-full bg-zinc-900 p-1" role="group">
-            {STYLES.map((style) => (
-              <button
-                aria-pressed={overlay.look === style.value}
-                className={`min-h-9 rounded-full px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 ${
-                  overlay.look === style.value ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-white"
-                }`}
-                key={style.value}
-                onClick={() => setOverlay((o) => ({ ...o, look: style.value }))}
-                type="button"
-              >
-                {style.label}
-              </button>
-            ))}
-          </div>
+          {landscape ? (
+            <span className="text-sm text-zinc-500">Landscape uses the soft style.</span>
+          ) : (
+            <Segmented
+              label="Style"
+              onChange={(look) => setOverlay((o) => ({ ...o, look }))}
+              options={STYLES}
+              value={overlay.look}
+            />
+          )}
           <button
             className="polis-link-btn disabled:cursor-not-allowed disabled:opacity-40"
             disabled={atDefaults}
@@ -118,7 +145,20 @@ export function SetupOverlayPanel(props: {
       </SetupSection>
 
       <SetupSection title="Artwork">
-        <div className="py-3">{props.artworkControls}</div>
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <span className="text-sm text-zinc-200">Shape</span>
+          <Segmented
+            label="Shape"
+            onChange={(posterShape) => setOverlay((o) => ({ ...o, posterShape }))}
+            options={SHAPES}
+            value={overlay.posterShape}
+          />
+        </div>
+        {landscape ? (
+          <p className="py-3 text-sm text-zinc-500">Landscape uses TMDB backdrops.</p>
+        ) : (
+          <div className="py-3">{props.artworkControls}</div>
+        )}
         <SetupOverlayOption
           checked={overlay.logoOnPoster}
           label="Title logo"
@@ -275,6 +315,7 @@ export function SetupOverlayPanel(props: {
             </>
           }
         />
+        {landscape ? null : (
         <SetupOverlayOption
           checked={overlay.genre}
           label="Genre"
@@ -324,6 +365,7 @@ export function SetupOverlayPanel(props: {
             </>
           }
         />
+        )}
       </SetupSection>
     </>
   );

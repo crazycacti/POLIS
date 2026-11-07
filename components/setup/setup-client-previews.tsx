@@ -12,6 +12,7 @@ const VIEWS: { id: ClientPreviewView; label: string }[] = [
 const PHONE_TILE_PX = 120;
 const RESUME_TILE_PX = 132;
 const TV_TILE_PX = 136;
+const LANDSCAPE_TILE_SCALE = 1.6;
 const RESUME_PROGRESS = 0.62;
 
 export function ClientPreviewTabs(props: {
@@ -40,12 +41,12 @@ export function ClientPreviewTabs(props: {
   );
 }
 
-function NeighborTile(props: { width: number; src?: string; dim?: boolean }) {
+function NeighborTile(props: { width: number; aspect: string; src?: string; dim?: boolean }) {
   if (!props.src) {
     return (
       <div
         aria-hidden
-        className={`aspect-2/3 shrink-0 rounded-md bg-zinc-800/80 ${props.dim ? "opacity-50" : ""}`}
+        className={`${props.aspect} shrink-0 rounded-md bg-zinc-800/80 ${props.dim ? "opacity-50" : ""}`}
         style={{ width: props.width }}
       />
     );
@@ -54,7 +55,7 @@ function NeighborTile(props: { width: number; src?: string; dim?: boolean }) {
     <img
       alt=""
       aria-hidden
-      className={`aspect-2/3 shrink-0 rounded-md object-cover ${props.dim ? "opacity-50" : ""}`}
+      className={`${props.aspect} shrink-0 rounded-md object-cover ${props.dim ? "opacity-50" : ""}`}
       decoding="async"
       loading="lazy"
       src={props.src}
@@ -67,19 +68,25 @@ export function ClientPreview(props: {
   view: Exclude<ClientPreviewView, "poster">;
   src: string;
   neighborSrcs?: string[];
+  landscape?: boolean;
 }) {
   const [first, second] = props.neighborSrcs ?? [];
+  const aspect = props.landscape ? "aspect-video" : "aspect-2/3";
+  const scale = props.landscape ? LANDSCAPE_TILE_SCALE : 1;
+  const phonePx = PHONE_TILE_PX * scale;
+  const resumePx = RESUME_TILE_PX * scale;
+  const tvPx = TV_TILE_PX * scale;
   if (props.view === "phone") {
     return (
       <div className="flex items-start gap-2 overflow-hidden rounded-lg bg-black px-3 py-4">
         <img
           alt="Poster at phone row size"
-          className="aspect-2/3 shrink-0 rounded-md object-cover"
+          className={`${aspect} shrink-0 rounded-md object-cover`}
           src={props.src}
-          style={{ width: PHONE_TILE_PX }}
+          style={{ width: phonePx }}
         />
-        <NeighborTile src={first} width={PHONE_TILE_PX} />
-        <NeighborTile src={second} width={PHONE_TILE_PX} />
+        <NeighborTile aspect={aspect} src={first} width={phonePx} />
+        <NeighborTile aspect={aspect} src={second} width={phonePx} />
       </div>
     );
   }
@@ -87,28 +94,28 @@ export function ClientPreview(props: {
   if (props.view === "resume") {
     return (
       <div className="flex items-start gap-2 overflow-hidden rounded-lg bg-black px-3 py-4">
-        <div className="relative shrink-0 overflow-hidden rounded-md" style={{ width: RESUME_TILE_PX }}>
-          <img alt="Poster as a Continue Watching card" className="aspect-2/3 w-full object-cover" src={props.src} />
+        <div className="relative shrink-0 overflow-hidden rounded-md" style={{ width: resumePx }}>
+          <img alt="Poster as a Continue Watching card" className={`${aspect} w-full object-cover`} src={props.src} />
           <span aria-hidden className="absolute right-1.5 top-1.5 h-3.5 w-7 rounded-sm bg-black/70" />
           <div aria-hidden className="absolute inset-x-0 bottom-0 h-1 bg-white/25">
             <div className="h-full bg-cyan-400" style={{ width: `${RESUME_PROGRESS * 100}%` }} />
           </div>
         </div>
-        <NeighborTile src={first} width={RESUME_TILE_PX} />
+        <NeighborTile aspect={aspect} src={first} width={resumePx} />
       </div>
     );
   }
 
   return (
     <div className="flex items-center justify-center gap-4 overflow-hidden rounded-lg bg-zinc-900 py-6">
-      <NeighborTile dim src={first} width={TV_TILE_PX * 0.8} />
+      <NeighborTile aspect={aspect} dim src={first} width={tvPx * 0.8} />
       <img
         alt="Poster focused in a TV row"
-        className="aspect-2/3 shrink-0 scale-110 rounded-lg object-cover shadow-2xl shadow-black/70 ring-2 ring-white/90"
+        className={`${aspect} shrink-0 scale-110 rounded-lg object-cover shadow-2xl shadow-black/70 ring-2 ring-white/90`}
         src={props.src}
-        style={{ width: TV_TILE_PX }}
+        style={{ width: tvPx }}
       />
-      <NeighborTile dim src={second} width={TV_TILE_PX * 0.8} />
+      <NeighborTile aspect={aspect} dim src={second} width={tvPx * 0.8} />
     </div>
   );
 }

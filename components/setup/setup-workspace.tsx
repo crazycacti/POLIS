@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CopyButton } from "@/components/copy-button";
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
@@ -16,7 +16,7 @@ import { mergePosterQueryForConfigurePreview } from "@/lib/integrator-auth";
 import { SetupPasswordDialog } from "@/components/setup/setup-password-dialog";
 import { stremioUserInstallUrl } from "@/lib/polis-install-urls";
 import { aiometadataArtPatterns } from "@/lib/polis-urls";
-import { lookCodeFromSearch } from "@/lib/poster-look-code";
+import { LOOK_CODE_PARAM, lookCodeFromSearch } from "@/lib/poster-look-code";
 import { defaultCatalogsForCredentials } from "@/lib/catalog-defaults";
 import { parsePolisCatalogDefinitionsFromJson } from "@/lib/polis-catalogs-json";
 import {
@@ -195,6 +195,13 @@ export function SetupWorkspace(props: {
 
   useEffect(() => {
     setLookCodeParam(lookCodeFromSearch(window.location.search));
+  }, []);
+
+  const consumeLookLink = useCallback(() => {
+    setLookCodeParam(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete(LOOK_CODE_PARAM);
+    window.history.replaceState(window.history.state, "", url);
   }, []);
 
   useEffect(() => {
@@ -626,8 +633,10 @@ export function SetupWorkspace(props: {
           <SetupLooks
             initialLookCode={overlaySettled ? lookCodeParam : null}
             onChange={setOverlay}
+            onLookLinkConsumed={consumeLookLink}
             origin={origin}
             overlay={overlay}
+            previewOverlay={debouncedOverlay}
           />
           <SetupOverlayPanel
             artworkControls={
@@ -720,6 +729,7 @@ export function SetupWorkspace(props: {
             }
             livePreviewSrc={livePreviewSrc}
             onImdbChange={setImdbPreview}
+            landscape={overlay.posterShape === "landscape"}
             overlayQueryString={previewOverlayQuery}
             showcaseQueryString={showcaseQueryString}
           />

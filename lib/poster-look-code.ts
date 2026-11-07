@@ -6,7 +6,7 @@ import {
 } from "@/lib/poster-query";
 
 const LOOK_CODE_PREFIX = "v1.";
-const LOOK_CODE_PARAM = "look";
+export const LOOK_CODE_PARAM = "look";
 export const LOOK_CODE_MAX_LENGTH = 4096;
 const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
 
@@ -15,12 +15,13 @@ const NON_LOOK_KEYS = new Set<keyof PosterOverlayQuery>([
   "artworkMovie",
   "artworkFallback",
   "trendRank",
+  "posterShape",
 ]);
 
 export type PosterLookFields = Partial<PosterOverlayQuery>;
 
 function isLookKey(key: string): key is keyof PosterOverlayQuery {
-  return key in POSTER_OVERLAY_DEFAULTS && !NON_LOOK_KEYS.has(key as keyof PosterOverlayQuery);
+  return Object.hasOwn(POSTER_OVERLAY_DEFAULTS, key) && !NON_LOOK_KEYS.has(key as keyof PosterOverlayQuery);
 }
 
 export function lookFieldsOf(overlay: PosterOverlayQuery): PosterLookFields {
@@ -75,9 +76,10 @@ export function lookShareUrl(origin: string, overlay: PosterOverlayQuery): strin
 
 function codeFromInput(input: string): string {
   const trimmed = input.trim();
-  if (!/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith(LOOK_CODE_PREFIX)) return trimmed;
+  const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
   try {
-    return new URL(trimmed).searchParams.get(LOOK_CODE_PARAM) ?? "";
+    return new URL(withScheme).searchParams.get(LOOK_CODE_PARAM) ?? "";
   } catch {
     return "";
   }
@@ -125,4 +127,14 @@ export function parseLookJson(text: string): LookJsonResult {
     fields[key] = value;
   }
   return { ok: true, fields: fields as PosterLookFields };
+}
+
+export function rejectedLookFields(
+  overlay: PosterOverlayQuery,
+  fields: PosterLookFields,
+): (keyof PosterOverlayQuery)[] {
+  const applied = applyLookFields(overlay, fields);
+  return (Object.keys(fields) as (keyof PosterOverlayQuery)[]).filter(
+    (key) => applied[key] !== fields[key],
+  );
 }
