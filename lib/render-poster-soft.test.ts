@@ -3,7 +3,7 @@ import sharp from "sharp";
 
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import { softFontAvailable } from "@/lib/poster-soft-font";
-import { fitTopRow, logoLegibleShare, logoScrimAlpha, renderSoftPoster } from "@/lib/render-poster-soft";
+import { fitTopRow, logoLegibleShare, logoScrimAlpha, ratingCapsuleAt, renderSoftPoster } from "@/lib/render-poster-soft";
 
 describe("poster look options", () => {
   test("soft and medium logo are the defaults and survive a round trip", () => {
@@ -141,5 +141,16 @@ describe("fitTopRow", () => {
     expect(row.items.length).toBeLessThan(items.length);
     expect(row.fs).toBeGreaterThanOrEqual(Math.round(29 * 0.75));
     expect(row.itemsWidth).toBeLessThanOrEqual(500 - 80);
+  });
+});
+
+describe("classic score pill", () => {
+  test("ends at the right inset and grows to fit the star", () => {
+    const plain = ratingCapsuleAt({ valueTen: 8.4, fs: 30, right: 460, centerY: 700, star: false });
+    const starred = ratingCapsuleAt({ valueTen: 8.4, fs: 30, right: 460, centerY: 700, star: true });
+    expect(plain.rect.left + plain.rect.width).toBe(460);
+    expect(starred.rect.left + starred.rect.width).toBe(460);
+    expect(starred.rect.width).toBeGreaterThan(plain.rect.width);
+    expect(starred.text).toBe("8.4");
   });
 });

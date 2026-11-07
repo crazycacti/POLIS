@@ -293,6 +293,65 @@ export async function capsuleSvg(base: Buffer, capsule: Capsule): Promise<string
   return parts;
 }
 
+const STAR_SHARE = 0.78;
+const STAR_GAP_SHARE = 0.32;
+const STAR_INNER_RATIO = 0.48;
+const STAR_POINTS = 5;
+
+function starPath(cx: number, cy: number, outer: number): string {
+  const inner = outer * STAR_INNER_RATIO;
+  const points: string[] = [];
+  for (let i = 0; i < STAR_POINTS * 2; i += 1) {
+    const r = i % 2 === 0 ? outer : inner;
+    const angle = -Math.PI / 2 + (i * Math.PI) / STAR_POINTS;
+    points.push(`${(cx + r * Math.cos(angle)).toFixed(2)} ${(cy + r * Math.sin(angle)).toFixed(2)}`);
+  }
+  return `M${points.join("L")}Z`;
+}
+
+type RatingCapsule = { rect: Rect; text: string; fs: number; star: boolean; textW: number; padX: number };
+
+export function ratingCapsuleAt(params: {
+  valueTen: number;
+  fs: number;
+  right: number;
+  centerY: number;
+  star: boolean;
+}): RatingCapsule {
+  const { fs } = params;
+  const text = scoreLabel(params.valueTen);
+  const padX = Math.round(fs * CAPSULE_PAD_X);
+  const textW = measureSoftText(text, fs, 600);
+  const starW = params.star ? Math.round(fs * STAR_SHARE + fs * STAR_GAP_SHARE) : 0;
+  const width = Math.round(padX * 2 + starW + textW);
+  const height = Math.round(fs * CAPSULE_HEIGHT);
+  return {
+    rect: { left: params.right - width, top: Math.round(params.centerY - height / 2), width, height },
+    text,
+    fs,
+    star: params.star,
+    textW,
+    padX,
+  };
+}
+
+async function ratingCapsuleSvg(base: Buffer, capsule: RatingCapsule, color: string): Promise<string[]> {
+  const { rect, fs, text } = capsule;
+  const fill = await capsuleFill(base, rect);
+  const { left: x, top: y, width: cw, height: ch } = rect;
+  const parts = [`<rect x="${x}" y="${y}" width="${cw}" height="${ch}" rx="${(ch / 2).toFixed(2)}" fill="${fill}"/>`];
+  let textX = x + capsule.padX;
+  if (capsule.star) {
+    const outer = (fs * STAR_SHARE) / 2;
+    parts.push(`<path d="${starPath(textX + outer, y + ch / 2, outer)}" fill="${color}"/>`);
+    textX += Math.round(fs * STAR_SHARE + fs * STAR_GAP_SHARE);
+  }
+  const baseline = y + ch / 2 + softCapHeight(fs, 600) / 2;
+  const placed = softTextPath(text, textX, baseline, fs, 600);
+  if (placed) parts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
+  return parts;
+}
+
 export type TopItem =
   | { kind: "text"; text: string; width: number }
   | { kind: "glyph"; buf: Buffer; width: number; height: number };
@@ -465,8 +524,10 @@ export async function renderSoftPoster(params: {
   const genreFs = labelTextPx(w, overlay, "genreFontSize");
   const trendFs = labelTextPx(w, overlay, "trendFontSize");
 
+  const textRating = overlay.look === "classic";
+  const ratingH = textRating ? Math.round(scoreFs * CAPSULE_HEIGHT) : ringD;
   const genreRaw = overlay.genre ? normalizeGenreLabel(params.genreNames, overlay.genreMode) : null;
-  const footerH = Math.max(showRing ? ringD : 0, genreRaw ? Math.round(genreFs * CAPSULE_HEIGHT) : 0);
+  const footerH = Math.max(showRing ? ratingH : 0, genreRaw ? Math.round(genreFs * CAPSULE_HEIGHT) : 0);
   const hasFooter = footerH > 0;
   const footerCenterY = h - padBottom - footerH / 2;
 
@@ -567,7 +628,18 @@ export async function renderSoftPoster(params: {
 
   const svgParts: string[] = [];
   let genreRight = w - padX;
-  if (showRing && valueTen != null) {
+  const ratingColorValue = valueTen != null ? ringColor(overlay, valueTen, params.ratingColorSource) : TEXT_PRIMARY;
+  if (showRing && valueTen != null && textRating) {
+    const capsule = ratingCapsuleAt({
+      valueTen,
+      fs: scoreFs,
+      right: w - padX,
+      centerY: footerCenterY,
+      star: overlay.ratingStyle === "min",
+    });
+    svgParts.push(...(await ratingCapsuleSvg(baseBuf, capsule, ratingColorValue)));
+    genreRight = capsule.rect.left - Math.round(w * FOOTER_GAP);
+  } else if (showRing && valueTen != null) {
     const cx = w - padX - ringD / 2;
     svgParts.push(
       ...ratingRingSvg({
@@ -576,7 +648,7 @@ export async function renderSoftPoster(params: {
         diameter: ringD,
         stroke: ringStroke,
         valueTen,
-        color: ringColor(overlay, valueTen, params.ratingColorSource),
+        color: ratingColorValue,
         scoreFs,
       }),
     );

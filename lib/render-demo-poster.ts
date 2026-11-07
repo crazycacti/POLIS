@@ -124,7 +124,7 @@ export async function renderPosterFromDemo(
   const ageBadge: PosterPillBadge | null =
     overlay.ageRating && demo.ageLabel ? { text: demo.ageLabel, kind: "age" } : null;
 
-  if (overlay.look === "soft" && softFontAvailable()) {
+  if (softFontAvailable()) {
     return renderSoftPoster({
       imageBuffer: art,
       artTextless: demo.artTextless,

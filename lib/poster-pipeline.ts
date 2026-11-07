@@ -133,7 +133,7 @@ export async function renderPosterForImdb(params: {
     });
   }
 
-  if (params.overlay.look === "soft" && softFontAvailable()) {
+  if (softFontAvailable()) {
     return renderSoftPoster({
       imageBuffer: base.buffer,
       artTextless: base.textless,
