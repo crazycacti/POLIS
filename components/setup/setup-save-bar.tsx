@@ -103,7 +103,7 @@ export function SetupSaveBar(props: {
             aria-describedby={locked ? reasonId : undefined}
             aria-disabled={locked ? true : undefined}
             className="polis-btn pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={props.saving}
+            disabled={props.saving || (props.status === "saved" && Boolean(props.installUrl))}
             onClick={() => {
               if (!locked) props.onSave();
             }}
