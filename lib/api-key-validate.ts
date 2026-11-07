@@ -1,5 +1,5 @@
 import { fetchUpstream } from "@/lib/upstream-fetch";
-import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
+import { inferTmdbCredentialParams, tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tvdbLoginResult } from "@/lib/tvdb-client";
 import { parseTvdbCredentials } from "@/lib/tvdb-credentials";
@@ -11,17 +11,8 @@ export type ApiKeyProvider = "tmdb" | "mdblist" | "fanart" | "tvdb";
 export type ApiKeyValidateResult = {
   ok: boolean;
   message: string;
+  limited?: boolean;
 };
-
-function tmdbCredentialFromRaw(raw: string): TmdbCredential | null {
-  const inferred = inferTmdbCredentialParams(raw);
-  if (inferred.error || !inferred.params) return null;
-  const token = inferred.params.get("tmdb_access_token");
-  if (token) return { kind: "bearer", token };
-  const key = inferred.params.get("api_key");
-  if (key) return { kind: "api_key", key };
-  return null;
-}
 
 export async function validateTmdbKey(raw: string): Promise<ApiKeyValidateResult> {
   const inferred = inferTmdbCredentialParams(raw);
@@ -80,6 +71,7 @@ export async function validateMdblistKey(raw: string): Promise<ApiKeyValidateRes
       await response.body?.cancel();
       return {
         ok: true,
+        limited: true,
         message: "Key saved. MDBList's daily limit is used up, so ratings return after the daily reset.",
       };
     }

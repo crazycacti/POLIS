@@ -17,6 +17,7 @@ describe("validateMdblistKey", () => {
     answerWith(429, '{"error":"Daily API limit exceeded!"}');
     const result = await validateMdblistKey("abcdefghijklmnop");
     expect(result.ok).toBe(true);
+    expect(result.limited).toBe(true);
     expect(result.message).toContain("daily limit");
   });
 
