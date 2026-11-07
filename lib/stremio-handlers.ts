@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { prewarmCatalogPosters } from "@/lib/poster-prewarm";
 import { polisPublicBaseFromRequest } from "@/lib/public-base";
@@ -71,9 +70,7 @@ export async function handleStremioMetaRequest(
   rawType: string,
   rawId: string,
 ) {
-  return runWithClientRequestContext(request, () =>
-    handleStremioMetaRequestInner(request, configId, rawType, rawId),
-  );
+  return handleStremioMetaRequestInner(request, configId, rawType, rawId);
 }
 
 async function handleStremioMetaRequestInner(
@@ -139,9 +136,7 @@ export async function handleStremioCatalogRequest(
   rawId: string,
   extraPathSegments?: string[],
 ) {
-  return runWithClientRequestContext(request, () =>
-    handleStremioCatalogRequestInner(request, configId, rawType, rawId, extraPathSegments),
-  );
+  return handleStremioCatalogRequestInner(request, configId, rawType, rawId, extraPathSegments);
 }
 
 async function handleStremioCatalogRequestInner(

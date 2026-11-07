@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { imageResponse } from "@/lib/cached-file-response";
-import { proxyClientKey, runWithClientRequestContext } from "@/lib/client-request-context";
+import { proxyClientKey } from "@/lib/client-request-context";
 import { CREDENTIAL_QUERY_KEYS } from "@/lib/demo-poster-query";
 import { previewPosterHttpCacheControl } from "@/lib/poster-cache-headers";
 import { parsePosterOverlayQuery } from "@/lib/poster-query";
@@ -50,7 +50,7 @@ export async function handlePreviewPosterRequest(request: NextRequest, file: str
   for (let attempt = 1; ; attempt += 1) {
     let result;
     try {
-      result = await runWithClientRequestContext(request, () => previewPoster(previewRequest));
+      result = await previewPoster(previewRequest);
     } catch (error) {
       console.warn(`[polis] preview render failed for ${imdbId}`, error);
       return plain(502, "Preview unavailable");

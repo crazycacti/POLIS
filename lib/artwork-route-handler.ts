@@ -2,7 +2,6 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { imageResponse } from "@/lib/cached-file-response";
-import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import {
   renderBackdropJpegCached,
@@ -20,9 +19,7 @@ export async function handleBackdropRequest(
   imdbId: string,
   configId: string | null,
 ): Promise<NextResponse> {
-  return runWithClientRequestContext(request, () =>
-    handleBackdropRequestInner(request, imdbId, configId),
-  );
+  return handleBackdropRequestInner(request, imdbId, configId);
 }
 
 async function handleBackdropRequestInner(
@@ -83,9 +80,7 @@ export async function handleLogoRequest(
   imdbId: string,
   configId: string | null,
 ): Promise<NextResponse> {
-  return runWithClientRequestContext(request, () =>
-    handleLogoRequestInner(request, imdbId, configId),
-  );
+  return handleLogoRequestInner(request, imdbId, configId);
 }
 
 async function handleLogoRequestInner(

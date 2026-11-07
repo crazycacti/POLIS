@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { proxyClientKey, runWithClientRequestContext } from "@/lib/client-request-context";
+import { proxyClientKey } from "@/lib/client-request-context";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { fetchPreviewTitles, readCachedPreviewTitles } from "@/lib/preview-titles";
 import { cleanPreviewKey, NO_PREVIEW_CALLER_KEYS, type PreviewCallerKeys } from "@/lib/preview-keys";
@@ -31,7 +31,7 @@ function titlesOk(titles: PreviewTitle[]) {
 async function titlesResponse(request: Request, credential: TmdbCredential | null, warmKeys: PreviewCallerKeys) {
   if (!credential) return NextResponse.json({ titles: [] }, { status: 404 });
   try {
-    const titles = await runWithClientRequestContext(request, () => fetchPreviewTitles(credential));
+    const titles = await fetchPreviewTitles(credential);
     void warmPreviewPosters(titles, warmKeys);
     return titlesOk(titles);
   } catch {

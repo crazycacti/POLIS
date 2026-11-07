@@ -4,7 +4,6 @@ import {
   validateApiKey,
   type ApiKeyProvider,
 } from "@/lib/api-key-validate";
-import { runWithClientRequestContext } from "@/lib/client-request-context";
 
 export const runtime = "nodejs";
 
@@ -28,6 +27,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "Key is empty" }, { status: 400 });
   }
 
-  const result = await runWithClientRequestContext(request, () => validateApiKey(provider, key));
+  const result = await validateApiKey(provider, key);
   return NextResponse.json(result, { status: result.ok ? 200 : 422 });
 }

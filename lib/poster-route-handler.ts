@@ -2,7 +2,6 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { imageResponse } from "@/lib/cached-file-response";
-import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { resolveFanartAuth } from "@/lib/fanart-auth";
 import { resolveTvdbAuth } from "@/lib/tvdb-auth";
@@ -20,9 +19,7 @@ export async function handlePosterDefaultRequest(
   imdbId: string,
   configId: string | null,
 ): Promise<NextResponse> {
-  return runWithClientRequestContext(request, () =>
-    handlePosterDefaultRequestInner(request, imdbId, configId),
-  );
+  return handlePosterDefaultRequestInner(request, imdbId, configId);
 }
 
 async function handlePosterDefaultRequestInner(

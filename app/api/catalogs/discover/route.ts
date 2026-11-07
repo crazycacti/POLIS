@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { MDBLIST_WATCHLIST_PRESETS, TMDB_CATALOG_PRESETS } from "@/lib/catalog-presets";
 import {
   fetchMdblistOwnLists,
@@ -56,17 +55,15 @@ export async function POST(request: Request) {
   try {
     const search = body.search?.trim();
     const username = body.username?.trim();
-    await runWithClientRequestContext(request, async () => {
-      if (search) {
-        response.mdblistLists = await searchMdblistLists(search, mdblistKey, listsOptions);
-      } else if (username) {
-        response.mdblistLists = await fetchMdblistUserListsByUsername(username, mdblistKey, listsOptions);
-      } else if (callerKey) {
-        response.mdblistLists = await fetchMdblistOwnLists(callerKey);
-      } else {
-        response.error = "Add your MDBList key under API keys to load your lists.";
-      }
-    });
+    if (search) {
+      response.mdblistLists = await searchMdblistLists(search, mdblistKey, listsOptions);
+    } else if (username) {
+      response.mdblistLists = await fetchMdblistUserListsByUsername(username, mdblistKey, listsOptions);
+    } else if (callerKey) {
+      response.mdblistLists = await fetchMdblistOwnLists(callerKey);
+    } else {
+      response.error = "Add your MDBList key under API keys to load your lists.";
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "MDBList request failed";
     return NextResponse.json({ error: message }, { status: 502 });

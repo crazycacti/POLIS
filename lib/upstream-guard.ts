@@ -115,7 +115,7 @@ export function upstreamCredentialFingerprint(secret: string): string {
   return createHash("sha256").update(secret.trim()).digest("hex").slice(0, 16);
 }
 
-const SECRET_QUERY_RE = /([?&](?:api_?key|apikey|token|access_token|tmdb_key|mdblist_key)=)[^&\s"']+/gi;
+const SECRET_QUERY_RE = /([?&][a-z_]*(?:key|token)=)[^&\s"']+/gi;
 const BEARER_RE = /(Bearer\s+)[^\s"']+/gi;
 
 export function redactUpstreamSecrets(text: string): string {
