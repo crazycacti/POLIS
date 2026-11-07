@@ -17,6 +17,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3050
 ENV HOSTNAME=0.0.0.0
 ENV MALLOC_ARENA_MAX=2
+ENV POLIS_DB_PATH=/app/data/polis.sqlite
 
 COPY docker/fonts/local.conf /etc/fonts/local.conf
 RUN apt-get update \
@@ -25,7 +26,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
+COPY --from=builder --chown=bun:bun /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public/poster-marks ./public/poster-marks
 COPY --from=builder /app/public/age-marks ./public/age-marks
