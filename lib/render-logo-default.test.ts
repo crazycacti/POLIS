@@ -29,7 +29,27 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-describe("renderLogoPng", () => {
+describe("title logo download", () => {
+  test("reads tmdb paths from the tmdb image cdn", async () => {
+    expect(await renderLogoPng("/logo.png", "w500")).not.toBeNull();
+    expect(requests.map((r) => r.url)).toEqual(["https://image.tmdb.org/t/p/w500/logo.png"]);
+  });
+
+  test("reads tvdb and fanart logo urls directly", async () => {
+    expect(await renderLogoPng("https://artworks.thetvdb.com/banners/logo.png")).not.toBeNull();
+    expect(await renderLogoPng("https://assets.fanart.tv/fanart/logo.png")).not.toBeNull();
+    expect(requests.map((r) => r.url)).toEqual([
+      "https://artworks.thetvdb.com/banners/logo.png",
+      "https://assets.fanart.tv/fanart/logo.png",
+    ]);
+  });
+
+  test("refuses logo urls outside the artwork hosts", async () => {
+    expect(await renderLogoPng("https://example.com/logo.png")).toBeNull();
+    expect(await renderLogoPng("http://assets.fanart.tv/fanart/logo.png")).toBeNull();
+    expect(requests).toEqual([]);
+  });
+
   test("downloads a tmdb logo once and keeps it out of the Next fetch cache", async () => {
     expect(await renderLogoPng("/cached-logo.png", "w500")).not.toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 20));
