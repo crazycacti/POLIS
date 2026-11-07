@@ -8,7 +8,6 @@ import {
 } from "@/lib/polis-disk-cache";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { polisSingleflight } from "@/lib/polis-singleflight";
-import { withPolisRenderLimit } from "@/lib/polis-render-limit";
 import { renderPosterForImdb } from "@/lib/poster-pipeline";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
@@ -250,23 +249,21 @@ export async function renderPosterForImdbCached(params: {
       const degradedRetryAts: (number | undefined)[] = [];
       let image: Buffer | null;
       try {
-        image = await withPolisRenderLimit(() =>
-          renderPosterForImdb({
-            imdbId: params.imdbId,
-            overlay,
-            credential: params.credential,
-            language: params.language,
-            mdblistApiKey: params.mdblistApiKey,
-            mdblistServerKeyProfile: params.mdblistServerKeyProfile ?? null,
-            fanartApiKey: params.fanartApiKey,
-            tvdbCredentials: params.tvdbCredentials,
-            configId: params.configId,
-            onDegraded: (retryAt) => {
-              degraded = true;
-              degradedRetryAts.push(retryAt);
-            },
-          }),
-        );
+        image = await renderPosterForImdb({
+          imdbId: params.imdbId,
+          overlay,
+          credential: params.credential,
+          language: params.language,
+          mdblistApiKey: params.mdblistApiKey,
+          mdblistServerKeyProfile: params.mdblistServerKeyProfile ?? null,
+          fanartApiKey: params.fanartApiKey,
+          tvdbCredentials: params.tvdbCredentials,
+          configId: params.configId,
+          onDegraded: (retryAt) => {
+            degraded = true;
+            degradedRetryAts.push(retryAt);
+          },
+        });
       } catch (error) {
         const stale = await staleFallback();
         if (!stale) throw error;

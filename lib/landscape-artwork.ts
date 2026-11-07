@@ -7,6 +7,7 @@ import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import { TMDB_IMAGES_TTL_SEC, type ResolvedTitle, type TmdbBackdropImage } from "@/lib/tmdb-resolve";
 import { fetchUpstream } from "@/lib/upstream-fetch";
+import { withPolisRenderLimit } from "@/lib/polis-render-limit";
 
 export const LANDSCAPE_WIDTH = 960;
 export const LANDSCAPE_HEIGHT = 540;
@@ -100,7 +101,9 @@ export async function fetchLandscapeBase(params: {
     params.onArtCandidate?.(candidate.textless);
     try {
       const input = await fetchArtworkBytes(candidate.url, (target, init) => fetchUpstream(target, init));
-      if (input) return { buffer: await fitLandscapeCanvas(input), textless: candidate.textless };
+      if (input) {
+        return { buffer: await withPolisRenderLimit(() => fitLandscapeCanvas(input)), textless: candidate.textless };
+      }
     } catch (error) {
       console.warn(`[polis] landscape backdrop failed for ${params.imdbId}`, error);
     }

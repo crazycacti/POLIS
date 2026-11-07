@@ -53,7 +53,7 @@ export async function renderBackdropJpegCached(
     const racedPath = await resolvePolisDiskCachePath("backdrop", scope, cacheKey, ".jpg");
     if (racedPath) return readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg");
 
-    const jpeg = await withPolisRenderLimit(() => renderBackdropJpeg(backdropPath));
+    const jpeg = await renderBackdropJpeg(backdropPath, withPolisRenderLimit);
     if (!jpeg) return null;
     void writePolisDiskBytes("backdrop", scope, cacheKey, ".jpg", jpeg).catch(() => {});
     return jpeg;
@@ -75,7 +75,7 @@ export async function renderLogoPngCached(
     const racedPath = await resolvePolisDiskCachePath("logo", scope, cacheKey, ".png");
     if (racedPath) return readPolisDiskBytes("logo", scope, cacheKey, ".png");
 
-    const png = await withPolisRenderLimit(() => renderLogoPng(logoPath));
+    const png = await renderLogoPng(logoPath, "original", withPolisRenderLimit);
     if (!png) return null;
     void writePolisDiskBytes("logo", scope, cacheKey, ".png", png).catch(() => {});
     return png;

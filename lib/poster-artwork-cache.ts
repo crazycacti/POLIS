@@ -14,6 +14,7 @@ import {
   writePolisDiskBytes,
 } from "@/lib/polis-disk-cache";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
+import { withPolisRenderLimit } from "@/lib/polis-render-limit";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import { POLIS_ARTWORK_CACHE_GENERATION } from "@/lib/polis-renderer";
 import type {
@@ -146,7 +147,11 @@ async function fetchPosterBaseBuffer(params: {
       overlay: { ...params.overlay, posterShape: "poster" },
     });
     if (!portrait) return null;
-    return { buffer: await landscapeFromPortrait(portrait.buffer), textless: false, degraded: portrait.degraded };
+    return {
+      buffer: await withPolisRenderLimit(() => landscapeFromPortrait(portrait.buffer)),
+      textless: false,
+      degraded: portrait.degraded,
+    };
   }
 
   const tmdbPosters =
@@ -177,9 +182,9 @@ async function fetchPosterBaseBuffer(params: {
         fetchUpstream(target, init),
       );
       if (!input) continue;
-      const buffer = await sharp(input)
-        .resize(500, 750, { fit: "cover", position: "attention" })
-        .toBuffer();
+      const buffer = await withPolisRenderLimit(() =>
+        sharp(input).resize(500, 750, { fit: "cover", position: "attention" }).toBuffer(),
+      );
       return { buffer, textless: candidate.textless, degraded };
     } catch (error) {
       console.warn(`[polis] artwork candidate failed for ${params.imdbId}`, error);

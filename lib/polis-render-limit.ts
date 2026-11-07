@@ -28,6 +28,10 @@ export function polisRenderMaxConcurrent(): number {
   return polisEnvPositiveInt("POLIS_RENDER_MAX_CONCURRENT") ?? Math.max(1, availableParallelism());
 }
 
+export type CpuStage = <T>(fn: () => Promise<T>) => Promise<T>;
+
+export const runWithoutRenderLimit: CpuStage = (fn) => fn();
+
 export async function withPolisRenderLimit<T>(fn: () => Promise<T>): Promise<T> {
   await acquire(polisRenderMaxConcurrent());
   try {

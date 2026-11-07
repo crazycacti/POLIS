@@ -1,6 +1,7 @@
 import { fetchArtworkBytes } from "@/lib/artwork-url-allow";
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import { readPolisDiskBytes, writePolisDiskBytes } from "@/lib/polis-disk-cache";
+import { type CpuStage, runWithoutRenderLimit } from "@/lib/polis-render-limit";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import { fetchUpstream, IMAGE_FETCH_TIMEOUT_MS } from "@/lib/upstream-fetch";
 import { upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
@@ -47,11 +48,16 @@ async function fetchLogoBytes(logoRef: string, size: TmdbLogoSize): Promise<Buff
 export async function renderLogoPng(
   logoRef: string | null,
   size: TmdbLogoSize = "original",
+  cpuStage: CpuStage = runWithoutRenderLimit,
 ): Promise<Buffer | null> {
   ensurePolisSharpConfigured();
   if (!logoRef) return null;
   const buf = await fetchLogoBytes(logoRef, size);
   if (!buf) return null;
+  return cpuStage(() => normalizeLogoPng(buf));
+}
+
+async function normalizeLogoPng(buf: Buffer): Promise<Buffer> {
   const meta = await sharp(buf).metadata();
   const w = meta.width ?? LOGO_FALLBACK_WIDTH;
   if (w <= LOGO_MAX_WIDTH) {
