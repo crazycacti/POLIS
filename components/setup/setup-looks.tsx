@@ -8,7 +8,7 @@ import { SetupDialog, SetupDialogCancel } from "@/components/setup/setup-dialog"
 import { SetupMenu } from "@/components/setup/setup-menu";
 import { SelectionCheck } from "@/components/setup/setup-ui";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
-import { dynamicDemoPosterPath } from "@/lib/demo-poster-urls";
+import { demoPosterThumbPath } from "@/lib/demo-poster-urls";
 import {
   applyLookFields,
   decodeLookCode,
@@ -20,8 +20,10 @@ import {
 } from "@/lib/poster-look-code";
 import { applyStarterLook, matchesStarterLook, STARTER_LOOKS } from "@/lib/poster-looks";
 import { serializePosterQuery, type PosterOverlayQuery } from "@/lib/poster-query";
+import { PREVIEW_SMALL_THUMB_WIDTH, previewThumbSrcSet } from "@/lib/preview-sizes";
 
 const LOOK_PREVIEW_DEMO_ID = DEMO_TITLES[0]!.id;
+const LOOK_TILE_SIZES = "132px";
 const LS_MY_LOOKS = "polis_my_looks";
 const MAX_SAVED_LOOKS = 12;
 const MAX_LOOK_NAME_LENGTH = 40;
@@ -65,6 +67,7 @@ function LookTile(props: {
   onSelect: () => void;
   onRemove?: () => void;
 }) {
+  const query = serializePosterQuery(props.preview);
   return (
     <div className="relative">
       <button
@@ -80,7 +83,9 @@ function LookTile(props: {
             decoding="async"
             height={198}
             loading="lazy"
-            src={dynamicDemoPosterPath(LOOK_PREVIEW_DEMO_ID, serializePosterQuery(props.preview))}
+            sizes={LOOK_TILE_SIZES}
+            src={demoPosterThumbPath(LOOK_PREVIEW_DEMO_ID, query, PREVIEW_SMALL_THUMB_WIDTH)}
+            srcSet={previewThumbSrcSet((width) => demoPosterThumbPath(LOOK_PREVIEW_DEMO_ID, query, width))}
             width={132}
           />
           {props.selected ? <SelectionCheck /> : null}

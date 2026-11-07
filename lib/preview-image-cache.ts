@@ -10,12 +10,12 @@ import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import { withPolisRenderLimit } from "@/lib/polis-render-limit";
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import { polisSingleflight } from "@/lib/polis-singleflight";
+import { PREVIEW_THUMB_WIDTHS, type PreviewThumbWidth } from "@/lib/preview-sizes";
+
+export { PREVIEW_THUMB_WIDTHS, type PreviewThumbWidth } from "@/lib/preview-sizes";
 
 export const PREVIEW_CACHE_NAMESPACE = "preview";
-export const PREVIEW_THUMB_WIDTHS = [160, 320] as const;
 export const PREVIEW_THUMB_CONTENT_TYPE = "image/webp";
-
-export type PreviewThumbWidth = (typeof PREVIEW_THUMB_WIDTHS)[number];
 export type PreviewWidthParse = { ok: true; width: PreviewThumbWidth | null } | { ok: false };
 
 const PREVIEW_THUMB_EXT = ".webp";

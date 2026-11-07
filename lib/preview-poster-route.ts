@@ -11,11 +11,11 @@ import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { parsePreviewWidth } from "@/lib/preview-image-cache";
 import { parsePreviewKeysCookie, PREVIEW_KEYS_COOKIE } from "@/lib/preview-keys";
 import { previewPoster, resolvePreviewAuth } from "@/lib/preview-poster";
+import { PREVIEW_WIDTH_PARAM } from "@/lib/preview-sizes";
 import { isImdbId } from "@/lib/stremio-imdb-id";
 
 const PREVIEW_FILE_SUFFIX = ".webp";
 const PREVIEW_QUERY_MAX_CHARS = 2048;
-const PREVIEW_WIDTH_PARAM = "w";
 const NO_STORE = { "Cache-Control": "no-store" };
 
 function plain(status: number, body: string, headers: Record<string, string> = {}): NextResponse {

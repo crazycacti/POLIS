@@ -1,18 +1,44 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PosterPart } from "@/components/setup/setup-poster-parts";
 import { SelectionCheck, SetupSegmented } from "@/components/setup/setup-ui";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
-import { resolveSetupDemoPosterSrc } from "@/lib/demo-poster-urls";
+import { demoPosterThumbPath, resolveSetupDemoPosterSrc } from "@/lib/demo-poster-urls";
+import { overlayQueryStringFromRaw } from "@/lib/demo-poster-query";
 import type { PosterShape } from "@/lib/poster-query";
+import { PREVIEW_SMALL_THUMB_WIDTH, previewThumbSrcSet } from "@/lib/preview-sizes";
 import type { PreviewTitle } from "@/lib/preview-title-list";
 
 const CUSTOM_TITLE = "custom";
+const CHIP_SIZES = "48px";
 
-type TitleOption = { key: string; label: string; src: string };
+export type PreviewImageSrcs = { full: string; thumb: string; thumbSrcSet?: string };
+
+type TitleOption = { key: string; label: string; src: string; thumb: string; thumbSrcSet?: string; live: boolean };
+
+function demoOption(
+  key: string,
+  demoIndex: number,
+  overlayQueryString: string,
+  showcaseQueryString: string,
+): TitleOption {
+  const demo = DEMO_TITLES[demoIndex % DEMO_TITLES.length]!;
+  const src = resolveSetupDemoPosterSrc(demo.id, overlayQueryString, showcaseQueryString);
+  const usesStatic = overlayQueryStringFromRaw(overlayQueryString) === overlayQueryStringFromRaw(showcaseQueryString);
+  return {
+    key,
+    label: demo.title,
+    src,
+    thumb: usesStatic ? src : demoPosterThumbPath(demo.id, overlayQueryString, PREVIEW_SMALL_THUMB_WIDTH),
+    thumbSrcSet: usesStatic
+      ? undefined
+      : previewThumbSrcSet((width) => demoPosterThumbPath(demo.id, overlayQueryString, width)),
+    live: false,
+  };
+}
 
 const SHAPES: { value: PosterShape; label: string }[] = [
   { value: "poster", label: "Portrait" },
@@ -59,7 +85,7 @@ export function SetupPreviewSidebar(props: {
   idOk: boolean;
   livePreviewSrc: string | null;
   liveTitles: PreviewTitle[];
-  posterSrcForImdb: (imdbId: string) => string;
+  previewForImdb: (imdbId: string) => PreviewImageSrcs;
   liveError: string | null;
   hasPreviewCredential: boolean;
   overlayQueryString: string;
@@ -70,29 +96,34 @@ export function SetupPreviewSidebar(props: {
   onEditPart: (part: PosterPart) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [failedSrcs, setFailedSrcs] = useState<ReadonlySet<string>>(() => new Set());
 
-  const { liveTitles, posterSrcForImdb, overlayQueryString, showcaseQueryString } = props;
+  const { liveTitles, previewForImdb, overlayQueryString, showcaseQueryString } = props;
   const options = useMemo<TitleOption[]>(
     () =>
       liveTitles.length > 0
-        ? liveTitles.map((title) => ({
-            key: title.imdbId,
-            label: title.title,
-            src: posterSrcForImdb(title.imdbId),
-          }))
-        : DEMO_TITLES.map((demo) => ({
-            key: demo.id,
-            label: demo.title,
-            src: resolveSetupDemoPosterSrc(demo.id, overlayQueryString, showcaseQueryString),
-          })),
-    [liveTitles, overlayQueryString, posterSrcForImdb, showcaseQueryString],
+        ? liveTitles.map((title, index) => {
+            const srcs = previewForImdb(title.imdbId);
+            if (failedSrcs.has(srcs.full)) {
+              return demoOption(title.imdbId, index, overlayQueryString, showcaseQueryString);
+            }
+            return { key: title.imdbId, label: title.title, src: srcs.full, thumb: srcs.thumb, thumbSrcSet: srcs.thumbSrcSet, live: true };
+          })
+        : DEMO_TITLES.map((demo, index) => demoOption(demo.id, index, overlayQueryString, showcaseQueryString)),
+    [failedSrcs, liveTitles, overlayQueryString, previewForImdb, showcaseQueryString],
   );
+  const markFailed = useCallback((src: string) => {
+    setFailedSrcs((prev) => (prev.has(src) ? prev : new Set(prev).add(src)));
+  }, []);
   const usingCustom = selected === CUSTOM_TITLE;
   const activeOption = usingCustom
     ? null
     : (options.find((option) => option.key === selected) ?? options[0] ?? null);
   const targetSrc = usingCustom ? props.livePreviewSrc : (activeOption?.src ?? null);
   const { displaySrc, isLoading, loadFailed } = usePreloadedPosterSrc(targetSrc);
+  useEffect(() => {
+    if (loadFailed && targetSrc && activeOption?.live) markFailed(targetSrc);
+  }, [activeOption?.live, loadFailed, markFailed, targetSrc]);
   const waitingForPreview = Boolean(targetSrc) && !displaySrc && !loadFailed;
   const showPoster = Boolean(displaySrc) && !loadFailed;
 
@@ -161,7 +192,10 @@ export function SetupPreviewSidebar(props: {
                 className={`${props.landscape ? "aspect-video" : "aspect-2/3"} w-full rounded-md object-cover ${isSelected ? "ring-2 ring-cyan-400" : ""}`}
                 decoding="async"
                 loading="lazy"
-                src={option.src}
+                onError={option.live ? () => markFailed(option.src) : undefined}
+                sizes={option.thumbSrcSet ? CHIP_SIZES : undefined}
+                src={option.thumb}
+                srcSet={option.thumbSrcSet}
               />
               {isSelected ? <SelectionCheck /> : null}
             </button>

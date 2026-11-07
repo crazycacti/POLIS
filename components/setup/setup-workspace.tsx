@@ -6,7 +6,7 @@ import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
 import { SetupLooks } from "@/components/setup/setup-looks";
 import { posterPartHeaderId, type PosterPart } from "@/components/setup/setup-poster-parts";
-import { SetupPreviewSidebar } from "@/components/setup/setup-preview-sidebar";
+import { SetupPreviewSidebar, type PreviewImageSrcs } from "@/components/setup/setup-preview-sidebar";
 import { useDebouncedValue } from "@/components/setup/use-preloaded-poster-src";
 import { SetupCatalogsPanel } from "@/components/setup/setup-catalogs-panel";
 import { SetupTabs, type SetupTab } from "@/components/setup/setup-tabs";
@@ -65,6 +65,9 @@ import {
 import { isImdbId } from "@/lib/stremio-imdb-id";
 import type { ApiKeyProvider } from "@/lib/api-key-validate";
 import { parsePreviewTitles, type PreviewTitle } from "@/lib/preview-title-list";
+import { previewKeysCookieHeader, previewProvidersTag, type PreviewCallerKeys } from "@/lib/preview-keys";
+import { previewPosterPath } from "@/lib/preview-poster-urls";
+import { PREVIEW_SMALL_THUMB_WIDTH, previewThumbSrcSet } from "@/lib/preview-sizes";
 
 const SIDE_BY_SIDE_LAYOUT_QUERY = "(min-width: 64rem)";
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -359,7 +362,6 @@ export function SetupWorkspace(props: {
   const hasCatalogMdblist = hasMdblist;
   const hasProfileTmdb = configExists && configHasTmdbKey && !profileKeyRemovals.tmdb;
   const hasProfileMdblist = configExists && configHasMdblistKey && !profileKeyRemovals.mdblist;
-  const configHasIntegrator = configHasTmdbKey || configHasMdblistKey;
   const hasRequiredKeys = useMemo(
     () =>
       hasRequiredSetupKeys({
@@ -482,47 +484,95 @@ export function SetupWorkspace(props: {
     }
   }, [artworkKeys, overlay.artwork, overlay.artworkMovie, overlay.artworkFallback]);
 
-  const useConfigScopedPreview = Boolean(
-    configId &&
-      configExists &&
-      configHasIntegrator &&
-      !props.hasServerTmdb,
+  const browserTmdbKey = userAuthParams ? secretInput.trim() : null;
+  const previewCallerKeys = useMemo<PreviewCallerKeys>(
+    () => ({
+      tmdb: browserTmdbKey,
+      mdblist: browserArtworkKeys.mdblistApiKey,
+      fanart: browserArtworkKeys.fanartApiKey,
+      tvdb: browserArtworkKeys.tvdbApiKey,
+    }),
+    [browserArtworkKeys, browserTmdbKey],
   );
+  const previewProviders = useMemo(
+    () =>
+      previewProvidersTag({
+        tmdb: props.hasServerTmdb || browserTmdbKey != null,
+        mdblist: props.hasServerMdblist || previewCallerKeys.mdblist != null,
+        fanart: props.hasServerFanart || previewCallerKeys.fanart != null,
+        tvdb: props.hasServerTvdb || previewCallerKeys.tvdb != null,
+      }),
+    [
+      browserTmdbKey,
+      previewCallerKeys,
+      props.hasServerFanart,
+      props.hasServerMdblist,
+      props.hasServerTmdb,
+      props.hasServerTvdb,
+    ],
+  );
+  const [previewCookieTag, setPreviewCookieTag] = useState<string | null>(null);
+  useEffect(() => {
+    if (!catalogsHydrated) return;
+    // Preview images read keys from this path-scoped cookie so keys stay out of image URLs; URLs change only after it is written.
+    document.cookie = previewKeysCookieHeader(previewCallerKeys, window.location.protocol === "https:");
+    setPreviewCookieTag(previewProviders);
+  }, [catalogsHydrated, previewCallerKeys, previewProviders]);
 
-  const posterSrcForImdb = useCallback(
-    (imdbId: string) => {
-      const rev = `polis_r=${POLIS_RENDERER_REVISION}`;
-      const path =
-        configId && useConfigScopedPreview
-          ? `/${configId}/poster/imdb/poster-default/${imdbId}.jpg`
-          : `/poster/imdb/poster-default/${imdbId}.jpg`;
-      const qs = previewQueryString ? `${previewQueryString}&${rev}` : rev;
-      return `${path}?${qs}`;
+  const profileHasMissingKey =
+    (configHasTmdbKey && !props.hasServerTmdb && !browserTmdbKey) ||
+    (configHasMdblistKey && !props.hasServerMdblist && !previewCallerKeys.mdblist);
+  const useConfigScopedPreview = Boolean(configId && configExists && profileHasMissingKey);
+
+  const previewForImdb = useCallback(
+    (imdbId: string): PreviewImageSrcs => {
+      if (configId && useConfigScopedPreview) {
+        const rev = `polis_r=${POLIS_RENDERER_REVISION}`;
+        const qs = previewQueryString ? `${previewQueryString}&${rev}` : rev;
+        const full = `/${configId}/poster/imdb/poster-default/${imdbId}.jpg?${qs}`;
+        return { full, thumb: full };
+      }
+      const tag = previewCookieTag ?? previewProviders;
+      return {
+        full: previewPosterPath(imdbId, previewOverlayQuery, tag, null),
+        thumb: previewPosterPath(imdbId, previewOverlayQuery, tag, PREVIEW_SMALL_THUMB_WIDTH),
+        thumbSrcSet: previewThumbSrcSet((width) => previewPosterPath(imdbId, previewOverlayQuery, tag, width)),
+      };
     },
-    [configId, previewQueryString, useConfigScopedPreview],
+    [configId, previewCookieTag, previewOverlayQuery, previewProviders, previewQueryString, useConfigScopedPreview],
   );
+  const previewSrcsReady = useConfigScopedPreview || previewCookieTag === previewProviders;
 
   const livePreviewSrc = useMemo(
-    () => (hasPreviewCredential && idOk ? posterSrcForImdb(imdbPreview) : null),
-    [hasPreviewCredential, idOk, imdbPreview, posterSrcForImdb],
+    () =>
+      hasPreviewCredential && idOk && previewSrcsReady ? previewForImdb(imdbPreview).full : null,
+    [hasPreviewCredential, idOk, imdbPreview, previewForImdb, previewSrcsReady],
   );
 
-  const previewTitlesKey = props.hasServerTmdb ? "" : (secretCheck.params ? secretInput.trim() : "");
+  const previewTitlesBody = useMemo(
+    () =>
+      browserTmdbKey && !props.hasServerTmdb
+        ? JSON.stringify({
+            tmdbKey: browserTmdbKey,
+            mdblistKey: previewCallerKeys.mdblist,
+            fanartKey: previewCallerKeys.fanart,
+            tvdbKey: previewCallerKeys.tvdb,
+          })
+        : null,
+    [browserTmdbKey, previewCallerKeys, props.hasServerTmdb],
+  );
   const [previewTitles, setPreviewTitles] = useState<PreviewTitle[]>([]);
   useEffect(() => {
-    if (!props.hasServerTmdb && !previewTitlesKey) {
-      setPreviewTitles([]);
-      return;
-    }
+    if (!catalogsHydrated) return;
     const controller = new AbortController();
-    const init: RequestInit = props.hasServerTmdb
-      ? { signal: controller.signal }
-      : {
+    const init: RequestInit = previewTitlesBody
+      ? {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tmdbKey: previewTitlesKey }),
+          body: previewTitlesBody,
           signal: controller.signal,
-        };
+        }
+      : { signal: controller.signal };
     (async () => {
       try {
         const res = await fetch("/api/preview/titles", init);
@@ -535,7 +585,7 @@ export function SetupWorkspace(props: {
       }
     })();
     return () => controller.abort();
-  }, [previewTitlesKey, props.hasServerTmdb]);
+  }, [catalogsHydrated, previewTitlesBody]);
 
   const patterns = origin ? aiometadataArtPatterns(origin, queryString) : null;
 
@@ -890,8 +940,8 @@ export function SetupWorkspace(props: {
               !props.hasServerTmdb && secretInput.trim() ? secretCheck.error : null
             }
             livePreviewSrc={livePreviewSrc}
-            liveTitles={hasPreviewCredential ? previewTitles : []}
-            posterSrcForImdb={posterSrcForImdb}
+            liveTitles={previewSrcsReady ? previewTitles : []}
+            previewForImdb={previewForImdb}
             onImdbChange={setImdbPreview}
             landscape={overlay.posterShape === "landscape"}
             onEditPart={(part) => {

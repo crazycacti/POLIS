@@ -8,6 +8,7 @@ import { posterContentType } from "@/lib/poster-output-format";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { demoRenderCacheKey, renderDemoPosterJpegCached } from "@/lib/demo-render-cache";
 import { cachedPreviewThumb, parsePreviewWidth, PREVIEW_THUMB_CONTENT_TYPE } from "@/lib/preview-image-cache";
+import { PREVIEW_WIDTH_PARAM } from "@/lib/preview-sizes";
 import { stremioCorsHeaders } from "@/lib/stremio-cors";
 
 export const runtime = "nodejs";
@@ -28,7 +29,7 @@ export async function GET(
   if (!getDemoTitle(demoId)) {
     return new NextResponse("Not found", { status: 404 });
   }
-  const width = parsePreviewWidth(request.nextUrl.searchParams.get("w"));
+  const width = parsePreviewWidth(request.nextUrl.searchParams.get(PREVIEW_WIDTH_PARAM));
   if (!width.ok) {
     return new NextResponse("Bad request", { status: 400 });
   }
