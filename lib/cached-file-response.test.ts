@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -54,6 +54,28 @@ describe("imageResponse", () => {
     expect(revalidated.headers.get("cache-control")).toBe(HEADERS["Cache-Control"]);
     expect(revalidated.headers.get("access-control-allow-origin")).toBe("*");
     expect(revalidated.headers.get("content-type")).toBeNull();
+  });
+
+  test("revalidates a disk copy repeatedly and picks up a replaced file", async () => {
+    const file = path.join(root, "poster.webp");
+    await writeFile(file, new Uint8Array([1, 1, 1]));
+    const first = await imageResponse(request(), { path: file }, HEADERS);
+    const firstTag = first.headers.get("etag") ?? "";
+
+    const again = await imageResponse(request(firstTag), { path: file }, HEADERS);
+    expect(again.status).toBe(304);
+    expect(again.headers.get("etag")).toBe(firstTag);
+
+    const replacement = path.join(root, "poster.webp.tmp");
+    await writeFile(replacement, new Uint8Array([2, 2, 2, 2]));
+    await rename(replacement, file);
+
+    const replaced = await imageResponse(request(firstTag), { path: file }, HEADERS);
+    expect(replaced.status).toBe(200);
+    expect(new Uint8Array(await replaced.arrayBuffer())).toEqual(new Uint8Array([2, 2, 2, 2]));
+    expect(replaced.headers.get("etag")).toBe(
+      (await imageResponse(request(), { bytes: new Uint8Array([2, 2, 2, 2]) }, HEADERS)).headers.get("etag"),
+    );
   });
 
   test("sends the full image when the client holds an older version", async () => {
