@@ -19,8 +19,19 @@ import type {
   PosterShape,
   RatingStyle,
 } from "@/lib/poster-query";
-import { overlayStyleMatchesDefaults, resetOverlayStyleToDefaults } from "@/lib/poster-query";
+import {
+  LOGO_SOURCES_AUTO,
+  overlayStyleMatchesDefaults,
+  resetOverlayStyleToDefaults,
+} from "@/lib/poster-query";
 import type { RatingSource } from "@/lib/ratings";
+
+const LOGO_SOURCE_ORDERS: { value: string; label: string }[] = [
+  { value: LOGO_SOURCES_AUTO, label: "Match the art" },
+  { value: "tmdb,fanart,tvdb", label: "TMDB first" },
+  { value: "fanart,tmdb,tvdb", label: "Fanart first" },
+  { value: "tvdb,tmdb,fanart", label: "TVDB first" },
+];
 
 const RATING_SOURCES: { value: RatingSource; label: string }[] = [
   { value: "average", label: "Average" },
@@ -158,6 +169,22 @@ export function SetupOverlayPanel(props: {
                   <option value="small">Small</option>
                   <option value="medium">Medium</option>
                   <option value="large">Large</option>
+                </select>
+              </SetupOverlayField>
+              <SetupOverlayField label="Logo source">
+                <select
+                  className="polis-select"
+                  onChange={(e) => setOverlay((o) => ({ ...o, logoSources: e.target.value }))}
+                  value={overlay.logoSources}
+                >
+                  {LOGO_SOURCE_ORDERS.map((order) => (
+                    <option key={order.value} value={order.value}>
+                      {order.label}
+                    </option>
+                  ))}
+                  {LOGO_SOURCE_ORDERS.some((order) => order.value === overlay.logoSources) ? null : (
+                    <option value={overlay.logoSources}>Custom</option>
+                  )}
                 </select>
               </SetupOverlayField>
             </>
