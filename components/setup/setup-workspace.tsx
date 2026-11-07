@@ -210,10 +210,11 @@ export function SetupWorkspace(props: {
   }, []);
 
   useEffect(() => {
+    if (!catalogsHydrated) return;
     try {
       localStorage.setItem(LS_CATALOGS, JSON.stringify(selectedCatalogs));
     } catch {}
-  }, [selectedCatalogs]);
+  }, [catalogsHydrated, selectedCatalogs]);
 
   const queryString = useMemo(() => serializePosterQuery(overlay), [overlay]);
   const showcaseQueryString = useMemo(
