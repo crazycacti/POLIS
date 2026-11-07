@@ -1,6 +1,5 @@
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { inferTmdbCredentialParams, tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
-import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tvdbLoginResult } from "@/lib/tvdb-client";
 import { parseTvdbCredentials } from "@/lib/tvdb-credentials";
 
