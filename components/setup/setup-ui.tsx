@@ -37,22 +37,24 @@ export function SetupToggle(props: {
   disabled?: boolean;
 }) {
   return (
-    <div className={`polis-toggle-row ${props.disabled ? "opacity-50" : ""}`}>
+    <label
+      className={`polis-toggle-row min-h-10 ${props.disabled ? "cursor-not-allowed opacity-50" : ""}`}
+    >
       <span className="text-sm text-zinc-200">{props.label}</span>
       <PolisSwitch
-        aria-label={props.label}
         checked={props.checked}
         disabled={props.disabled}
+        insideLabel
         onChange={props.onChange}
       />
-    </div>
+    </label>
   );
 }
 
 export function PatternRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-medium text-zinc-400">{label}</p>
+      <p className="mb-1.5 text-sm font-medium text-zinc-300">{label}</p>
       <div className="polis-code flex flex-wrap items-center justify-between gap-3">
         <code className="break-all text-xs text-zinc-300">{value}</code>
         <CopyButton text={value} />

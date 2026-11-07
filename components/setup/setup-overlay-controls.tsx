@@ -33,7 +33,7 @@ export function SetupOverlayOption(props: {
 export function SetupOverlayField(props: { label: string; children: ReactNode; className?: string }) {
   return (
     <label className={`block ${props.className ?? ""}`}>
-      <span className="mb-1.5 block text-xs text-zinc-400">{props.label}</span>
+      <span className="mb-1.5 block text-sm text-zinc-300">{props.label}</span>
       {props.children}
     </label>
   );
@@ -68,14 +68,10 @@ export function SetupOverlaySwitch(props: {
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="polis-switch-row">
+    <label className="polis-switch-row min-h-10 cursor-pointer">
       <span>{props.label}</span>
-      <PolisSwitch
-        aria-label={props.label}
-        checked={props.checked}
-        onChange={props.onChange}
-      />
-    </div>
+      <PolisSwitch checked={props.checked} insideLabel onChange={props.onChange} />
+    </label>
   );
 }
 

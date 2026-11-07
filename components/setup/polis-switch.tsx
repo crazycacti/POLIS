@@ -5,9 +5,11 @@ export function PolisSwitch(props: {
   disabled?: boolean;
   onChange: (checked: boolean) => void;
   "aria-label"?: string;
+  insideLabel?: boolean;
 }) {
+  const Wrapper = props.insideLabel ? "span" : "label";
   return (
-    <label
+    <Wrapper
       className={`polis-switch ${props.disabled ? "polis-switch--disabled" : ""}`}
     >
       <input
@@ -54,6 +56,6 @@ export function PolisSwitch(props: {
           </svg>
         </span>
       </span>
-    </label>
+    </Wrapper>
   );
 }
