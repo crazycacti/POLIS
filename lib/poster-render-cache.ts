@@ -16,6 +16,7 @@ import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { findTmdbTitle } from "@/lib/tmdb-resolve";
 import { fetchTmdbTrendingRank } from "@/lib/tmdb-trending-rank";
+import { runAsBackgroundUpstreamWork } from "@/lib/upstream-priority";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
 type MemoryEntry = { image: Buffer; at: number };
@@ -154,6 +155,7 @@ export async function renderPosterForImdbCached(params: {
   credential: TmdbCredential;
   language: string;
   mdblistApiKey: string | null;
+  mdblistServerKeyProfile?: string | null;
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
   configId: string | null;
@@ -219,6 +221,7 @@ export async function renderPosterForImdbCached(params: {
             credential: params.credential,
             language: params.language,
             mdblistApiKey: params.mdblistApiKey,
+            mdblistServerKeyProfile: params.mdblistServerKeyProfile ?? null,
             fanartApiKey: params.fanartApiKey,
             tvdbCredentials: params.tvdbCredentials,
             configId: params.configId,
@@ -247,7 +250,7 @@ export async function renderPosterForImdbCached(params: {
   const stalePath = await findStalePoster();
   if (stalePath) {
     if (!inStaleBackoff(cacheKey)) {
-      void renderFresh().catch((error) => {
+      void runAsBackgroundUpstreamWork(renderFresh).catch((error) => {
         startStaleBackoff(cacheKey);
         console.warn(`[polis] background poster refresh failed for ${params.imdbId}`, error);
       });

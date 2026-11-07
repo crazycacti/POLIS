@@ -5,6 +5,7 @@ import { polisDiskCacheEnabled } from "@/lib/polis-disk-cache";
 import { normalizePublicBase } from "@/lib/polis-urls";
 import { handlePosterDefaultRequest } from "@/lib/poster-route-handler";
 import { mapWithConcurrency, type StremioCatalogMeta } from "@/lib/stremio-catalog-fetch";
+import { runAsBackgroundUpstreamWork } from "@/lib/upstream-priority";
 
 const PREWARM_POSTER_COUNT = 12;
 const PREWARM_CONCURRENCY = 4;
@@ -41,10 +42,8 @@ export function prewarmCatalogPosters(metas: StremioCatalogMeta[], publicBase: s
 
   void mapWithConcurrency(targets, PREWARM_CONCURRENCY, async (target) => {
     try {
-      const response = await handlePosterDefaultRequest(
-        new NextRequest(target.url),
-        target.imdbId,
-        target.configId,
+      const response = await runAsBackgroundUpstreamWork(() =>
+        handlePosterDefaultRequest(new NextRequest(target.url), target.imdbId, target.configId),
       );
       await response.body?.cancel();
       return response.ok;

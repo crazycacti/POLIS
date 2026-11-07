@@ -1,4 +1,5 @@
 import { polisSingleflight } from "@/lib/polis-singleflight";
+import { runAsBackgroundUpstreamWork } from "@/lib/upstream-priority";
 
 const REFRESH_RETRY_DELAY_MS = 5 * 60 * 1000;
 const REFRESH_BLOCK_MAX_KEYS = 5000;
@@ -51,7 +52,7 @@ export async function serveFreshOrStale<T>(params: {
   if (!stale) return rebuild();
 
   if (refreshAllowed(params.key)) {
-    void rebuild().then(
+    void runAsBackgroundUpstreamWork(rebuild).then(
       (value) => {
         if (!params.isStorable(value)) blockRefresh(params.key);
       },

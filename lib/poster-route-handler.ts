@@ -5,14 +5,13 @@ import { cachedFileReadableStream } from "@/lib/cached-file-response";
 import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { resolveFanartAuth } from "@/lib/fanart-auth";
-import { resolveMdblistAuth } from "@/lib/mdblist-auth";
 import { resolveTvdbAuth } from "@/lib/tvdb-auth";
 import { posterContentType } from "@/lib/poster-output-format";
 import { posterHttpCacheControl } from "@/lib/poster-cache-headers";
 import { parsePosterOverlayQuery } from "@/lib/poster-query";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { renderPosterForImdbCached } from "@/lib/poster-render-cache";
-import { resolvePolisIntegratorAuth } from "@/lib/stremio-integrator-auth";
+import { resolvePolisIntegratorAuth, serverKeyProfileFor } from "@/lib/stremio-integrator-auth";
 import { resolveTmdbAuth } from "@/lib/tmdb-auth";
 import { stremioCorsHeaders } from "@/lib/stremio-cors";
 
@@ -46,8 +45,7 @@ async function handlePosterDefaultRequestInner(
     return new NextResponse("Unavailable", { status: 503 });
   }
 
-  const mdblistApiKey =
-    integrator.mdblistApiKey ?? resolveMdblistAuth(request)?.apiKey ?? null;
+  const mdblistApiKey = integrator.mdblistApiKey;
   const fanartApiKey = resolveFanartAuth(request)?.apiKey ?? null;
   const tvdbCredentials = resolveTvdbAuth(request)?.credentials ?? null;
 
@@ -60,6 +58,7 @@ async function handlePosterDefaultRequestInner(
     credential: auth.credential,
     language,
     mdblistApiKey,
+    mdblistServerKeyProfile: serverKeyProfileFor(integrator.mdblistKeySource, configId),
     fanartApiKey,
     tvdbCredentials,
     configId,
