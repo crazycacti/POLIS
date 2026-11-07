@@ -13,7 +13,7 @@ export function SetupOverlayOption(props: {
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="border-b border-white/5 py-3 last:border-0">
+    <div className="py-3">
       <SetupToggle
         checked={props.checked}
         disabled={props.disabled}
@@ -105,8 +105,4 @@ export function SetupOverlayColor(props: {
       ) : null}
     </>
   );
-}
-
-export function SetupOverlayNote(props: { children: ReactNode }) {
-  return <p className="text-xs leading-relaxed text-zinc-600 sm:col-span-2">{props.children}</p>;
 }

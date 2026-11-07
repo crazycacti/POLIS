@@ -3,7 +3,7 @@
 export type ClientPreviewView = "poster" | "phone" | "resume" | "tv";
 
 const VIEWS: { id: ClientPreviewView; label: string }[] = [
-  { id: "poster", label: "Poster" },
+  { id: "poster", label: "Full size" },
   { id: "phone", label: "Phone row" },
   { id: "resume", label: "Continue watching" },
   { id: "tv", label: "TV row" },
@@ -19,7 +19,7 @@ export function ClientPreviewTabs(props: {
   onChange: (view: ClientPreviewView) => void;
 }) {
   return (
-    <div aria-label="Preview as" className="mb-3 grid grid-cols-2 gap-1 rounded-lg border border-zinc-800 p-1" role="group">
+    <div aria-label="Preview as" className="grid grid-cols-2 gap-1 rounded-lg bg-zinc-900 p-1" role="group">
       {VIEWS.map((view) => {
         const selected = props.value === view.id;
         return (
@@ -40,17 +40,35 @@ export function ClientPreviewTabs(props: {
   );
 }
 
-function NeighborTile(props: { width: number; dim?: boolean }) {
+function NeighborTile(props: { width: number; src?: string; dim?: boolean }) {
+  if (!props.src) {
+    return (
+      <div
+        aria-hidden
+        className={`aspect-2/3 shrink-0 rounded-md bg-zinc-800/80 ${props.dim ? "opacity-50" : ""}`}
+        style={{ width: props.width }}
+      />
+    );
+  }
   return (
-    <div
+    <img
+      alt=""
       aria-hidden
-      className={`aspect-2/3 shrink-0 rounded-md bg-zinc-800/80 ${props.dim ? "opacity-50" : ""}`}
+      className={`aspect-2/3 shrink-0 rounded-md object-cover ${props.dim ? "opacity-50" : ""}`}
+      decoding="async"
+      loading="lazy"
+      src={props.src}
       style={{ width: props.width }}
     />
   );
 }
 
-export function ClientPreview(props: { view: Exclude<ClientPreviewView, "poster">; src: string }) {
+export function ClientPreview(props: {
+  view: Exclude<ClientPreviewView, "poster">;
+  src: string;
+  neighborSrcs?: string[];
+}) {
+  const [first, second] = props.neighborSrcs ?? [];
   if (props.view === "phone") {
     return (
       <div className="flex items-start gap-2 overflow-hidden rounded-lg bg-black px-3 py-4">
@@ -60,8 +78,8 @@ export function ClientPreview(props: { view: Exclude<ClientPreviewView, "poster"
           src={props.src}
           style={{ width: PHONE_TILE_PX }}
         />
-        <NeighborTile width={PHONE_TILE_PX} />
-        <NeighborTile width={PHONE_TILE_PX} />
+        <NeighborTile src={first} width={PHONE_TILE_PX} />
+        <NeighborTile src={second} width={PHONE_TILE_PX} />
       </div>
     );
   }
@@ -76,21 +94,21 @@ export function ClientPreview(props: { view: Exclude<ClientPreviewView, "poster"
             <div className="h-full bg-cyan-400" style={{ width: `${RESUME_PROGRESS * 100}%` }} />
           </div>
         </div>
-        <NeighborTile width={RESUME_TILE_PX} />
+        <NeighborTile src={first} width={RESUME_TILE_PX} />
       </div>
     );
   }
 
   return (
     <div className="flex items-center justify-center gap-4 overflow-hidden rounded-lg bg-zinc-900 py-6">
-      <NeighborTile dim width={TV_TILE_PX * 0.8} />
+      <NeighborTile dim src={first} width={TV_TILE_PX * 0.8} />
       <img
         alt="Poster focused in a TV row"
         className="aspect-2/3 shrink-0 scale-110 rounded-lg object-cover shadow-2xl shadow-black/70 ring-2 ring-white/90"
         src={props.src}
         style={{ width: TV_TILE_PX }}
       />
-      <NeighborTile dim width={TV_TILE_PX * 0.8} />
+      <NeighborTile dim src={second} width={TV_TILE_PX * 0.8} />
     </div>
   );
 }

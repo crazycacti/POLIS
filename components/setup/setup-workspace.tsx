@@ -6,7 +6,7 @@ import { CopyButton } from "@/components/copy-button";
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
 import { SetupPanel, PatternRow } from "@/components/setup/setup-ui";
-import { SetupDemoPreviewRow } from "@/components/setup/setup-demo-preview-row";
+import { SetupLooks } from "@/components/setup/setup-looks";
 import { SetupPreviewSidebar } from "@/components/setup/setup-preview-sidebar";
 import { useDebouncedValue } from "@/components/setup/use-preloaded-poster-src";
 import { SetupCatalogsPanel } from "@/components/setup/setup-catalogs-panel";
@@ -16,6 +16,7 @@ import { mergePosterQueryForConfigurePreview } from "@/lib/integrator-auth";
 import { SetupPasswordDialog } from "@/components/setup/setup-password-dialog";
 import { stremioUserInstallUrl } from "@/lib/polis-install-urls";
 import { aiometadataArtPatterns } from "@/lib/polis-urls";
+import { lookCodeFromSearch } from "@/lib/poster-look-code";
 import { defaultCatalogsForCredentials } from "@/lib/catalog-defaults";
 import { parsePolisCatalogDefinitionsFromJson } from "@/lib/polis-catalogs-json";
 import {
@@ -79,6 +80,8 @@ export function SetupWorkspace(props: {
   const [tab, setTab] = useState<SetupTab>("style");
   const [overlay, setOverlay] = useState(props.initialOverlay);
   const [imdbPreview, setImdbPreview] = useState("tt12042730");
+  const [overlaySettled, setOverlaySettled] = useState(false);
+  const [lookCodeParam, setLookCodeParam] = useState<string | null>(null);
   const [secretInput, setSecretInput] = useState("");
   const [mdblistInput, setMdblistInput] = useState("");
   const [fanartInput, setFanartInput] = useState("");
@@ -141,6 +144,7 @@ export function SetupWorkspace(props: {
       setConfigExists(false);
       setConfigHasTmdbKey(false);
       setConfigHasMdblistKey(false);
+      if (catalogsHydrated) setOverlaySettled(true);
       return;
     }
     let cancelled = false;
@@ -180,12 +184,18 @@ export function SetupWorkspace(props: {
         if (origin) {
           setInstallUrl(stremioUserInstallUrl(origin, cid));
         }
-      } catch {}
+      } catch {} finally {
+        if (!cancelled) setOverlaySettled(true);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [configId, origin]);
+  }, [catalogsHydrated, configId, origin]);
+
+  useEffect(() => {
+    setLookCodeParam(lookCodeFromSearch(window.location.search));
+  }, []);
 
   useEffect(() => {
     try {
@@ -611,20 +621,24 @@ export function SetupWorkspace(props: {
 
       {tab === "style" ? (
         <>
-          <SetupDemoPreviewRow
-            overlayQueryString={previewOverlayQuery}
-            showcaseQueryString={showcaseQueryString}
-          />
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
           <div className="min-w-0 flex-1">
-          <SetupPanel title="Poster art">
+          <SetupLooks
+            initialLookCode={overlaySettled ? lookCodeParam : null}
+            onChange={setOverlay}
+            origin={origin}
+            overlay={overlay}
+          />
+          <SetupOverlayPanel
+            artworkControls={
+              <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 block text-xs text-zinc-500">
                 Poster art source
                 {overlay.artwork === "tvdb" ? " (TV series)" : ""}
               </span>
               <select
-                className="polis-select max-w-md"
+                className="polis-select w-full"
                 onChange={(e) => {
                   const artwork = e.target.value as PosterArtworkSource;
                   setOverlay((o) => ({
@@ -646,10 +660,10 @@ export function SetupWorkspace(props: {
               </select>
             </label>
             {overlay.artwork === "tvdb" ? (
-              <label className="mt-3 block">
+              <label className="block">
                 <span className="mb-1.5 block text-xs text-zinc-500">Movie poster source</span>
                 <select
-                  className="polis-select max-w-md"
+                  className="polis-select w-full"
                   onChange={(e) =>
                     setOverlay((o) => ({
                       ...o,
@@ -669,10 +683,10 @@ export function SetupWorkspace(props: {
                 </select>
               </label>
             ) : null}
-            <label className="mt-3 block">
+            <label className="block">
               <span className="mb-1.5 block text-xs text-zinc-500">Poster fallback</span>
               <select
-                className="polis-select max-w-md"
+                className="polis-select w-full"
                 onChange={(e) =>
                   setOverlay((o) => ({
                     ...o,
@@ -691,8 +705,11 @@ export function SetupWorkspace(props: {
                 })}
               </select>
             </label>
-          </SetupPanel>
-          <SetupOverlayPanel overlay={overlay} setOverlay={setOverlay} />
+              </div>
+            }
+            overlay={overlay}
+            setOverlay={setOverlay}
+          />
           </div>
           <SetupPreviewSidebar
             hasPreviewCredential={hasPreviewCredential}
@@ -703,6 +720,8 @@ export function SetupWorkspace(props: {
             }
             livePreviewSrc={livePreviewSrc}
             onImdbChange={setImdbPreview}
+            overlayQueryString={previewOverlayQuery}
+            showcaseQueryString={showcaseQueryString}
           />
         </div>
         </>

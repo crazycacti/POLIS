@@ -18,6 +18,18 @@ export function SetupPanel(props: {
   );
 }
 
+export function SetupSection(props: { title: string; children: ReactNode }) {
+  const headingId = `setup-section-${props.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return (
+    <section aria-labelledby={headingId} className="mb-10">
+      <h2 className="mb-1 text-lg font-semibold text-white" id={headingId}>
+        {props.title}
+      </h2>
+      <div className="divide-y divide-white/5">{props.children}</div>
+    </section>
+  );
+}
+
 export function SetupToggle(props: {
   label: string;
   checked: boolean;
