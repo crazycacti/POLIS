@@ -46,7 +46,7 @@ export function SetupSaveBar(props: {
   return (
     <div className="sticky bottom-0 z-30 -mx-4 mt-10 border-t border-white/10 bg-zinc-950/80 px-4 backdrop-blur-md sm:-mx-6 sm:px-6">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-        <div className="flex min-w-0 flex-1 basis-40 items-center gap-2 text-sm">
+        <div className="flex min-w-0 flex-1 basis-full items-center gap-2 text-sm sm:basis-48">
           {props.error ? (
             <p className="min-w-0 text-amber-200/95" role="alert">
               {props.error}
@@ -79,36 +79,38 @@ export function SetupSaveBar(props: {
           ) : null}
         </div>
 
-        <button
-          className="polis-btn-secondary pointer-coarse:min-h-11"
-          onClick={() => setOptionsOpen(true)}
-          type="button"
-        >
-          <span className="sm:hidden">More</span>
-          <span className="hidden sm:inline">More install options</span>
-        </button>
-        {props.installUrl ? (
-          <div className="hidden items-center gap-2 sm:flex">
-            <CopyButton label="Copy URL" text={props.installUrl} />
-            {deepLink ? (
-              <a className="polis-btn-secondary" href={deepLink}>
-                Install in Stremio
-              </a>
-            ) : null}
-          </div>
-        ) : null}
-        <button
-          aria-describedby={locked ? reasonId : undefined}
-          aria-disabled={locked ? true : undefined}
-          className="polis-btn pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={props.saving}
-          onClick={() => {
-            if (!locked) props.onSave();
-          }}
-          type="button"
-        >
-          {props.saveLabel}
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            className="polis-btn-secondary pointer-coarse:min-h-11"
+            onClick={() => setOptionsOpen(true)}
+            type="button"
+          >
+            <span className="sm:hidden">More</span>
+            <span className="hidden sm:inline">More install options</span>
+          </button>
+          {props.installUrl ? (
+            <div className="hidden items-center gap-2 sm:flex">
+              <CopyButton label="Copy URL" text={props.installUrl} />
+              {deepLink ? (
+                <a className="polis-btn-secondary" href={deepLink}>
+                  Install in Stremio
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+          <button
+            aria-describedby={locked ? reasonId : undefined}
+            aria-disabled={locked ? true : undefined}
+            className="polis-btn pointer-coarse:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={props.saving}
+            onClick={() => {
+              if (!locked) props.onSave();
+            }}
+            type="button"
+          >
+            {props.saveLabel}
+          </button>
+        </div>
       </div>
 
       <SetupDialog
