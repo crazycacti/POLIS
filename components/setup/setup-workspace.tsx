@@ -65,6 +65,7 @@ const LS_MDBLIST = "polis_user_mdblist_key";
 const LS_FANART = "polis_user_fanart_key";
 const LS_TVDB = "polis_user_tvdb_key";
 const LS_CONFIG_ID = "polis_config_id";
+const NEW_PROFILE_USERNAME = "POLIS profile";
 const LS_CATALOGS = "polis_user_catalogs";
 const LS_CATALOGS_CUSTOMIZED = "polis_catalogs_customized";
 
@@ -710,6 +711,7 @@ export function SetupWorkspace(props: {
         }}
         open={passwordDialogOpen}
         saving={configSaving}
+        username={configId ?? NEW_PROFILE_USERNAME}
       />
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-white">

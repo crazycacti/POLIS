@@ -12,6 +12,7 @@ export function SetupPasswordDialog(props: {
   error: string | null;
   onClose: () => void;
   onConfirm: (password: string, passwordConfirm: string) => void;
+  username: string;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -38,9 +39,14 @@ export function SetupPasswordDialog(props: {
     props.onClose();
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const validated = validateNewPasswordPair(password, confirm);
+    const form = new FormData(e.currentTarget);
+    const filledPassword = String(form.get("new-password") ?? password);
+    const filledConfirm = String(form.get("confirm-password") ?? confirm);
+    setPassword(filledPassword);
+    setConfirm(filledConfirm);
+    const validated = validateNewPasswordPair(filledPassword, filledConfirm);
     if (!validated.ok) {
       setLocalError(validated.error);
       return;
@@ -73,6 +79,7 @@ export function SetupPasswordDialog(props: {
         </p>
         <div className="mt-5">
           <SetupPasswordFields
+            username={props.username}
             confirm={confirm}
             disabled={props.saving}
             onConfirmChange={setConfirm}

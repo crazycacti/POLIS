@@ -12,8 +12,14 @@ export function ConfigureUnlockPanel(props: {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const filled = String(new FormData(e.currentTarget).get("current-password") ?? password);
+    setPassword(filled);
+    if (!filled.trim()) {
+      setError("Enter the profile password.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -21,7 +27,7 @@ export function ConfigureUnlockPanel(props: {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: filled }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
@@ -44,6 +50,16 @@ export function ConfigureUnlockPanel(props: {
         <code className="font-mono text-xs text-zinc-400">{props.configId}</code>.
       </p>
       <form className="mt-8 space-y-4" onSubmit={submit}>
+        <input
+          aria-hidden
+          autoComplete="username"
+          className="sr-only"
+          name="username"
+          readOnly
+          tabIndex={-1}
+          type="text"
+          value={props.configId}
+        />
         <label className="block">
           <span className="mb-1.5 block text-sm text-zinc-300">Password</span>
           <div className="relative">
@@ -51,6 +67,8 @@ export function ConfigureUnlockPanel(props: {
               autoComplete="current-password"
               className="polis-input pr-10"
               disabled={loading}
+              id="polis-current-password"
+              name="current-password"
               onChange={(e) => setPassword(e.target.value)}
               spellCheck={false}
               type={visible ? "text" : "password"}
@@ -76,7 +94,7 @@ export function ConfigureUnlockPanel(props: {
             {error}
           </p>
         ) : null}
-        <button className="polis-btn text-sm" disabled={loading || !password.trim()} type="submit">
+        <button className="polis-btn text-sm" disabled={loading} type="submit">
           {loading ? "Unlocking…" : "Continue"}
         </button>
       </form>

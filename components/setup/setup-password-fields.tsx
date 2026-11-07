@@ -13,6 +13,7 @@ export function SetupPasswordFields(props: {
   onConfirmChange: (value: string) => void;
   disabled?: boolean;
   hint?: string;
+  username: string;
 }) {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -20,6 +21,16 @@ export function SetupPasswordFields(props: {
   return (
     <div className="space-y-3">
       {props.hint ? <p className="text-sm text-zinc-400">{props.hint}</p> : null}
+      <input
+        aria-hidden
+        autoComplete="username"
+        className="sr-only"
+        name="username"
+        readOnly
+        tabIndex={-1}
+        type="text"
+        value={props.username}
+      />
       <label className="block">
         <span className="mb-1.5 block text-sm text-zinc-300">Password</span>
         <div className="relative">
@@ -27,6 +38,8 @@ export function SetupPasswordFields(props: {
             autoComplete="new-password"
             className="polis-input pr-10"
             disabled={props.disabled}
+            id="polis-new-password"
+            name="new-password"
             onChange={(e) => props.onPasswordChange(e.target.value)}
             placeholder={`At least ${POLIS_MIN_PASSWORD_LENGTH} characters`}
             spellCheck={false}
@@ -56,6 +69,8 @@ export function SetupPasswordFields(props: {
             autoComplete="new-password"
             className="polis-input pr-10"
             disabled={props.disabled}
+            id="polis-confirm-password"
+            name="confirm-password"
             onChange={(e) => props.onConfirmChange(e.target.value)}
             placeholder="Repeat password"
             spellCheck={false}
