@@ -8,12 +8,14 @@ export function hasTmdbCredential(serverKey: boolean, secretInput: string): bool
 
 export function hasRequiredSetupKeys(params: {
   hasServerTmdb: boolean;
+  hasProfileTmdb: boolean;
   tmdbInput: string;
   hasServerMdblist: boolean;
+  hasProfileMdblist: boolean;
   mdblistInput: string;
 }): boolean {
   return (
-    hasTmdbCredential(params.hasServerTmdb, params.tmdbInput) &&
-    hasMdblistCredential(params.hasServerMdblist, params.mdblistInput)
+    hasTmdbCredential(params.hasServerTmdb || params.hasProfileTmdb, params.tmdbInput) &&
+    hasMdblistCredential(params.hasServerMdblist || params.hasProfileMdblist, params.mdblistInput)
   );
 }

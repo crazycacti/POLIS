@@ -85,7 +85,8 @@ export function SetupWorkspace(props: {
   const [tvdbInput, setTvdbInput] = useState("");
   const [configId, setConfigId] = useState<string | null>(props.fixedConfigId?.trim() || null);
   const [configHasPassword, setConfigHasPassword] = useState(false);
-  const [configHasIntegrator, setConfigHasIntegrator] = useState(false);
+  const [configHasTmdbKey, setConfigHasTmdbKey] = useState(false);
+  const [configHasMdblistKey, setConfigHasMdblistKey] = useState(false);
   const [configExists, setConfigExists] = useState(false);
   const [installUrl, setInstallUrl] = useState<string | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -138,7 +139,8 @@ export function SetupWorkspace(props: {
     const cid = configId?.trim();
     if (!cid) {
       setConfigExists(false);
-      setConfigHasIntegrator(false);
+      setConfigHasTmdbKey(false);
+      setConfigHasMdblistKey(false);
       return;
     }
     let cancelled = false;
@@ -152,7 +154,8 @@ export function SetupWorkspace(props: {
             if (!props.fixedConfigId?.trim()) clearStoredConfigId();
           }
           setConfigExists(false);
-          setConfigHasIntegrator(false);
+          setConfigHasTmdbKey(false);
+          setConfigHasMdblistKey(false);
           return;
         }
         setConfigExists(true);
@@ -165,9 +168,8 @@ export function SetupWorkspace(props: {
         };
         if (cancelled) return;
         setConfigHasPassword(Boolean(data.hasPassword));
-        setConfigHasIntegrator(
-          Boolean(data.hasTmdbIntegrator || data.hasMdblistIntegrator),
-        );
+        setConfigHasTmdbKey(Boolean(data.hasTmdbIntegrator));
+        setConfigHasMdblistKey(Boolean(data.hasMdblistIntegrator));
         if (typeof data.posterQuery === "string" && data.posterQuery.trim()) {
           setOverlay(parsePosterOverlayQuery(new URLSearchParams(data.posterQuery)));
         }
@@ -251,23 +253,36 @@ export function SetupWorkspace(props: {
     browserArtworkKeys.mdblistApiKey,
   );
   const hasCatalogMdblist = hasMdblist;
+  const hasProfileTmdb = configExists && configHasTmdbKey;
+  const hasProfileMdblist = configExists && configHasMdblistKey;
+  const configHasIntegrator = configHasTmdbKey || configHasMdblistKey;
   const hasRequiredKeys = useMemo(
     () =>
       hasRequiredSetupKeys({
         hasServerTmdb: props.hasServerTmdb,
+        hasProfileTmdb,
         tmdbInput: secretInput,
         hasServerMdblist: props.hasServerMdblist,
+        hasProfileMdblist,
         mdblistInput: mdblistInput,
       }),
-    [mdblistInput, props.hasServerMdblist, props.hasServerTmdb, secretInput],
+    [
+      hasProfileMdblist,
+      hasProfileTmdb,
+      mdblistInput,
+      props.hasServerMdblist,
+      props.hasServerTmdb,
+      secretInput,
+    ],
   );
-  const hasTmdb = hasTmdbCredential(props.hasServerTmdb, secretInput);
+  const hasInstallTmdb = hasTmdbCredential(props.hasServerTmdb || hasProfileTmdb, secretInput);
+  const hasInstallMdblist = hasMdblist || hasProfileMdblist;
 
   const installLockTooltip = useMemo(() => {
     if (hasRequiredKeys) return undefined;
     const missing: string[] = [];
-    if (!hasTmdb) missing.push("TMDB");
-    if (!hasMdblist) missing.push("MDBList");
+    if (!hasInstallTmdb) missing.push("TMDB");
+    if (!hasInstallMdblist) missing.push("MDBList");
     if (missing.length === 0) {
       return "Add your API keys on the API keys tab to unlock Install.";
     }
@@ -278,7 +293,7 @@ export function SetupWorkspace(props: {
       return "TMDB and MDBList are required for poster overlays. Add your TMDB key on the API keys tab to unlock Install.";
     }
     return "TMDB and MDBList are required for poster overlays. Add your MDBList key on the API keys tab to unlock Install.";
-  }, [hasMdblist, hasRequiredKeys, hasTmdb]);
+  }, [hasInstallMdblist, hasInstallTmdb, hasRequiredKeys]);
 
   const overlayKeysMessage = useMemo(() => {
     if (hasRequiredKeys) return null;
@@ -464,7 +479,11 @@ export function SetupWorkspace(props: {
       if (!res.ok || !data.configId) {
         const message =
           data.error ??
-          (res.ok ? "Could not save config." : `Could not save config (server error ${res.status}). Try again later.`);
+          (res.ok
+            ? "Could not save config."
+            : res.status >= 500
+              ? `Could not save config (server error ${res.status}). Try again later.`
+              : `Could not save config (HTTP ${res.status}).`);
         if (password !== undefined) {
           setPasswordDialogError(message);
         } else {
@@ -477,9 +496,8 @@ export function SetupWorkspace(props: {
       setConfigExists(true);
       setConfigHasPassword(Boolean(data.hasPassword ?? true));
       localStorage.setItem(LS_CONFIG_ID, data.configId);
-      if (integrator.tmdbSecret || integrator.mdblistApiKey) {
-        setConfigHasIntegrator(true);
-      }
+      if (integrator.tmdbSecret) setConfigHasTmdbKey(true);
+      if (integrator.mdblistApiKey) setConfigHasMdblistKey(true);
       setInstallUrl(stremioUserInstallUrl(origin, data.configId));
     } catch {
       const message = "Network error saving config.";
