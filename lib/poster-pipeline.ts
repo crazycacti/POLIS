@@ -79,6 +79,7 @@ export async function renderPosterForImdb(params: {
     }),
   });
   if (!base) return null;
+  if (base.degraded) params.onDegraded?.();
 
   const mdblist = await mdblistPromise;
 

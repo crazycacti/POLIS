@@ -6,6 +6,7 @@ import {
   type AnimePosterRow,
   type AnimeSearchContext,
 } from "@/lib/anime-artwork-match";
+import type { ArtworkUrlLookup } from "@/lib/artwork-candidate";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
@@ -47,7 +48,7 @@ function parseAnilistRows(payload: unknown): AnimePosterRow[] | null {
   });
 }
 
-export async function fetchAnilistPosterUrl(ctx: AnimeSearchContext): Promise<string | null> {
+export async function fetchAnilistPosterUrl(ctx: AnimeSearchContext): Promise<ArtworkUrlLookup> {
   const result = await cachedUpstreamJson<AnimePosterRow[]>({
     provider: "anilist",
     cacheKey: animeSearchCacheKey("search", ctx.title),
@@ -63,5 +64,8 @@ export async function fetchAnilistPosterUrl(ctx: AnimeSearchContext): Promise<st
       }),
     parse: parseAnilistRows,
   });
-  return pickAnimeMatchByYear(result.value ?? [], ctx.releaseYear)?.url ?? null;
+  return {
+    url: pickAnimeMatchByYear(result.value ?? [], ctx.releaseYear)?.url ?? null,
+    degraded: result.outcome === "unavailable",
+  };
 }

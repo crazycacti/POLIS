@@ -1,4 +1,4 @@
-import type { ArtworkCandidate } from "@/lib/artwork-candidate";
+import type { ArtworkCandidate, ArtworkLookup } from "@/lib/artwork-candidate";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
@@ -229,7 +229,7 @@ export async function fetchTvdbSeriesPoster(params: {
   credentials: TvdbCredentials;
   language: string;
   preferTextless?: boolean;
-}): Promise<ArtworkCandidate | null> {
+}): Promise<ArtworkLookup> {
   const url = new URL(`${TVDB_V4_API_BASE}/series/${params.tvdbId}/artworks`);
   url.searchParams.set("type", String(TVDB_POSTER_ARTWORK_TYPE));
 
@@ -253,5 +253,8 @@ export async function fetchTvdbSeriesPoster(params: {
     },
     parse: parseTvdbArtworks,
   });
-  return pickTvdbPoster(result.value ?? [], params.language, params.preferTextless);
+  return {
+    candidate: pickTvdbPoster(result.value ?? [], params.language, params.preferTextless),
+    degraded: result.outcome === "unavailable",
+  };
 }

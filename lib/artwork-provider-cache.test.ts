@@ -48,26 +48,32 @@ describe("fanart", () => {
     const en = await fetchFanartPoster({ ...base, apiKey: "fan-key-1", language: "en-US" });
     await settle();
     const de = await fetchFanartPoster({ ...base, apiKey: "fan-key-2", language: "de-DE" });
-    expect(en?.url).toBe("https://assets.fanart.tv/en.jpg");
-    expect(de?.url).toBe("https://assets.fanart.tv/de.jpg");
+    expect(en.candidate?.url).toBe("https://assets.fanart.tv/en.jpg");
+    expect(de.candidate?.url).toBe("https://assets.fanart.tv/de.jpg");
     expect(requests).toHaveLength(1);
   });
 
   test("remembers titles fanart has no art for", async () => {
     respond = () => Response.json({ status: "error" }, { status: 404 });
     const params = { mediaType: "movie" as const, tmdbId: 502, tvdbId: null, apiKey: "fan-key-3", language: "en" };
-    expect(await fetchFanartPoster(params)).toBeNull();
+    expect(await fetchFanartPoster(params)).toEqual({ candidate: null, degraded: false });
     await settle();
-    expect(await fetchFanartPoster(params)).toBeNull();
+    expect(await fetchFanartPoster(params)).toEqual({ candidate: null, degraded: false });
     expect(requests).toHaveLength(1);
+  });
+
+  test("reports a lookup that could not reach fanart as degraded", async () => {
+    respond = () => new Response("{}", { status: 503 });
+    const params = { mediaType: "movie" as const, tmdbId: 503, tvdbId: null, apiKey: "fan-key-4", language: "en" };
+    expect(await fetchFanartPoster(params)).toEqual({ candidate: null, degraded: true });
   });
 });
 
 describe("anime providers", () => {
   test("anilist stops calling after a 429 until Retry-After passes", async () => {
     respond = () => new Response("{}", { status: 429, headers: { "retry-after": "60" } });
-    expect(await fetchAnilistPosterUrl({ title: "Alpha Show", releaseYear: "2020" })).toBeNull();
-    expect(await fetchAnilistPosterUrl({ title: "Beta Show", releaseYear: "2020" })).toBeNull();
+    expect(await fetchAnilistPosterUrl({ title: "Alpha Show", releaseYear: "2020" })).toEqual({ url: null, degraded: true });
+    expect(await fetchAnilistPosterUrl({ title: "Beta Show", releaseYear: "2020" })).toEqual({ url: null, degraded: true });
     expect(requests).toHaveLength(1);
   });
 
@@ -79,9 +85,9 @@ describe("anime providers", () => {
           { attributes: { startDate: "2021-04-01", posterImage: { large: "https://media.kitsu.app/2021.jpg" } } },
         ],
       });
-    expect(await fetchKitsuPosterUrl({ title: "Gamma", releaseYear: "2021" })).toBe("https://media.kitsu.app/2021.jpg");
+    expect((await fetchKitsuPosterUrl({ title: "Gamma", releaseYear: "2021" })).url).toBe("https://media.kitsu.app/2021.jpg");
     await settle();
-    expect(await fetchKitsuPosterUrl({ title: " gamma ", releaseYear: "2010" })).toBe("https://media.kitsu.app/2010.jpg");
+    expect((await fetchKitsuPosterUrl({ title: " gamma ", releaseYear: "2010" })).url).toBe("https://media.kitsu.app/2010.jpg");
     expect(requests).toHaveLength(1);
   });
 
@@ -92,7 +98,7 @@ describe("anime providers", () => {
     const urls = await Promise.all(
       ["Delta", "Epsilon", "Zeta"].map((title) => fetchJikanPosterUrl({ title, releaseYear: "2020" })),
     );
-    expect(urls).toEqual(Array(3).fill("https://cdn.myanimelist.net/a.jpg"));
+    expect(urls).toEqual(Array(3).fill({ url: "https://cdn.myanimelist.net/a.jpg", degraded: false }));
     expect(requests).toHaveLength(3);
     expect(Date.now() - started).toBeGreaterThanOrEqual(900);
   });

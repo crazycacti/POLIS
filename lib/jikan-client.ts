@@ -5,6 +5,7 @@ import {
   pickAnimeMatchByYear,
   type AnimeSearchContext,
 } from "@/lib/anime-artwork-match";
+import type { ArtworkUrlLookup } from "@/lib/artwork-candidate";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
@@ -51,7 +52,7 @@ function jikanGet(url: URL | string): Promise<Response> {
   });
 }
 
-export async function fetchJikanPosterByMalId(malId: number): Promise<string | null> {
+export async function fetchJikanPosterByMalId(malId: number): Promise<ArtworkUrlLookup> {
   const result = await cachedUpstreamJson<{ url: string | null }>({
     provider: "jikan",
     cacheKey: ["anime", malId].join("\0"),
@@ -65,7 +66,7 @@ export async function fetchJikanPosterByMalId(malId: number): Promise<string | n
       return { url: typeof url === "string" && url ? url : null };
     },
   });
-  return result.value?.url ?? null;
+  return { url: result.value?.url ?? null, degraded: result.outcome === "unavailable" };
 }
 
 function parseJikanRows(payload: unknown): JikanMatch[] | null {
@@ -79,7 +80,7 @@ function parseJikanRows(payload: unknown): JikanMatch[] | null {
   });
 }
 
-export async function fetchJikanPosterUrl(ctx: AnimeSearchContext): Promise<string | null> {
+export async function fetchJikanPosterUrl(ctx: AnimeSearchContext): Promise<ArtworkUrlLookup> {
   const url = new URL("https://api.jikan.moe/v4/anime");
   url.searchParams.set("q", ctx.title);
   url.searchParams.set("limit", "8");
@@ -94,8 +95,9 @@ export async function fetchJikanPosterUrl(ctx: AnimeSearchContext): Promise<stri
     parse: parseJikanRows,
   });
 
+  const degraded = result.outcome === "unavailable";
   const picked = pickAnimeMatchByYear(result.value ?? [], ctx.releaseYear);
-  if (picked?.url) return picked.url;
+  if (picked?.url) return { url: picked.url, degraded };
   if (picked?.malId != null) return fetchJikanPosterByMalId(picked.malId);
-  return null;
+  return { url: null, degraded };
 }

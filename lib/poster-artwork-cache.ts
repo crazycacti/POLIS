@@ -29,7 +29,7 @@ import type { ResolvedTitle } from "@/lib/tmdb-resolve";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import type { TvdbCredentials } from "@/lib/tvdb-credentials";
 
-export type PosterBase = { buffer: Buffer; textless: boolean };
+export type PosterBase = { buffer: Buffer; textless: boolean; degraded?: boolean };
 
 type MemoryEntry = { base: PosterBase; at: number };
 
@@ -143,7 +143,8 @@ async function fetchPosterBaseBuffer(params: {
       ...params,
       overlay: { ...params.overlay, posterShape: "poster" },
     });
-    return portrait ? { buffer: await landscapeFromPortrait(portrait.buffer), textless: false } : null;
+    if (!portrait) return null;
+    return { buffer: await landscapeFromPortrait(portrait.buffer), textless: false, degraded: portrait.degraded };
   }
 
   const tmdbPosters =
@@ -151,7 +152,7 @@ async function fetchPosterBaseBuffer(params: {
       ? await fetchTmdbImagePosters(params.resolved, params.credential, params.language)
       : undefined;
 
-  const imageUrls = await resolvePosterImageCandidates({
+  const { candidates: imageUrls, degraded } = await resolvePosterImageCandidates({
     resolved: params.resolved,
     imdbId: params.imdbId,
     credential: params.credential,
@@ -176,7 +177,7 @@ async function fetchPosterBaseBuffer(params: {
       const buffer = await sharp(input)
         .resize(500, 750, { fit: "cover", position: "attention" })
         .toBuffer();
-      return { buffer, textless: candidate.textless };
+      return { buffer, textless: candidate.textless, degraded };
     } catch (error) {
       console.warn(`[polis] artwork candidate failed for ${params.imdbId}`, error);
     }
@@ -234,6 +235,7 @@ export async function getPosterBaseBufferCached(params: {
 
     const base = await fetchPosterBaseBuffer(params);
     if (!base) return null;
+    if (base.degraded) return base;
     const ext = base.textless ? TEXTLESS_BASE_EXT : BASE_EXT;
     void writePolisDiskBytes("poster-base", scope, cacheKey, ext, base.buffer).catch(() => {});
     rememberInMemory(cacheKey, base);

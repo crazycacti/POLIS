@@ -4,7 +4,7 @@ type FanartAsset = {
   iso_639_1?: string | null;
 };
 
-import type { ArtworkCandidate } from "@/lib/artwork-candidate";
+import type { ArtworkCandidate, ArtworkLookup } from "@/lib/artwork-candidate";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint } from "@/lib/upstream-guard";
 import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
@@ -71,9 +71,9 @@ export async function fetchFanartPoster(params: {
   apiKey: string;
   language: string;
   preferTextless?: boolean;
-}): Promise<ArtworkCandidate | null> {
+}): Promise<ArtworkLookup> {
   const lookupId = params.mediaType === "movie" ? String(params.tmdbId) : String(params.tvdbId ?? "");
-  if (!lookupId) return null;
+  if (!lookupId) return { candidate: null, degraded: false };
 
   const endpoint =
     params.mediaType === "movie"
@@ -97,5 +97,8 @@ export async function fetchFanartPoster(params: {
     parse: (payload) => parseFanartAssets(payload, assetKey),
   });
 
-  return pickFanartPoster(result.value ?? [], params.language, params.preferTextless ?? false);
+  return {
+    candidate: pickFanartPoster(result.value ?? [], params.language, params.preferTextless ?? false),
+    degraded: result.outcome === "unavailable",
+  };
 }

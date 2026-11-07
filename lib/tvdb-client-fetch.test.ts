@@ -50,7 +50,10 @@ describe("tvdb requests", () => {
     const first = await fetchTvdbSeriesPoster(params);
     await new Promise((resolve) => setTimeout(resolve, 20));
     const second = await fetchTvdbSeriesPoster({ ...params, credentials: { apiKey: "good-key-0003" } });
-    expect(first).toEqual({ url: "https://artworks.thetvdb.com/p.jpg", textless: false });
+    expect(first).toEqual({
+      candidate: { url: "https://artworks.thetvdb.com/p.jpg", textless: false },
+      degraded: false,
+    });
     expect(second).toEqual(first);
     expect(requests).toEqual(["/v4/login", "/v4/series/4242/artworks"]);
   });
@@ -63,8 +66,8 @@ describe("tvdb requests", () => {
       return artworkCalls === 1 ? new Response("", { status: 401 }) : Response.json(artworks);
     };
     const params = { tvdbId: 4343, credentials: { apiKey: "rotating-key-0004" }, language: "en-US" };
-    expect(await fetchTvdbSeriesPoster(params)).toBeNull();
-    expect((await fetchTvdbSeriesPoster(params))?.url).toBe("https://artworks.thetvdb.com/p.jpg");
+    expect(await fetchTvdbSeriesPoster(params)).toEqual({ candidate: null, degraded: true });
+    expect((await fetchTvdbSeriesPoster(params)).candidate?.url).toBe("https://artworks.thetvdb.com/p.jpg");
     expect(requests).toEqual(["/v4/login", "/v4/series/4343/artworks", "/v4/login", "/v4/series/4343/artworks"]);
   });
 });

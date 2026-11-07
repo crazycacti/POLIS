@@ -1,5 +1,5 @@
 import { fetchAnilistPosterUrl } from "@/lib/anilist-client";
-import type { ArtworkCandidate } from "@/lib/artwork-candidate";
+import type { ArtworkCandidate, ArtworkLookup, ArtworkUrlLookup } from "@/lib/artwork-candidate";
 import type { AnimeSearchContext } from "@/lib/anime-artwork-match";
 import { fetchFanartPoster } from "@/lib/fanart-client";
 import { fetchJikanPosterUrl } from "@/lib/jikan-client";
@@ -99,6 +99,16 @@ function untexted(url: string | null): ArtworkCandidate | null {
   return url ? { url, textless: false } : null;
 }
 
+function noteLookup(ctx: ArtworkResolveContext, lookup: ArtworkLookup): ArtworkCandidate | null {
+  if (lookup.degraded) ctx.lookups.degraded = true;
+  return lookup.candidate;
+}
+
+function noteUrlLookup(ctx: ArtworkResolveContext, lookup: ArtworkUrlLookup): ArtworkCandidate | null {
+  if (lookup.degraded) ctx.lookups.degraded = true;
+  return untexted(lookup.url);
+}
+
 type ArtworkResolveContext = {
   resolved: ResolvedTitle;
   imdbId: string;
@@ -109,18 +119,19 @@ type ArtworkResolveContext = {
   tvdbId: number | null;
   preferTextlessArtwork: boolean;
   tmdbPosters?: TmdbImageRow[] | null;
+  lookups: { degraded: boolean };
 };
 
 async function resolveFanartPoster(ctx: ArtworkResolveContext): Promise<ArtworkCandidate | null> {
   if (!ctx.fanartApiKey) return null;
-  return fetchFanartPoster({
+  return noteLookup(ctx, await fetchFanartPoster({
     mediaType: ctx.resolved.stremioType,
     tmdbId: ctx.resolved.tmdbNumericId,
     tvdbId: ctx.tvdbId,
     apiKey: ctx.fanartApiKey,
     language: ctx.language,
     preferTextless: ctx.preferTextlessArtwork,
-  });
+  }));
 }
 
 function animeContext(resolved: ResolvedTitle): AnimeSearchContext {
@@ -161,24 +172,24 @@ async function urlForArtworkSource(
   if (source === "tvdb") {
     if (ctx.resolved.stremioType !== "series") return null;
     if (!ctx.tvdbId || !ctx.tvdbCredentials) return null;
-    return fetchTvdbSeriesPoster({
+    return noteLookup(ctx, await fetchTvdbSeriesPoster({
       tvdbId: ctx.tvdbId,
       credentials: ctx.tvdbCredentials,
       language: ctx.language,
       preferTextless: ctx.preferTextlessArtwork,
-    });
+    }));
   }
 
   if (source === "anilist") {
-    return untexted(await fetchAnilistPosterUrl(animeContext(ctx.resolved)));
+    return noteUrlLookup(ctx, await fetchAnilistPosterUrl(animeContext(ctx.resolved)));
   }
 
   if (source === "kitsu") {
-    return untexted(await fetchKitsuPosterUrl(animeContext(ctx.resolved)));
+    return noteUrlLookup(ctx, await fetchKitsuPosterUrl(animeContext(ctx.resolved)));
   }
 
   if (source === "mal") {
-    return untexted(await fetchJikanPosterUrl(animeContext(ctx.resolved)));
+    return noteUrlLookup(ctx, await fetchJikanPosterUrl(animeContext(ctx.resolved)));
   }
 
   const fanart = await resolveFanartPoster(ctx);
@@ -200,6 +211,7 @@ async function urlForArtworkSourceSafe(
     return await urlForArtworkSource(source, ctx);
   } catch (error) {
     console.warn(`[polis] artwork source ${source} failed for ${ctx.imdbId}`, error);
+    ctx.lookups.degraded = true;
     return null;
   }
 }
@@ -240,7 +252,7 @@ export async function resolvePosterImageCandidates(params: {
   tvdbId: number | null;
   preferTextlessArtwork?: boolean;
   tmdbPosters?: TmdbImageRow[] | null;
-}): Promise<ArtworkCandidate[]> {
+}): Promise<{ candidates: ArtworkCandidate[]; degraded: boolean }> {
   const ctx: ArtworkResolveContext = {
     resolved: params.resolved,
     imdbId: params.imdbId,
@@ -251,6 +263,7 @@ export async function resolvePosterImageCandidates(params: {
     tvdbId: params.tvdbId,
     preferTextlessArtwork: params.preferTextlessArtwork ?? false,
     tmdbPosters: params.tmdbPosters,
+    lookups: { degraded: false },
   };
 
   const urls: ArtworkCandidate[] = [];
@@ -285,5 +298,5 @@ export async function resolvePosterImageCandidates(params: {
     }
   }
 
-  return dedupeCandidates(urls);
+  return { candidates: dedupeCandidates(urls), degraded: ctx.lookups.degraded };
 }

@@ -6,6 +6,7 @@ import {
   type AnimePosterRow,
   type AnimeSearchContext,
 } from "@/lib/anime-artwork-match";
+import type { ArtworkUrlLookup } from "@/lib/artwork-candidate";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
@@ -54,7 +55,7 @@ function parseKitsuRows(payload: unknown): AnimePosterRow[] | null {
   });
 }
 
-export async function fetchKitsuPosterUrl(ctx: AnimeSearchContext): Promise<string | null> {
+export async function fetchKitsuPosterUrl(ctx: AnimeSearchContext): Promise<ArtworkUrlLookup> {
   const url = new URL("https://kitsu.app/api/edge/anime");
   url.searchParams.set("filter[text]", ctx.title);
   url.searchParams.set("page[limit]", "8");
@@ -72,5 +73,8 @@ export async function fetchKitsuPosterUrl(ctx: AnimeSearchContext): Promise<stri
       }),
     parse: parseKitsuRows,
   });
-  return pickAnimeMatchByYear(result.value ?? [], ctx.releaseYear)?.url ?? null;
+  return {
+    url: pickAnimeMatchByYear(result.value ?? [], ctx.releaseYear)?.url ?? null,
+    degraded: result.outcome === "unavailable",
+  };
 }
