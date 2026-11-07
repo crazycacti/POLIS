@@ -21,7 +21,9 @@ import { STARTER_LOOKS, matchesStarterLook } from "@/lib/poster-looks";
 import { defaultCatalogsForCredentials } from "@/lib/catalog-defaults";
 import { parsePolisCatalogDefinitionsFromJson } from "@/lib/polis-catalogs-json";
 import {
+  overlayStyleMatchesDefaults,
   parsePosterOverlayQuery,
+  resetOverlayStyleToDefaults,
   serializePosterQuery,
   showcasePosterOverlay,
   type PosterArtworkFallback,
@@ -774,6 +776,8 @@ export function SetupWorkspace(props: {
             initialLookCode={overlaySettled ? lookCodeParam : null}
             onChange={changeOverlay}
             onLookLinkConsumed={consumeLookLink}
+            onReset={() => changeOverlay((o) => resetOverlayStyleToDefaults(o))}
+            resetDisabled={overlayStyleMatchesDefaults(overlay)}
             origin={origin}
             overlay={overlay}
             previewOverlay={debouncedOverlay}

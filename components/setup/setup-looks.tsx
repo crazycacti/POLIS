@@ -1,10 +1,11 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Plus, SlidersHorizontal, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { CopyButton } from "@/components/copy-button";
 import { SetupDialog, SetupDialogCancel } from "@/components/setup/setup-dialog";
+import { SetupMenu } from "@/components/setup/setup-menu";
 import { SelectionCheck } from "@/components/setup/setup-ui";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
 import { dynamicDemoPosterPath } from "@/lib/demo-poster-urls";
@@ -111,6 +112,8 @@ export function SetupLooks(props: {
   origin: string;
   initialLookCode: string | null;
   onLookLinkConsumed: () => void;
+  onReset: () => void;
+  resetDisabled: boolean;
 }) {
   const { overlay, previewOverlay, onChange, onLookLinkConsumed } = props;
   const [saved, setSaved] = useState<SavedLook[]>([]);
@@ -218,21 +221,25 @@ export function SetupLooks(props: {
 
   return (
     <section aria-labelledby="looks-heading" className="mb-10">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-white" id="looks-heading">
           Look
         </h2>
-        <div className="flex flex-wrap gap-1 text-sm">
-          <button className="polis-link-btn" onClick={() => openDialog("share")} type="button">
-            Share
-          </button>
-          <button className="polis-link-btn" onClick={() => openDialog("import")} type="button">
-            Import
-          </button>
-          <button className="polis-link-btn" onClick={() => openDialog("json")} type="button">
-            Edit as JSON
-          </button>
-        </div>
+        <SetupMenu
+          icon={SlidersHorizontal}
+          items={[
+            { label: "Share link", onSelect: () => openDialog("share") },
+            { label: "Import", onSelect: () => openDialog("import") },
+            { label: "Edit as JSON", onSelect: () => openDialog("json") },
+            {
+              label: "Reset to defaults",
+              onSelect: props.onReset,
+              disabled: props.resetDisabled,
+              dividerBefore: true,
+            },
+          ]}
+          label="Look options"
+        />
       </div>
 
       {showLinkNotice && linkNotice ? (

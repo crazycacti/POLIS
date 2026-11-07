@@ -19,11 +19,7 @@ import type {
   PosterShape,
   RatingStyle,
 } from "@/lib/poster-query";
-import {
-  LOGO_SOURCES_AUTO,
-  overlayStyleMatchesDefaults,
-  resetOverlayStyleToDefaults,
-} from "@/lib/poster-query";
+import { LOGO_SOURCES_AUTO } from "@/lib/poster-query";
 import type { RatingSource } from "@/lib/ratings";
 
 const LOGO_SOURCE_ORDERS: { value: string; label: string }[] = [
@@ -102,7 +98,6 @@ export function SetupOverlayPanel(props: {
   artworkControls: ReactNode;
 }) {
   const { overlay, setOverlay } = props;
-  const atDefaults = overlayStyleMatchesDefaults(overlay);
   const landscape = overlay.posterShape === "landscape";
   const classic = overlay.look === "classic" && !landscape;
 
@@ -120,14 +115,6 @@ export function SetupOverlayPanel(props: {
               value={overlay.look}
             />
           )}
-          <button
-            className="polis-link-btn disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={atDefaults}
-            onClick={() => setOverlay((o) => resetOverlayStyleToDefaults(o))}
-            type="button"
-          >
-            Reset to defaults
-          </button>
         </div>
       </SetupSection>
 
