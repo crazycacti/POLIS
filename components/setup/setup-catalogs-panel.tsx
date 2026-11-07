@@ -40,7 +40,7 @@ export function SetupCatalogsPanel(props: {
   hasMdblist: boolean;
   mdblistApiKey: string | null;
 }) {
-  const [username, setUsername] = useState("snoak");
+  const [username, setUsername] = useState("");
   const [search, setSearch] = useState("");
   const [remoteLists, setRemoteLists] = useState<MdblistListSummary[]>([]);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
@@ -185,7 +185,7 @@ export function SetupCatalogsPanel(props: {
           <SetupPanel
             className="polis-catalog-custom-lists"
             title="MDBList custom lists"
-            hint="Load lists by username (e.g. snoak) or search by name."
+            hint="Load lists by MDBList username or search by name."
           >
             <div className="mb-4 flex flex-wrap gap-2">
               <input

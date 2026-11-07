@@ -446,7 +446,7 @@ export function SetupWorkspace(props: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as {
+      const data = (await res.json().catch(() => ({}))) as {
         configId?: string;
         error?: string;
         hasPassword?: boolean;
@@ -462,7 +462,9 @@ export function SetupWorkspace(props: {
         return saveConfigToServer(password, passwordConfirm, true);
       }
       if (!res.ok || !data.configId) {
-        const message = data.error ?? "Could not save config.";
+        const message =
+          data.error ??
+          (res.ok ? "Could not save config." : `Could not save config (server error ${res.status}). Try again later.`);
         if (password !== undefined) {
           setPasswordDialogError(message);
         } else {
