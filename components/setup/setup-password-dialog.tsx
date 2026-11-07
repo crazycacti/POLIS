@@ -79,7 +79,9 @@ export function SetupPasswordDialog(props: {
           />
         </div>
         {displayError ? (
-          <p className="mt-3 text-sm text-amber-200/95">{displayError}</p>
+          <p className="mt-3 text-sm text-amber-200/95" role="alert">
+            {displayError}
+          </p>
         ) : null}
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           <button

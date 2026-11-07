@@ -26,6 +26,7 @@ export function SetupTabs(props: {
 
         const button = (
           <button
+            aria-current={props.active === tab.id ? "page" : undefined}
             aria-disabled={locked}
             className={`polis-tab ${props.active === tab.id ? "polis-tab-active" : ""} ${locked ? "polis-tab-locked" : ""}`}
             disabled={locked}

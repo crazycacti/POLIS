@@ -71,7 +71,11 @@ export function ConfigureUnlockPanel(props: {
             </button>
           </div>
         </label>
-        {error ? <p className="text-sm text-amber-200/95">{error}</p> : null}
+        {error ? (
+          <p className="text-sm text-amber-200/95" role="alert">
+            {error}
+          </p>
+        ) : null}
         <button className="polis-btn text-sm" disabled={loading || !password.trim()} type="submit">
           {loading ? "Unlocking…" : "Continue"}
         </button>
