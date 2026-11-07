@@ -30,7 +30,7 @@ export async function renderPosterForImdb(params: {
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
   configId?: string | null;
-  onDegraded?: () => void;
+  onDegraded?: (retryAt?: number) => void;
 }): Promise<Buffer | null> {
   const hit = await findTmdbTitle(params.imdbId, params.credential, params.language);
   if (!hit) return null;
@@ -44,7 +44,7 @@ export async function renderPosterForImdb(params: {
           apiKey: params.mdblistApiKey,
           serverKeyProfile: params.mdblistServerKeyProfile ?? null,
         }).then((lookup) => {
-          if (lookup.degraded) params.onDegraded?.();
+          if (lookup.degraded) params.onDegraded?.(lookup.retryAt);
           return lookup.info;
         }, (error: unknown) => {
           console.warn(`[polis] mdblist lookup failed for ${params.imdbId}`, error);

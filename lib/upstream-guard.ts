@@ -258,6 +258,16 @@ export class UpstreamGuard {
     return state.cooldownUntil > this.now() ? state.cooldownReason : null;
   }
 
+  blockedUntil(scope: UpstreamCallScope, reason: UpstreamBlockReason): number | null {
+    const now = this.now();
+    if (reason === "rate_limited" || reason === "auth_rejected") {
+      const until = this.keyState(scope.provider, scope.credentialFingerprint).cooldownUntil;
+      return until > now ? until : null;
+    }
+    if (reason === "profile_budget") return nextUtcMidnight(now);
+    return null;
+  }
+
   quotaLow(provider: UpstreamProvider, fingerprint: string): boolean {
     const state = this.keyState(provider, fingerprint);
     const now = this.now();

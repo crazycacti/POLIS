@@ -142,7 +142,7 @@ function mdblistTtlMs(): number {
   return (polisEnvPositiveInt("POLIS_CACHE_MDBLIST_TTL_SEC") ?? DEFAULT_MDBLIST_TTL_SEC) * 1000;
 }
 
-export type MdblistLookup = { info: MdblistMediaInfo | null; degraded: boolean };
+export type MdblistLookup = { info: MdblistMediaInfo | null; degraded: boolean; retryAt?: number };
 
 type MdblistModernEntry = { info: MdblistMediaInfo | null };
 
@@ -201,9 +201,9 @@ export async function fetchMdblistMediaInfo(params: MdblistLookupParams): Promis
       }),
     parse: (payload) => ({ info: parseMdblistMediaInfo(payload) }),
   });
-  if (modern.outcome === "unavailable") return { info: null, degraded: true };
+  if (modern.outcome === "unavailable") return { info: null, degraded: true, retryAt: modern.retryAt };
   if (modern.value?.info) return { info: modern.value.info, degraded: false };
 
   const legacy = await fetchMdblistLegacyInfo(params, ttlMs);
-  return { info: legacy.value, degraded: legacy.outcome === "unavailable" };
+  return { info: legacy.value, degraded: legacy.outcome === "unavailable", retryAt: legacy.retryAt };
 }

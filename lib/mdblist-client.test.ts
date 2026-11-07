@@ -31,6 +31,8 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
+const MDBLIST_DEFAULT_PAUSE_MS = 60_000;
+
 const ratingsPayload = {
   ratings: [{ source: "imdb", value: 7.4 }],
   keywords: [{ name: "Certified Fresh" }],
@@ -74,8 +76,15 @@ describe("fetchMdblistMediaInfo", () => {
 
   test("marks the render degraded and stops calling after a 429 with nothing cached", async () => {
     respond = () => new Response("{}", { status: 429 });
-    expect(await lookup("tt0000103", "key-429-cold")).toEqual({ info: null, degraded: true });
-    expect(await lookup("tt0000104", "key-429-cold")).toEqual({ info: null, degraded: true });
+    const before = Date.now();
+    const first = await lookup("tt0000103", "key-429-cold");
+    const after = Date.now();
+    const second = await lookup("tt0000104", "key-429-cold");
+    expect(first).toEqual({ info: null, degraded: true, retryAt: expect.any(Number) });
+    expect(second).toEqual(first);
+    const retryAt = first.retryAt ?? Number.NaN;
+    expect(retryAt).toBeGreaterThanOrEqual(before + MDBLIST_DEFAULT_PAUSE_MS);
+    expect(retryAt).toBeLessThanOrEqual(after + MDBLIST_DEFAULT_PAUSE_MS);
     expect(requests).toHaveLength(1);
   });
 
@@ -111,7 +120,13 @@ describe("fetchMdblistMediaInfo", () => {
     respond = () => Response.json(ratingsPayload);
     expect((await lookup("tt0000106", "server-key", "profile-a")).info).not.toBeNull();
     expect((await lookup("tt0000107", "server-key", "profile-a")).info).not.toBeNull();
-    expect(await lookup("tt0000108", "server-key", "profile-a")).toEqual({ info: null, degraded: true });
+    const today = new Date();
+    const nextUtcMidnight = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1);
+    expect(await lookup("tt0000108", "server-key", "profile-a")).toEqual({
+      info: null,
+      degraded: true,
+      retryAt: nextUtcMidnight,
+    });
     expect((await lookup("tt0000108", "server-key", "profile-b")).info).not.toBeNull();
     expect((await lookup("tt0000109", "own-key", null)).info).not.toBeNull();
     expect(requests).toHaveLength(4);

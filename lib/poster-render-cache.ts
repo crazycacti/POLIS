@@ -33,11 +33,30 @@ function posterMemoryCacheMax(): number | null {
 
 const DEFAULT_POSTER_DISK_TTL_SEC = 7 * 24 * 60 * 60;
 export const DEGRADED_POSTER_TTL_SEC = 15 * 60;
+export const DEGRADED_POSTER_MAX_TTL_SEC = 6 * 60 * 60;
+const DEGRADED_TTL_MAX_KEYS = 5_000;
 const DEGRADED_POSTER_NAMESPACE = "poster-degraded";
 const STALE_RETRY_BACKOFF_MS = 10 * 60 * 1000;
 const STALE_BACKOFF_MAX_KEYS = 5_000;
 
 const staleBackoffUntil = new Map<string, number>();
+const degradedPosterTtlMsByKey = new Map<string, number>();
+
+export function degradedPosterTtlMs(retryAts: (number | undefined)[], now: number): number {
+  const minMs = DEGRADED_POSTER_TTL_SEC * 1000;
+  const untilRetryMs = retryAts.map((retryAt) => (retryAt != null ? retryAt - now : minMs));
+  const ttlMs = untilRetryMs.length > 0 ? Math.min(...untilRetryMs) : minMs;
+  return Math.min(DEGRADED_POSTER_MAX_TTL_SEC * 1000, Math.max(minMs, ttlMs));
+}
+
+function rememberDegradedTtl(key: string, ttlMs: number): void {
+  degradedPosterTtlMsByKey.delete(key);
+  degradedPosterTtlMsByKey.set(key, ttlMs);
+  if (degradedPosterTtlMsByKey.size > DEGRADED_TTL_MAX_KEYS) {
+    const oldest = degradedPosterTtlMsByKey.keys().next().value;
+    if (oldest !== undefined) degradedPosterTtlMsByKey.delete(oldest);
+  }
+}
 
 function inStaleBackoff(cacheKey: string): boolean {
   const until = staleBackoffUntil.get(cacheKey);
@@ -196,13 +215,14 @@ export async function renderPosterForImdbCached(params: {
     return { source: "disk", path: diskPath };
   }
 
+  const degradedKey = `${scope}\0${cacheKey}`;
   const findDegradedPoster = async () => {
     const path = await resolvePolisDiskCachePath(
       DEGRADED_POSTER_NAMESPACE,
       scope,
       cacheKey,
       ext,
-      DEGRADED_POSTER_TTL_SEC * 1000,
+      degradedPosterTtlMsByKey.get(degradedKey) ?? DEGRADED_POSTER_TTL_SEC * 1000,
     );
     return path ? { source: "disk" as const, path, degraded: true } : null;
   };
@@ -227,6 +247,7 @@ export async function renderPosterForImdbCached(params: {
       };
 
       let degraded = false;
+      const degradedRetryAts: (number | undefined)[] = [];
       let image: Buffer | null;
       try {
         image = await withPolisRenderLimit(() =>
@@ -240,8 +261,9 @@ export async function renderPosterForImdbCached(params: {
             fanartApiKey: params.fanartApiKey,
             tvdbCredentials: params.tvdbCredentials,
             configId: params.configId,
-            onDegraded: () => {
+            onDegraded: (retryAt) => {
               degraded = true;
+              degradedRetryAts.push(retryAt);
             },
           }),
         );
@@ -255,6 +277,7 @@ export async function renderPosterForImdbCached(params: {
       if (degraded) {
         const stale = await staleFallback();
         if (stale) return stale;
+        rememberDegradedTtl(degradedKey, degradedPosterTtlMs(degradedRetryAts, Date.now()));
         void writePolisDiskBytes(DEGRADED_POSTER_NAMESPACE, scope, cacheKey, ext, image).catch((error) =>
           console.warn(`[polis] degraded poster cache write failed for ${params.imdbId}`, error),
         );

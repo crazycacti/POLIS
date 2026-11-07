@@ -15,6 +15,7 @@ export type UpstreamJsonResult<T> = {
   value: T | null;
   outcome: UpstreamJsonOutcome;
   storedAt?: number;
+  retryAt?: number;
   error?: unknown;
 };
 
@@ -44,8 +45,8 @@ function isEnvelope<T>(raw: unknown): raw is Envelope<T> {
   return typeof record.at === "number" && ("value" in record || record.missing === true);
 }
 
-function fallbackFrom<T>(cached: Envelope<T> | null): UpstreamJsonResult<T> {
-  if (!cached) return { value: null, outcome: "unavailable" };
+function fallbackFrom<T>(cached: Envelope<T> | null, retryAt: number | null = null): UpstreamJsonResult<T> {
+  if (!cached) return { value: null, outcome: "unavailable", ...(retryAt != null ? { retryAt } : {}) };
   if ("value" in cached) return { value: cached.value, outcome: "stale" };
   return { value: null, outcome: "missing" };
 }
@@ -89,7 +90,8 @@ export async function cachedUpstreamJson<T>(params: {
     background: upstreamCallIsBackground(),
     authFailureCooldown: params.authFailureCooldown,
   };
-  if (guard.backgroundSkipReason(scope)) return fallbackFrom(cached);
+  const skipReason = guard.backgroundSkipReason(scope);
+  if (skipReason) return fallbackFrom(cached, guard.blockedUntil(scope, skipReason));
 
   // The flight stays open until the write lands so callers arriving right after it read the new copy.
   const store = async (envelope: Envelope<T>) => {
@@ -134,7 +136,7 @@ export async function cachedUpstreamJson<T>(params: {
       return fallback.outcome === "unavailable" ? { ...fallback, error } : fallback;
     }
 
-    if (!result.ok) return fallbackFrom(cached);
+    if (!result.ok) return fallbackFrom(cached, guard.blockedUntil(scope, result.reason));
     const outcome = result.value;
     if (outcome.kind === "value") {
       const storedAt = Date.now();
@@ -152,6 +154,8 @@ export async function cachedUpstreamJson<T>(params: {
         `${params.provider}:http`,
         `${params.provider} returned HTTP ${outcome.status} for ${params.label}`,
       );
+    } else {
+      return fallbackFrom(cached, guard.blockedUntil(scope, "rate_limited"));
     }
     return fallbackFrom(cached);
   });

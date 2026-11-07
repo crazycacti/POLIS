@@ -64,6 +64,8 @@ async function settleWrites() {
   await new Promise((resolve) => setTimeout(resolve, 20));
 }
 
+const RETRY_AFTER_MS = 600_000;
+
 describe("cachedUpstreamJson", () => {
   test("fetches, stores and then serves the fresh copy", async () => {
     const h = harness([json({ n: 1 })]);
@@ -110,10 +112,16 @@ describe("cachedUpstreamJson", () => {
   test("a 429 serves stale and stops further calls for that key", async () => {
     await seed("k1", { at: Date.now() - 2 * HOUR_MS, value: { n: 1 } });
     await seed("k2", { at: Date.now() - 2 * HOUR_MS, value: { n: 2 } });
-    const h = harness([json({}, 429, { "retry-after": "600" })]);
+    const h = harness([json({}, 429, { "retry-after": String(RETRY_AFTER_MS / 1000) })]);
+    const before = Date.now();
     expect(await h.lookup("k1")).toEqual({ value: { n: 1 }, outcome: "stale" });
     expect(await h.lookup("k2")).toEqual({ value: { n: 2 }, outcome: "stale" });
-    expect(await h.lookup("k3")).toEqual({ value: null, outcome: "unavailable" });
+    const blocked = await h.lookup("k3");
+    const after = Date.now();
+    expect(blocked).toEqual({ value: null, outcome: "unavailable", retryAt: expect.any(Number) });
+    const retryAt = blocked.retryAt ?? Number.NaN;
+    expect(retryAt).toBeGreaterThanOrEqual(before + RETRY_AFTER_MS);
+    expect(retryAt).toBeLessThanOrEqual(after + RETRY_AFTER_MS);
     expect(h.calls()).toBe(1);
   });
 
@@ -173,7 +181,9 @@ describe("cachedUpstreamJson flights", () => {
       lookup("shared", "server", "p1"),
       lookup("shared", "own", null),
     ]);
-    expect(blocked).toEqual({ value: null, outcome: "unavailable" });
+    const today = new Date();
+    const nextUtcMidnight = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 1);
+    expect(blocked).toEqual({ value: null, outcome: "unavailable", retryAt: nextUtcMidnight });
     expect(own).toEqual({ value: { n: 2 }, outcome: "fetched", storedAt: expect.any(Number) });
   });
 });
