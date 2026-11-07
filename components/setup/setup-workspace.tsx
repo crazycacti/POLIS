@@ -730,7 +730,6 @@ export function SetupWorkspace(props: {
 
       {showChecklist ? (
         <SetupChecklist
-          active={tab}
           catalogCount={selectedCatalogs.length}
           keysDetail={hasRequiredKeys ? "Ready" : `${missingKeyNames.join(" and ")} missing`}
           keysDone={hasRequiredKeys}
