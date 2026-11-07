@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 
 export function SetupDialog(props: {
   open: boolean;
@@ -11,6 +11,7 @@ export function SetupDialog(props: {
   wide?: boolean;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -21,7 +22,7 @@ export function SetupDialog(props: {
 
   return (
     <dialog
-      aria-label={props.title}
+      aria-labelledby={titleId}
       className="polis-dialog"
       onCancel={(e) => {
         e.preventDefault();
@@ -33,7 +34,7 @@ export function SetupDialog(props: {
       ref={dialogRef}
     >
       <div className={`polis-dialog-panel ${props.wide ? "sm:min-w-[36rem] sm:max-w-2xl" : ""}`}>
-        <h2 className="text-lg font-semibold text-white">{props.title}</h2>
+        <h2 className="text-lg font-semibold text-white" id={titleId}>{props.title}</h2>
         <div className="mt-4">{props.children}</div>
         <div className="mt-6 flex flex-wrap justify-end gap-2">{props.actions}</div>
       </div>
@@ -44,7 +45,7 @@ export function SetupDialog(props: {
 export function SetupDialogCancel(props: { label?: string; onClick: () => void }) {
   return (
     <button
-      className="min-h-10 rounded-full border border-zinc-700 px-4 text-sm text-zinc-300 transition-colors hover:border-zinc-500 hover:text-white"
+      className="polis-btn-secondary"
       onClick={props.onClick}
       type="button"
     >

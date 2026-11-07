@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { SetupPasswordFields } from "@/components/setup/setup-password-fields";
 import { validateNewPasswordPair } from "@/lib/polis-config-auth-constants";
@@ -14,6 +14,7 @@ export function SetupPasswordDialog(props: {
   onConfirm: (password: string, passwordConfirm: string) => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -52,6 +53,7 @@ export function SetupPasswordDialog(props: {
 
   return (
     <dialog
+      aria-labelledby={titleId}
       className="polis-dialog"
       onCancel={(e) => {
         e.preventDefault();
@@ -61,7 +63,7 @@ export function SetupPasswordDialog(props: {
       ref={dialogRef}
     >
       <form className="polis-dialog-panel" onSubmit={handleSubmit}>
-        <h2 className="text-lg font-semibold text-white">
+        <h2 className="text-lg font-semibold text-white" id={titleId}>
           {props.isNewProfile ? "Protect your profile" : "Set a profile password"}
         </h2>
         <p className="mt-2 text-sm text-zinc-400">
@@ -85,14 +87,14 @@ export function SetupPasswordDialog(props: {
         ) : null}
         <div className="mt-6 flex flex-wrap justify-end gap-2">
           <button
-            className="rounded-full border border-zinc-700 px-4 py-2 text-sm text-zinc-300 transition-colors hover:border-zinc-500 hover:text-white"
+            className="polis-btn-secondary"
             disabled={props.saving}
             onClick={handleClose}
             type="button"
           >
             Cancel
           </button>
-          <button className="polis-btn text-sm" disabled={props.saving} type="submit">
+          <button className="polis-btn" disabled={props.saving} type="submit">
             {props.saving ? "Saving…" : "Save profile"}
           </button>
         </div>
