@@ -7,7 +7,8 @@ import {
 import type { TmdbCastMember, TmdbCreatedBy } from "@/lib/tmdb-credits-parse";
 import { fetchTmdbSeriesVideos, type StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
-import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
+import { polisCacheRoot } from "@/lib/polis-cache-path";
+import { polisDiskCacheEnabled, readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 
 type FindResponse = {
   movie_results?: { id: number }[];
@@ -355,14 +356,46 @@ function isTmdbFindHit(raw: unknown): raw is TmdbFindHit {
   );
 }
 
+const TMDB_ID_HINT_MEMORY_MAX = 20_000;
+const tmdbIdHintMemory = new Map<string, { hit: TmdbFindHit; expiresAt: number }>();
+
+function tmdbIdHintMemoryKey(imdbId: string): string {
+  return `${polisCacheRoot()}\0${imdbId}`;
+}
+
+function memoryTmdbIdHint(imdbId: string): TmdbFindHit | null {
+  const key = tmdbIdHintMemoryKey(imdbId);
+  const entry = tmdbIdHintMemory.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt > Date.now()) return entry.hit;
+  tmdbIdHintMemory.delete(key);
+  return null;
+}
+
+function rememberTmdbIdHintInMemory(imdbId: string, hit: TmdbFindHit): void {
+  if (!polisDiskCacheEnabled()) return;
+  const key = tmdbIdHintMemoryKey(imdbId);
+  tmdbIdHintMemory.delete(key);
+  tmdbIdHintMemory.set(key, { hit, expiresAt: Date.now() + TMDB_ID_HINT_TTL_SEC * 1000 });
+  if (tmdbIdHintMemory.size > TMDB_ID_HINT_MEMORY_MAX) {
+    const oldest = tmdbIdHintMemory.keys().next().value;
+    if (oldest !== undefined) tmdbIdHintMemory.delete(oldest);
+  }
+}
+
 async function readTmdbIdHint(imdbId: string): Promise<TmdbFindHit | null> {
+  const remembered = memoryTmdbIdHint(imdbId);
+  if (remembered) return remembered;
   const raw = await readPolisDiskJson<unknown>(
     TMDB_ID_HINT_NAMESPACE,
     TMDB_ID_HINT_SCOPE,
     imdbId,
     TMDB_ID_HINT_TTL_SEC * 1000,
   );
-  return isTmdbFindHit(raw) ? { stremioType: raw.stremioType, tmdbId: raw.tmdbId } : null;
+  if (!isTmdbFindHit(raw)) return null;
+  const hit: TmdbFindHit = { stremioType: raw.stremioType, tmdbId: raw.tmdbId };
+  rememberTmdbIdHintInMemory(imdbId, hit);
+  return hit;
 }
 
 export async function rememberTmdbIdHint(imdbId: string, hit: TmdbFindHit): Promise<void> {
@@ -372,6 +405,14 @@ export async function rememberTmdbIdHint(imdbId: string, hit: TmdbFindHit): Prom
     stremioType: hit.stremioType,
     tmdbId: hit.tmdbId,
   });
+  rememberTmdbIdHintInMemory(imdbId, hit);
+}
+
+function rememberFoundTmdbTitle(imdbId: string, hit: TmdbFindHit): TmdbFindHit {
+  void rememberTmdbIdHint(imdbId, hit).catch((error: unknown) =>
+    console.warn(`[polis] tmdb id hint write failed for ${imdbId}`, error),
+  );
+  return hit;
 }
 
 export async function findTmdbTitle(
@@ -390,9 +431,9 @@ export async function findTmdbTitle(
   if (!findRaw) return null;
   const find = findRaw as FindResponse;
   const movieId = find.movie_results?.[0]?.id;
-  if (typeof movieId === "number") return { stremioType: "movie", tmdbId: movieId };
+  if (typeof movieId === "number") return rememberFoundTmdbTitle(imdbId, { stremioType: "movie", tmdbId: movieId });
   const tvId = find.tv_results?.[0]?.id;
-  if (typeof tvId === "number") return { stremioType: "series", tmdbId: tvId };
+  if (typeof tvId === "number") return rememberFoundTmdbTitle(imdbId, { stremioType: "series", tmdbId: tvId });
   return null;
 }
 

@@ -2,7 +2,11 @@ import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint } from "@/lib/upstream-guard";
-import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
+import {
+  cachedUpstreamJson,
+  upstreamNextRevalidateSeconds,
+  type UpstreamJsonResult,
+} from "@/lib/upstream-json-cache";
 
 // Scores and air dates change daily; TMDB terms also cap caching at six months.
 const DEFAULT_TMDB_DISK_TTL_SEC = 24 * 60 * 60;
@@ -18,11 +22,21 @@ function tmdbCredentialFingerprint(credential: TmdbCredential): string {
   );
 }
 
+type TmdbApiGetOptions = { ttlSec?: number; timeoutMs?: number };
+
 export async function tmdbApiGet(
   url: URL,
   credential: TmdbCredential,
-  options: { ttlSec?: number; timeoutMs?: number } = {},
+  options: TmdbApiGetOptions = {},
 ): Promise<unknown> {
+  return (await tmdbApiGetResult(url, credential, options)).value;
+}
+
+export async function tmdbApiGetResult(
+  url: URL,
+  credential: TmdbCredential,
+  options: TmdbApiGetOptions = {},
+): Promise<UpstreamJsonResult<unknown>> {
   const target = new URL(url.toString());
   const headers: Record<string, string> = { Accept: "application/json" };
 
@@ -49,5 +63,5 @@ export async function tmdbApiGet(
     parse: (payload) => payload ?? null,
   });
   if (result.error !== undefined) throw result.error;
-  return result.value;
+  return result;
 }

@@ -11,7 +11,12 @@ import { upstreamCallIsBackground } from "@/lib/upstream-priority";
 
 export type UpstreamJsonOutcome = "fresh" | "fetched" | "stale" | "missing" | "unavailable";
 
-export type UpstreamJsonResult<T> = { value: T | null; outcome: UpstreamJsonOutcome; error?: unknown };
+export type UpstreamJsonResult<T> = {
+  value: T | null;
+  outcome: UpstreamJsonOutcome;
+  storedAt?: number;
+  error?: unknown;
+};
 
 type Envelope<T> = { at: number; value: T } | { at: number; missing: true };
 
@@ -67,7 +72,9 @@ export async function cachedUpstreamJson<T>(params: {
   const freshFrom = (envelope: Envelope<T> | null): UpstreamJsonResult<T> | null => {
     if (!envelope) return null;
     const age = Date.now() - envelope.at;
-    if ("value" in envelope) return age <= params.ttlMs ? { value: envelope.value, outcome: "fresh" } : null;
+    if ("value" in envelope) {
+      return age <= params.ttlMs ? { value: envelope.value, outcome: "fresh", storedAt: envelope.at } : null;
+    }
     return age <= params.negativeTtlMs ? { value: null, outcome: "missing" } : null;
   };
 
@@ -130,8 +137,9 @@ export async function cachedUpstreamJson<T>(params: {
     if (!result.ok) return fallbackFrom(cached);
     const outcome = result.value;
     if (outcome.kind === "value") {
-      await store({ at: Date.now(), value: outcome.value });
-      return { value: outcome.value, outcome: "fetched" };
+      const storedAt = Date.now();
+      await store({ at: storedAt, value: outcome.value });
+      return { value: outcome.value, outcome: "fetched", storedAt };
     }
     if (outcome.kind === "missing") {
       await store({ at: Date.now(), missing: true });

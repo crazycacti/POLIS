@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -89,6 +89,19 @@ describe("imdb to tmdb resolution", () => {
       stremioType: "movie",
       credential: CREDENTIAL,
       language: "en-US",
+    });
+    expect(findCalls).toBe(1);
+  });
+
+  test("a title found with TMDB find keeps its id after the find response expires", async () => {
+    await findTmdbTitle(IMDB_ID, CREDENTIAL, "en-US");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(await readdir(path.join(root, "tmdb-id"), { recursive: true })).not.toHaveLength(0);
+    await rm(path.join(root, "api"), { recursive: true, force: true });
+
+    expect(await findTmdbTitle(IMDB_ID, CREDENTIAL, "en-US")).toEqual({
+      stremioType: "movie",
+      tmdbId: TMDB_MOVIE_ID,
     });
     expect(findCalls).toBe(1);
   });

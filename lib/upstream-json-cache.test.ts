@@ -67,16 +67,16 @@ async function settleWrites() {
 describe("cachedUpstreamJson", () => {
   test("fetches, stores and then serves the fresh copy", async () => {
     const h = harness([json({ n: 1 })]);
-    expect(await h.lookup()).toEqual({ value: { n: 1 }, outcome: "fetched" });
+    expect(await h.lookup()).toEqual({ value: { n: 1 }, outcome: "fetched", storedAt: expect.any(Number) });
     await settleWrites();
-    expect(await h.lookup()).toEqual({ value: { n: 1 }, outcome: "fresh" });
+    expect(await h.lookup()).toEqual({ value: { n: 1 }, outcome: "fresh", storedAt: expect.any(Number) });
     expect(h.calls()).toBe(1);
   });
 
   test("refreshes an expired copy", async () => {
     await seed("k1", { at: Date.now() - 2 * HOUR_MS, value: { n: 1 } });
     const h = harness([json({ n: 2 })]);
-    expect(await h.lookup()).toEqual({ value: { n: 2 }, outcome: "fetched" });
+    expect(await h.lookup()).toEqual({ value: { n: 2 }, outcome: "fetched", storedAt: expect.any(Number) });
   });
 
   test("serves the stale copy on 5xx, network errors and invalid payloads", async () => {
@@ -174,6 +174,6 @@ describe("cachedUpstreamJson flights", () => {
       lookup("shared", "own", null),
     ]);
     expect(blocked).toEqual({ value: null, outcome: "unavailable" });
-    expect(own).toEqual({ value: { n: 2 }, outcome: "fetched" });
+    expect(own).toEqual({ value: { n: 2 }, outcome: "fetched", storedAt: expect.any(Number) });
   });
 });
