@@ -11,12 +11,14 @@ import { useDebouncedValue } from "@/components/setup/use-preloaded-poster-src";
 import { SetupCatalogsPanel } from "@/components/setup/setup-catalogs-panel";
 import { SetupTabs, type SetupTab } from "@/components/setup/setup-tabs";
 import { SetupSaveBar, type SetupSaveStatus } from "@/components/setup/setup-save-bar";
+import { SetupChecklist } from "@/components/setup/setup-checklist";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import { mergePosterQueryForConfigurePreview } from "@/lib/integrator-auth";
 import { SetupPasswordDialog } from "@/components/setup/setup-password-dialog";
 import { stremioUserInstallUrl } from "@/lib/polis-install-urls";
 import { aiometadataArtPatterns } from "@/lib/polis-urls";
 import { LOOK_CODE_PARAM, lookCodeFromSearch } from "@/lib/poster-look-code";
+import { STARTER_LOOKS, matchesStarterLook } from "@/lib/poster-looks";
 import { defaultCatalogsForCredentials } from "@/lib/catalog-defaults";
 import { parsePolisCatalogDefinitionsFromJson } from "@/lib/polis-catalogs-json";
 import {
@@ -445,6 +447,12 @@ export function SetupWorkspace(props: {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [hasUnsavedChanges]);
 
+  const showChecklist = overlaySettled && (!configId || !hasRequiredKeys);
+  const starterLookName = useMemo(
+    () => STARTER_LOOKS.find((look) => matchesStarterLook(overlay, look))?.label ?? "Custom",
+    [overlay],
+  );
+
   const saveStatus: SetupSaveStatus = configSaving
     ? "saving"
     : !configExists || hasUnsavedChanges
@@ -637,6 +645,17 @@ export function SetupWorkspace(props: {
         <p className="mb-6 rounded-lg border border-amber-900/40 bg-amber-950/25 px-4 py-3 text-sm text-amber-100/90">
           Set <code className="font-mono text-xs">POLIS_PUBLIC_URL</code> for public install links.
         </p>
+      ) : null}
+
+      {showChecklist ? (
+        <SetupChecklist
+          active={tab}
+          catalogCount={selectedCatalogs.length}
+          keysDetail={hasRequiredKeys ? "Ready" : `${missingKeyNames.join(" and ")} missing`}
+          keysDone={hasRequiredKeys}
+          lookName={starterLookName}
+          onSelect={setTab}
+        />
       ) : null}
 
       <SetupTabs active={tab} onChange={setTab} />
