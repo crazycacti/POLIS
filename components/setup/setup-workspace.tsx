@@ -243,6 +243,10 @@ export function SetupWorkspace(props: {
       try {
         const res = await fetch(`/api/config/${encodeURIComponent(cid)}`, CONFIG_FETCH_INIT);
         if (cancelled) return;
+        if (res.status === 401) {
+          window.location.assign(`/${encodeURIComponent(cid)}/configure`);
+          return;
+        }
         if (!res.ok && res.status !== 404) {
           setConfigLoadFailed(true);
           return;

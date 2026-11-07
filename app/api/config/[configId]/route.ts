@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 
+import { isConfigureSessionValid } from "@/lib/polis-config-api-auth";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { isValidPolisConfigId } from "@/lib/polis-config-id";
 
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ configId: string }> },
 ) {
   const { configId } = await params;
@@ -17,6 +18,12 @@ export async function GET(
   const config = getPolisConfig(configId);
   if (!config) {
     return NextResponse.json({ error: "Config not found" }, { status: 404 });
+  }
+  if (config.hasPassword && !isConfigureSessionValid(request, configId)) {
+    return NextResponse.json(
+      { error: "Unlock this profile first." },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   return NextResponse.json({
