@@ -3,7 +3,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { fetchPreviewTitles, PREVIEW_TITLE_LIMIT, tmdbCredentialFromRaw } from "@/lib/preview-titles";
+import { fetchPreviewTitles, PREVIEW_TITLE_LIMIT } from "@/lib/preview-titles";
+import { tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 
 let root = "";
 const savedEnv = { ...process.env };

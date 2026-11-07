@@ -1,3 +1,5 @@
+import type { TmdbCredential } from "@/lib/tmdb-server-credential";
+
 export function inferTmdbCredentialParams(
   raw: string,
 ): { params: URLSearchParams | undefined; error: string | null } {
@@ -28,4 +30,13 @@ export function inferTmdbCredentialParams(
   const p = new URLSearchParams();
   p.set("api_key", s);
   return { params: p, error: null };
+}
+
+export function tmdbCredentialFromRaw(raw: string): TmdbCredential | null {
+  const inferred = inferTmdbCredentialParams(raw);
+  if (inferred.error || !inferred.params) return null;
+  const token = inferred.params.get("tmdb_access_token");
+  if (token) return { kind: "bearer", token };
+  const key = inferred.params.get("api_key");
+  return key ? { kind: "api_key", key } : null;
 }

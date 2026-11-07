@@ -4,7 +4,6 @@ import { parsePreviewTitles, type PreviewTitle } from "@/lib/preview-title-list"
 import { mapWithConcurrency, tmdbImdbIdForItem } from "@/lib/stremio-catalog-fetch";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
-import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
 
 export const PREVIEW_TITLE_LIMIT = 6;
 export const PREVIEW_TITLES_TTL_SEC = 24 * 60 * 60;
@@ -35,14 +34,6 @@ export function trendingPreviewCandidates(payload: unknown): TrendingCandidate[]
     out.push({ tmdbId: record.id, title, type });
   }
   return out;
-}
-
-export function tmdbCredentialFromRaw(raw: string): TmdbCredential | null {
-  const params = inferTmdbCredentialParams(raw).params;
-  const token = params?.get("tmdb_access_token");
-  if (token) return { kind: "bearer", token };
-  const key = params?.get("api_key");
-  return key ? { kind: "api_key", key } : null;
 }
 
 async function buildPreviewTitles(credential: TmdbCredential): Promise<PreviewTitle[]> {

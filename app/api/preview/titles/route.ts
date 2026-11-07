@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { runWithClientRequestContext } from "@/lib/client-request-context";
-import { fetchPreviewTitles, tmdbCredentialFromRaw } from "@/lib/preview-titles";
+import { fetchPreviewTitles } from "@/lib/preview-titles";
+import { tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 import { serverTmdbCredential, type TmdbCredential } from "@/lib/tmdb-server-credential";
 
 export const runtime = "nodejs";
