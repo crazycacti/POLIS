@@ -448,10 +448,6 @@
   }
 }
 
-@utility polis-catalog-toggle-row {
-  @apply rounded-lg border border-white/5 bg-white/2 px-3 py-2.5;
-}
-
 @utility polis-catalogs-panel {
   overflow-anchor: none;
 }

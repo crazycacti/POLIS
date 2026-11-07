@@ -809,6 +809,7 @@ export function SetupWorkspace(props: {
           hasTmdb={hasCatalogTmdb}
           mdblistApiKey={browserArtworkKeys.mdblistApiKey}
           onApplyDefaults={applyDefaultCatalogs}
+          onGoToKeys={() => setTab("keys")}
           onChange={setCatalogSelection}
           selected={selectedCatalogs}
         />
