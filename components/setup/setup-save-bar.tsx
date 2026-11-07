@@ -8,11 +8,11 @@ import { PatternRow } from "@/components/setup/setup-ui";
 
 export type SetupSaveStatus = "dirty" | "saved" | "saving";
 
-const HTTP_SCHEME = /^https?:\/\//i;
+const HTTPS_SCHEME = /^https:\/\//i;
 const STREMIO_WEB_ADDONS_URL = "https://web.stremio.com/#/addons?addon=";
 
 function stremioDeepLink(installUrl: string): string | null {
-  return HTTP_SCHEME.test(installUrl) ? installUrl.replace(HTTP_SCHEME, "stremio://") : null;
+  return HTTPS_SCHEME.test(installUrl) ? installUrl.replace(HTTPS_SCHEME, "stremio://") : null;
 }
 
 const STATUS_LABEL: Record<SetupSaveStatus, string> = {
