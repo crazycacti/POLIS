@@ -3,10 +3,11 @@ import { describe, expect, it } from "bun:test";
 import { fetchPolisCatalogMetas } from "@/lib/stremio-catalog-fetch";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 
-describe("fetchMdblistCatalogMetas", () => {
-  it("returns metas for public list when MDBLIST_API_KEY is set", async () => {
-    const apiKey = process.env.MDBLIST_API_KEY?.trim();
-    if (!apiKey) return;
+const liveMdblistKey = process.env.POLIS_LIVE_TESTS === "1" ? process.env.MDBLIST_API_KEY?.trim() : undefined;
+
+describe.skipIf(!liveMdblistKey)("fetchMdblistCatalogMetas against live MDBList", () => {
+  it("returns metas for a public list", async () => {
+    const apiKey = liveMdblistKey ?? "";
 
     // Hard-coded list ids get deleted upstream; pick a current public movie list instead.
     const topUrl = new URL("https://api.mdblist.com/lists/top");

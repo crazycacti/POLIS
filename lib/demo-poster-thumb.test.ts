@@ -12,11 +12,13 @@ import { DEMO_THUMB_STORE, TITLE_PREVIEW_STORE } from "@/lib/preview-image-cache
 const DEMO_ID = DEMO_TITLES[0]!.id;
 let root = "";
 const savedEnv = { ...process.env };
+const SERVER_KEY_ENV = ["TMDB_API_KEY", "TMDB_ACCESS_TOKEN", "MDBLIST_API_KEY", "FANART_API_KEY", "TVDB_API_KEY"];
 
 beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "polis-demo-thumb-"));
   process.env.POLIS_CACHE_DIR = root;
   delete process.env.POLIS_CACHE_DISABLE;
+  for (const name of SERVER_KEY_ENV) delete process.env[name];
 });
 
 afterEach(async () => {

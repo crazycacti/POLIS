@@ -4,10 +4,11 @@ import { validateTvdbKey } from "@/lib/api-key-validate";
 import { tvdbLogin, tvdbLoginResult } from "@/lib/tvdb-client";
 import { parseTvdbCredentials } from "@/lib/tvdb-credentials";
 
-describe("tvdbLogin integration", () => {
-  it("parses and logs in when TVDB_API_KEY is set", async () => {
-    const raw = process.env.TVDB_API_KEY?.trim();
-    if (!raw) return;
+const liveTvdbKey = process.env.POLIS_LIVE_TESTS === "1" ? process.env.TVDB_API_KEY?.trim() : undefined;
+
+describe.skipIf(!liveTvdbKey)("tvdbLogin against live TVDB", () => {
+  it("parses and logs in", async () => {
+    const raw = liveTvdbKey ?? "";
 
     const credentials = parseTvdbCredentials(raw);
     expect(credentials).not.toBeNull();
@@ -19,8 +20,7 @@ describe("tvdbLogin integration", () => {
   });
 
   it("validateTvdbKey matches login for env credentials", async () => {
-    const raw = process.env.TVDB_API_KEY?.trim();
-    if (!raw) return;
+    const raw = liveTvdbKey ?? "";
 
     const validated = await validateTvdbKey(raw);
     const credentials = parseTvdbCredentials(raw);
