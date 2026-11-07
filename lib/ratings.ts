@@ -57,18 +57,29 @@ function parseNumericRating(value: unknown): number | null {
   return null;
 }
 
+const PERCENT_SOURCES = new Set<RatingSource>([
+  "tomatoes",
+  "tomatoesaudience",
+  "metacritic",
+  "trakt",
+  "mdblist",
+]);
+
+function clampTen(value: number): number {
+  return Math.min(10, Math.max(0, value));
+}
+
 export function scoreToTenScale(source: RatingSource, value: number): number {
   if (!Number.isFinite(value)) return value;
+  if (PERCENT_SOURCES.has(source)) return clampTen(value / 10);
 
   switch (source) {
     case "letterboxd":
-      if (value <= 5) return value * 2;
-      return value > 10 ? value / 10 : value;
+      return clampTen(value <= 5 ? value * 2 : value / 10);
     case "rogerebert":
-      if (value <= 4) return value * 2.5;
-      return value > 10 ? value / 10 : value;
+      return clampTen(value <= 4 ? value * 2.5 : value / 10);
     default:
-      return value > 10 ? value / 10 : value;
+      return clampTen(value > 10 ? value / 10 : value);
   }
 }
 
@@ -86,14 +97,18 @@ export function collectMdblistRatings(payload: unknown): RatingScores {
       const sourceKey = sourceRaw.toLowerCase().replace(/[^a-z]/g, "");
       const mapped = SOURCE_ALIASES[sourceKey];
       if (!mapped || mapped === "average") continue;
-      const value = parseNumericRating(row.value ?? row.rating ?? row.score);
-      if (value == null || value < 0) continue;
-      out[mapped] = scoreToTenScale(mapped, value);
+      const value = parseNumericRating(row.value ?? row.rating);
+      if (value != null && value > 0) {
+        out[mapped] = scoreToTenScale(mapped, value);
+        continue;
+      }
+      const normalized = parseNumericRating(row.score);
+      if (normalized != null && normalized > 0) out[mapped] = clampTen(normalized / 10);
     }
   }
 
   const direct = parseNumericRating(record.score ?? record.mdblist_score ?? record.mdblist);
-  if (direct != null && direct >= 0) {
+  if (direct != null && direct > 0) {
     out.mdblist = scoreToTenScale("mdblist", direct);
   }
 
@@ -116,14 +131,13 @@ export function computeAverageScore(scores: RatingScores): number | null {
     ([k, v]) => k !== "average" && typeof v === "number" && Number.isFinite(v),
   ) as [RatingSource, number][];
   if (entries.length === 0) return null;
-  const sum = entries.reduce((acc, [source, value]) => acc + scoreToTenScale(source, value), 0);
+  const sum = entries.reduce((acc, [, value]) => acc + clampTen(value), 0);
   return sum / entries.length;
 }
 
-export function formatRatingLabel(source: RatingSource, value: number, style: "min" | "score"): string {
+export function formatRatingLabel(value: number, style: "min" | "score"): string {
   const star = style === "min" ? "★ " : "";
-  const ten = scoreToTenScale(source, value);
-  return `${star}${ten.toFixed(1)}`;
+  return `${star}${clampTen(value).toFixed(1)}`;
 }
 
 export type ResolvedRatingDisplay = {
@@ -141,12 +155,12 @@ export function resolveRatingDisplay(
   if (source === "average") {
     const avg = computeAverageScore(scores);
     if (avg != null) {
-      return { label: formatRatingLabel("tmdb", avg, style), valueTen: scoreToTenScale("tmdb", avg), colorSource: "average" };
+      return { label: formatRatingLabel(avg, style), valueTen: clampTen(avg), colorSource: "average" };
     }
     if (tmdbFallback == null) return null;
     return {
-      label: formatRatingLabel("tmdb", tmdbFallback, style),
-      valueTen: scoreToTenScale("tmdb", tmdbFallback),
+      label: formatRatingLabel(tmdbFallback, style),
+      valueTen: clampTen(tmdbFallback),
       colorSource: "tmdb",
     };
   }
@@ -154,16 +168,16 @@ export function resolveRatingDisplay(
   const direct = scores[source];
   if (direct != null) {
     return {
-      label: formatRatingLabel(source, direct, style),
-      valueTen: scoreToTenScale(source, direct),
+      label: formatRatingLabel(direct, style),
+      valueTen: clampTen(direct),
       colorSource: source,
     };
   }
 
   if (source === "tmdb" && tmdbFallback != null) {
     return {
-      label: formatRatingLabel("tmdb", tmdbFallback, style),
-      valueTen: scoreToTenScale("tmdb", tmdbFallback),
+      label: formatRatingLabel(tmdbFallback, style),
+      valueTen: clampTen(tmdbFallback),
       colorSource: "tmdb",
     };
   }
