@@ -68,3 +68,26 @@ describe("posterRenderCacheKey", () => {
     ).not.toBe(posterLatestAliasKey({ ...base, overlayQueryString: ranked(null) }));
   });
 });
+
+describe("poster shape in cache keys", () => {
+  const params = (overlayQueryString: string) => ({
+    imdbId: "tt0111161",
+    overlayQueryString,
+    language: "en-US",
+    configId: null,
+  });
+  const portrait = serializePosterQuery(POSTER_OVERLAY_DEFAULTS);
+
+  test("landscape and portrait renders never share a key or alias", () => {
+    const landscape = `${portrait}&shape=landscape`;
+    expect(posterRenderCacheKey(params(landscape))).not.toBe(posterRenderCacheKey(params(portrait)));
+    expect(posterLatestAliasKey(params(landscape))).not.toBe(posterLatestAliasKey(params(portrait)));
+  });
+
+  test("an explicit shape=poster keeps the existing portrait key", () => {
+    expect(posterRenderCacheKey(params(`${portrait}&shape=poster`))).toBe(
+      posterRenderCacheKey(params(portrait)),
+    );
+    expect(posterRenderCacheKey(params(portrait))).not.toContain("shape=");
+  });
+});
