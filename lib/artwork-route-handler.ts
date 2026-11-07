@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { cachedFileReadableStream } from "@/lib/cached-file-response";
+import { imageResponse } from "@/lib/cached-file-response";
 import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import {
@@ -49,12 +49,10 @@ async function handleBackdropRequestInner(
 
   const cachedBackdropPath = await resolveCachedBackdropDiskPath(imdbId, language, configId);
   if (cachedBackdropPath) {
-    return new NextResponse(cachedFileReadableStream(cachedBackdropPath), {
-      headers: {
-        "Content-Type": "image/jpeg",
-        "Cache-Control": "public, max-age=86400",
-        ...stremioCorsHeaders(),
-      },
+    return imageResponse(request, { path: cachedBackdropPath }, {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "public, max-age=86400",
+      ...stremioCorsHeaders(),
     });
   }
 
@@ -73,12 +71,10 @@ async function handleBackdropRequestInner(
     return new NextResponse("Not found", { status: 404 });
   }
 
-  return new NextResponse(new Uint8Array(jpeg), {
-    headers: {
-      "Content-Type": "image/jpeg",
-      "Cache-Control": "public, max-age=86400",
-      ...stremioCorsHeaders(),
-    },
+  return imageResponse(request, { bytes: jpeg }, {
+    "Content-Type": "image/jpeg",
+    "Cache-Control": "public, max-age=86400",
+    ...stremioCorsHeaders(),
   });
 }
 
@@ -116,12 +112,10 @@ async function handleLogoRequestInner(
 
   const cachedLogoPath = await resolveCachedLogoDiskPath(imdbId, language, configId);
   if (cachedLogoPath) {
-    return new NextResponse(cachedFileReadableStream(cachedLogoPath), {
-      headers: {
-        "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=86400",
-        ...stremioCorsHeaders(),
-      },
+    return imageResponse(request, { path: cachedLogoPath }, {
+      "Content-Type": "image/png",
+      "Cache-Control": "public, max-age=86400",
+      ...stremioCorsHeaders(),
     });
   }
 
@@ -135,11 +129,9 @@ async function handleLogoRequestInner(
     return new NextResponse("Not found", { status: 404 });
   }
 
-  return new NextResponse(new Uint8Array(png), {
-    headers: {
-      "Content-Type": "image/png",
-      "Cache-Control": "public, max-age=86400",
-      ...stremioCorsHeaders(),
-    },
+  return imageResponse(request, { bytes: png }, {
+    "Content-Type": "image/png",
+    "Cache-Control": "public, max-age=86400",
+    ...stremioCorsHeaders(),
   });
 }

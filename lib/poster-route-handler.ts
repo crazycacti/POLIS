@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { cachedFileReadableStream } from "@/lib/cached-file-response";
+import { imageResponse } from "@/lib/cached-file-response";
 import { runWithClientRequestContext } from "@/lib/client-request-context";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { resolveFanartAuth } from "@/lib/fanart-auth";
@@ -77,9 +77,9 @@ async function handlePosterDefaultRequestInner(
     ...stremioCorsHeaders(),
   };
 
-  if (cached.source === "disk") {
-    return new NextResponse(cachedFileReadableStream(cached.path), { headers });
-  }
-
-  return new NextResponse(new Uint8Array(cached.image), { headers });
+  return imageResponse(
+    request,
+    cached.source === "disk" ? { path: cached.path } : { bytes: cached.image },
+    headers,
+  );
 }
