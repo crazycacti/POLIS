@@ -62,7 +62,7 @@ export function ConfigureWorkspace(
 
   if (!authChecked) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-16 text-center text-sm text-zinc-400">
+      <div className="mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 text-sm text-zinc-400">
         Loading…
       </div>
     );
