@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
 import { SetupLooks } from "@/components/setup/setup-looks";
+import type { PosterPart } from "@/components/setup/setup-poster-parts";
 import { SetupPreviewSidebar } from "@/components/setup/setup-preview-sidebar";
 import { useDebouncedValue } from "@/components/setup/use-preloaded-poster-src";
 import { SetupCatalogsPanel } from "@/components/setup/setup-catalogs-panel";
@@ -114,6 +115,7 @@ export function SetupWorkspace(props: {
   pageHint?: string;
 }) {
   const [tab, setTab] = useState<SetupTab>("style");
+  const [openPosterPart, setOpenPosterPart] = useState<PosterPart | null>(null);
   const [overlay, setOverlay] = useState(props.initialOverlay);
   const [imdbPreview, setImdbPreview] = useState("tt12042730");
   const [overlaySettled, setOverlaySettled] = useState(false);
@@ -860,6 +862,8 @@ export function SetupWorkspace(props: {
             </label>
               </div>
             }
+            onOpenPartChange={setOpenPosterPart}
+            openPart={openPosterPart}
             overlay={overlay}
             setOverlay={changeOverlay}
           />
@@ -876,6 +880,8 @@ export function SetupWorkspace(props: {
             posterSrcForImdb={posterSrcForImdb}
             onImdbChange={setImdbPreview}
             landscape={overlay.posterShape === "landscape"}
+            onShapeChange={(posterShape) => changeOverlay((o) => ({ ...o, posterShape }))}
+            shape={overlay.posterShape}
             overlayQueryString={previewOverlayQuery}
             showcaseQueryString={showcaseQueryString}
           />

@@ -2,7 +2,6 @@ import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { CopyButton } from "@/components/copy-button";
-import { PolisSwitch } from "@/components/setup/polis-switch";
 
 export function SetupPanel(props: {
   title: string;
@@ -19,36 +18,28 @@ export function SetupPanel(props: {
   );
 }
 
-export function SetupSection(props: { title: string; children: ReactNode }) {
-  const headingId = `setup-section-${props.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-  return (
-    <section aria-labelledby={headingId} className="mb-10">
-      <h2 className="mb-1 text-lg font-semibold text-white" id={headingId}>
-        {props.title}
-      </h2>
-      <div className="divide-y divide-white/5">{props.children}</div>
-    </section>
-  );
-}
-
-export function SetupToggle(props: {
+export function SetupSegmented<T extends string>(props: {
   label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
 }) {
   return (
-    <label
-      className={`polis-toggle-row min-h-10 ${props.disabled ? "cursor-not-allowed opacity-50" : ""}`}
-    >
-      <span className="text-sm text-zinc-200">{props.label}</span>
-      <PolisSwitch
-        checked={props.checked}
-        disabled={props.disabled}
-        insideLabel
-        onChange={props.onChange}
-      />
-    </label>
+    <div aria-label={props.label} className="flex w-fit gap-1 rounded-full bg-zinc-900 p-1" role="group">
+      {props.options.map((option) => (
+        <button
+          aria-pressed={props.value === option.value}
+          className={`polis-focus min-h-10 rounded-full px-4 text-sm transition-colors pointer-coarse:min-h-11 ${
+            props.value === option.value ? "polis-selected" : "text-zinc-400 hover:bg-white/5 hover:text-white"
+          }`}
+          key={option.value}
+          onClick={() => props.onChange(option.value)}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

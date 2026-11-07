@@ -7,15 +7,21 @@ import {
   ClientPreviewTabs,
   type ClientPreviewView,
 } from "@/components/setup/setup-client-previews";
-import { SelectionCheck } from "@/components/setup/setup-ui";
+import { SelectionCheck, SetupSegmented } from "@/components/setup/setup-ui";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
 import { resolveSetupDemoPosterSrc } from "@/lib/demo-poster-urls";
+import type { PosterShape } from "@/lib/poster-query";
 import type { PreviewTitle } from "@/lib/preview-title-list";
 
 const CUSTOM_TITLE = "custom";
 
 type TitleOption = { key: string; label: string; src: string };
+
+const SHAPES: { value: PosterShape; label: string }[] = [
+  { value: "poster", label: "Portrait" },
+  { value: "landscape", label: "Landscape" },
+];
 
 export function SetupPreviewSidebar(props: {
   imdbPreview: string;
@@ -29,6 +35,8 @@ export function SetupPreviewSidebar(props: {
   overlayQueryString: string;
   showcaseQueryString: string;
   landscape: boolean;
+  shape: PosterShape;
+  onShapeChange: (shape: PosterShape) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<ClientPreviewView>("poster");
@@ -78,6 +86,10 @@ export function SetupPreviewSidebar(props: {
       aria-label="Preview"
       className="order-first w-full shrink-0 lg:order-none lg:sticky lg:top-4 lg:z-10 lg:w-[min(320px,32vw)]"
     >
+      <div className="mb-3 flex justify-center lg:justify-start">
+        <SetupSegmented label="Shape" onChange={props.onShapeChange} options={SHAPES} value={props.shape} />
+      </div>
+
       {showPoster && view !== "poster" ? (
         <ClientPreview landscape={props.landscape} neighborSrcs={neighborSrcs} src={displaySrc!} view={view} />
       ) : (

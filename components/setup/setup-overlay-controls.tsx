@@ -3,32 +3,6 @@
 import type { ReactNode } from "react";
 
 import { PolisSwitch } from "@/components/setup/polis-switch";
-import { SetupToggle } from "@/components/setup/setup-ui";
-
-export function SetupOverlayOption(props: {
-  checked: boolean;
-  customize?: ReactNode;
-  disabled?: boolean;
-  label: string;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="py-3">
-      <SetupToggle
-        checked={props.checked}
-        disabled={props.disabled}
-        label={props.label}
-        onChange={props.onCheckedChange}
-      />
-      {props.checked && props.customize ? (
-        <details className="polis-overlay-details mt-3">
-          <summary>Customize</summary>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">{props.customize}</div>
-        </details>
-      ) : null}
-    </div>
-  );
-}
 
 export function SetupOverlayField(props: { label: string; children: ReactNode; className?: string }) {
   return (
