@@ -10,7 +10,7 @@ mkdir -p "$CACHE_DIR"
 
 if [ "$(id -u)" = "0" ]; then
   # Data written by older images is owned by root; hand it to the app user before dropping root.
-  find "$DB_DIR" "$CACHE_DIR" ! -user bun -exec chown bun:bun {} +
+  find "$DB_DIR" "$CACHE_DIR" ! -user bun -exec chown -h bun:bun {} +
   exec setpriv --reuid=bun --regid=bun --init-groups -- "$@"
 fi
 
