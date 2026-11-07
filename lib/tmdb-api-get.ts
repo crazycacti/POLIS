@@ -1,30 +1,21 @@
-import { createHash } from "node:crypto";
-
-import { polisDiskCacheEnabled, readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
-import { polisSingleflight } from "@/lib/polis-singleflight";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { fetchUpstream } from "@/lib/upstream-fetch";
-
-function tmdbCredentialFingerprint(credential: TmdbCredential): string {
-  const raw =
-    credential.kind === "bearer" ? `bearer:${credential.token}` : `api_key:${credential.key}`;
-  return createHash("sha256").update(raw).digest("hex").slice(0, 16);
-}
-
-function tmdbCacheKey(url: URL, credential: TmdbCredential): string {
-  return [tmdbCredentialFingerprint(credential), url.pathname, url.search].join("\0");
-}
+import { upstreamCredentialFingerprint } from "@/lib/upstream-guard";
+import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
 // Scores and air dates change daily; TMDB terms also cap caching at six months.
 const DEFAULT_TMDB_DISK_TTL_SEC = 24 * 60 * 60;
+const TMDB_MISSING_TTL_MS = 6 * 60 * 60 * 1000;
 
 function tmdbDiskTtlMs(): number {
   return (polisEnvPositiveInt("POLIS_CACHE_TMDB_TTL_SEC") ?? DEFAULT_TMDB_DISK_TTL_SEC) * 1000;
 }
 
-async function readTmdbDiskCache(cacheKey: string, ttlMs: number): Promise<unknown | null> {
-  return readPolisDiskJson<unknown>("tmdb", "g", cacheKey, ttlMs);
+function tmdbCredentialFingerprint(credential: TmdbCredential): string {
+  return upstreamCredentialFingerprint(
+    credential.kind === "bearer" ? `bearer:${credential.token}` : `api_key:${credential.key}`,
+  );
 }
 
 export async function tmdbApiGet(
@@ -41,24 +32,22 @@ export async function tmdbApiGet(
     headers.Authorization = `Bearer ${credential.token}`;
   }
 
-  const cacheKey = tmdbCacheKey(target, credential);
-
-  return polisSingleflight(`tmdb:${cacheKey}`, async () => {
-    const ttlMs = options.ttlSec != null ? options.ttlSec * 1000 : tmdbDiskTtlMs();
-    const cached = await readTmdbDiskCache(cacheKey, ttlMs);
-    if (cached !== null) return cached;
-
-    const response = await fetchUpstream(target, {
-      headers,
-      timeoutMs: options.timeoutMs,
-      revalidateSeconds: polisDiskCacheEnabled() ? 0 : ttlMs / 1000,
-    });
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    void writePolisDiskJson("tmdb", "g", cacheKey, data).catch(() => {});
-    return data;
+  const ttlMs = options.ttlSec != null ? options.ttlSec * 1000 : tmdbDiskTtlMs();
+  const result = await cachedUpstreamJson<unknown>({
+    provider: "tmdb",
+    cacheKey: `${url.pathname}${url.search}`,
+    ttlMs,
+    negativeTtlMs: Math.min(ttlMs, TMDB_MISSING_TTL_MS),
+    label: url.pathname,
+    credentialFingerprint: tmdbCredentialFingerprint(credential),
+    request: () =>
+      fetchUpstream(target, {
+        headers,
+        timeoutMs: options.timeoutMs,
+        revalidateSeconds: upstreamNextRevalidateSeconds(ttlMs),
+      }),
+    parse: (payload) => payload ?? null,
   });
+  if (result.error !== undefined) throw result.error;
+  return result.value;
 }

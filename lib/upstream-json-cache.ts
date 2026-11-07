@@ -11,7 +11,7 @@ import { upstreamCallIsBackground } from "@/lib/upstream-priority";
 
 export type UpstreamJsonOutcome = "fresh" | "fetched" | "stale" | "missing" | "unavailable";
 
-export type UpstreamJsonResult<T> = { value: T | null; outcome: UpstreamJsonOutcome };
+export type UpstreamJsonResult<T> = { value: T | null; outcome: UpstreamJsonOutcome; error?: unknown };
 
 type Envelope<T> = { at: number; value: T } | { at: number; missing: true };
 
@@ -105,7 +105,8 @@ export async function cachedUpstreamJson<T>(params: {
         `${params.provider} request failed for ${params.label}, serving ${cached ? "cached" : "no"} data`,
         error,
       );
-      return fallbackFrom(cached);
+      const fallback = fallbackFrom(cached);
+      return fallback.outcome === "unavailable" ? { ...fallback, error } : fallback;
     }
 
     if (!result.ok) return fallbackFrom(cached);

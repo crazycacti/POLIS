@@ -93,6 +93,12 @@ describe("cachedUpstreamJson", () => {
     expect(await h.lookup()).toEqual({ value: null, outcome: "unavailable" });
   });
 
+  test("hands the network error back when nothing is cached", async () => {
+    const failure = new Error("connect failed");
+    const h = harness([failure]);
+    expect(await h.lookup()).toEqual({ value: null, outcome: "unavailable", error: failure });
+  });
+
   test("stores a negative marker on 404 and skips calls until it expires", async () => {
     const h = harness([json({}, 404)]);
     expect(await h.lookup()).toEqual({ value: null, outcome: "missing" });
