@@ -7,6 +7,7 @@ import {
   ClientPreviewTabs,
   type ClientPreviewView,
 } from "@/components/setup/setup-client-previews";
+import type { PosterPart } from "@/components/setup/setup-poster-parts";
 import { SelectionCheck, SetupSegmented } from "@/components/setup/setup-ui";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
@@ -23,6 +24,40 @@ const SHAPES: { value: PosterShape; label: string }[] = [
   { value: "landscape", label: "Landscape" },
 ];
 
+type Hotspot = { part: PosterPart; label: string; className: string };
+
+const PORTRAIT_HOTSPOTS: Hotspot[] = [
+  { part: "trend", label: "Edit trend tag", className: "left-[28%] top-[2%] h-[11%] w-[44%]" },
+  { part: "badges", label: "Edit badges", className: "right-[2%] top-[2%] h-[11%] w-[24%]" },
+  { part: "logo", label: "Edit title logo", className: "left-[8%] top-[60%] h-[24%] w-[62%]" },
+  { part: "rating", label: "Edit rating", className: "bottom-[2%] right-[2%] h-[17%] w-[27%]" },
+];
+
+const LANDSCAPE_HOTSPOTS: Hotspot[] = [
+  { part: "logo", label: "Edit title logo", className: "left-[2%] top-[44%] h-[30%] w-[42%]" },
+  { part: "rating", label: "Edit rating", className: "bottom-[4%] left-[2%] h-[20%] w-[11%]" },
+  { part: "trend", label: "Edit trend tag", className: "bottom-[4%] left-[13%] h-[20%] w-[24%]" },
+  { part: "badges", label: "Edit badges", className: "bottom-[4%] left-[37%] h-[20%] w-[33%]" },
+];
+
+function PosterHotspots(props: { landscape: boolean; onEditPart: (part: PosterPart) => void }) {
+  const hotspots = props.landscape ? LANDSCAPE_HOTSPOTS : PORTRAIT_HOTSPOTS;
+  return (
+    <>
+      {hotspots.map((hotspot) => (
+        <button
+          aria-label={hotspot.label}
+          className={`absolute rounded-md outline-2 outline-offset-0 outline-transparent outline-dashed transition-[outline-color] hover:outline-white/70 focus-visible:outline-cyan-300 ${hotspot.className}`}
+          key={hotspot.part}
+          onClick={() => props.onEditPart(hotspot.part)}
+          title={hotspot.label}
+          type="button"
+        />
+      ))}
+    </>
+  );
+}
+
 export function SetupPreviewSidebar(props: {
   imdbPreview: string;
   onImdbChange: (value: string) => void;
@@ -37,6 +72,7 @@ export function SetupPreviewSidebar(props: {
   landscape: boolean;
   shape: PosterShape;
   onShapeChange: (shape: PosterShape) => void;
+  onEditPart: (part: PosterPart) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<ClientPreviewView>("poster");
@@ -105,6 +141,7 @@ export function SetupPreviewSidebar(props: {
                 src={displaySrc!}
                 width={320}
               />
+              <PosterHotspots landscape={props.landscape} onEditPart={props.onEditPart} />
               {isLoading ? (
                 <div
                   aria-hidden

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
 import { SetupLooks } from "@/components/setup/setup-looks";
-import type { PosterPart } from "@/components/setup/setup-poster-parts";
+import { posterPartHeaderId, type PosterPart } from "@/components/setup/setup-poster-parts";
 import { SetupPreviewSidebar } from "@/components/setup/setup-preview-sidebar";
 import { useDebouncedValue } from "@/components/setup/use-preloaded-poster-src";
 import { SetupCatalogsPanel } from "@/components/setup/setup-catalogs-panel";
@@ -65,6 +65,20 @@ import {
 import { isImdbId } from "@/lib/stremio-imdb-id";
 import type { ApiKeyProvider } from "@/lib/api-key-validate";
 import { parsePreviewTitles, type PreviewTitle } from "@/lib/preview-title-list";
+
+const SIDE_BY_SIDE_LAYOUT_QUERY = "(min-width: 64rem)";
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function revealPosterPart(part: PosterPart) {
+  const header = document.getElementById(posterPartHeaderId(part));
+  if (!header) return;
+  const stacked = !window.matchMedia(SIDE_BY_SIDE_LAYOUT_QUERY).matches;
+  if (stacked) {
+    const smooth = !window.matchMedia(REDUCED_MOTION_QUERY).matches;
+    header.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
+  }
+  header.focus({ preventScroll: stacked });
+}
 
 const LS_SECRET = "polis_user_tmdb_secret";
 const LS_MDBLIST = "polis_user_mdblist_key";
@@ -880,6 +894,10 @@ export function SetupWorkspace(props: {
             posterSrcForImdb={posterSrcForImdb}
             onImdbChange={setImdbPreview}
             landscape={overlay.posterShape === "landscape"}
+            onEditPart={(part) => {
+              setOpenPosterPart(part);
+              requestAnimationFrame(() => revealPosterPart(part));
+            }}
             onShapeChange={(posterShape) => changeOverlay((o) => ({ ...o, posterShape }))}
             shape={overlay.posterShape}
             overlayQueryString={previewOverlayQuery}
