@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { GET, POST } from "@/app/api/preview/titles/route";
 import { fetchPreviewTitles, PREVIEW_TITLE_LIMIT } from "@/lib/preview-titles";
 import { tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 
@@ -31,6 +32,8 @@ beforeEach(async () => {
   root = await mkdtemp(path.join(tmpdir(), "polis-preview-titles-"));
   process.env.POLIS_CACHE_DIR = root;
   delete process.env.POLIS_CACHE_DISABLE;
+  delete process.env.TMDB_API_KEY;
+  delete process.env.TMDB_ACCESS_TOKEN;
   requests = [];
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -71,6 +74,40 @@ describe("fetchPreviewTitles", () => {
   test("never writes the key into the trending request path", async () => {
     await fetchPreviewTitles({ kind: "bearer", token: "secret-token" });
     expect(requests.every((url) => !url.toString().includes("secret-token"))).toBe(true);
+  });
+});
+
+describe("preview titles route without a server key", () => {
+  const listUrl = "http://polis.test/api/preview/titles";
+
+  test("GET returns 404 until a caller key has fetched the list", async () => {
+    const response = await GET(new Request(listUrl));
+    expect(response.status).toBe(404);
+    expect(requests).toHaveLength(0);
+  });
+
+  test("GET serves the list a caller key fetched, without calling TMDB", async () => {
+    const posted = await POST(
+      new Request(listUrl, { method: "POST", body: JSON.stringify({ tmdbKey: "0123456789abcdef0123456789abcdef" }) }),
+    );
+    const postedBody = (await posted.json()) as { titles: unknown[] };
+    expect(posted.status).toBe(200);
+    const callsAfterPost = requests.length;
+
+    const response = await GET(new Request(listUrl));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(postedBody);
+    expect(requests.length).toBe(callsAfterPost);
+  });
+
+  test("the shared list holds only ids, titles and types", async () => {
+    await POST(
+      new Request(listUrl, { method: "POST", body: JSON.stringify({ tmdbKey: "0123456789abcdef0123456789abcdef" }) }),
+    );
+    const body = (await (await GET(new Request(listUrl))).json()) as { titles: Record<string, unknown>[] };
+    expect(body.titles.length).toBeGreaterThan(0);
+    for (const title of body.titles) expect(Object.keys(title).sort()).toEqual(["imdbId", "title", "type"]);
+    expect(JSON.stringify(body)).not.toContain("0123456789abcdef0123456789abcdef");
   });
 });
 

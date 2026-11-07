@@ -59,18 +59,25 @@ async function buildPreviewTitles(credential: TmdbCredential): Promise<PreviewTi
   return titles.slice(0, PREVIEW_TITLE_LIMIT);
 }
 
+export async function readCachedPreviewTitles(): Promise<PreviewTitle[] | null> {
+  const titles = parsePreviewTitles(
+    await readPolisDiskJson<unknown>(
+      PREVIEW_CACHE_NAMESPACE,
+      PREVIEW_CACHE_SCOPE,
+      PREVIEW_CACHE_KEY,
+      PREVIEW_TITLES_TTL_SEC * 1000,
+    ),
+  );
+  return titles && titles.length > 0 ? titles : null;
+}
+
 export async function fetchPreviewTitles(credential: TmdbCredential): Promise<PreviewTitle[]> {
-  const ttlMs = PREVIEW_TITLES_TTL_SEC * 1000;
-  const read = async () =>
-    parsePreviewTitles(
-      await readPolisDiskJson<unknown>(PREVIEW_CACHE_NAMESPACE, PREVIEW_CACHE_SCOPE, PREVIEW_CACHE_KEY, ttlMs),
-    );
-  const cached = await read();
-  if (cached && cached.length > 0) return cached;
+  const cached = await readCachedPreviewTitles();
+  if (cached) return cached;
 
   return polisSingleflight(`preview-titles\0${PREVIEW_CACHE_KEY}`, async () => {
-    const raced = await read();
-    if (raced && raced.length > 0) return raced;
+    const raced = await readCachedPreviewTitles();
+    if (raced) return raced;
     const titles = await buildPreviewTitles(credential);
     if (titles.length > 0) {
       await writePolisDiskJson(PREVIEW_CACHE_NAMESPACE, PREVIEW_CACHE_SCOPE, PREVIEW_CACHE_KEY, titles).catch(
