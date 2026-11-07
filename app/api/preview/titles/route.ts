@@ -6,6 +6,7 @@ import { fetchPreviewTitles, readCachedPreviewTitles } from "@/lib/preview-title
 import { cleanPreviewKey, NO_PREVIEW_CALLER_KEYS, type PreviewCallerKeys } from "@/lib/preview-keys";
 import type { PreviewTitle } from "@/lib/preview-title-list";
 import { warmPreviewPosters } from "@/lib/preview-warmup";
+import { readJsonBody, SMALL_JSON_BODY_MAX_BYTES } from "@/lib/request-json-body";
 import { SlidingWindowLimiter } from "@/lib/sliding-window-limiter";
 import { tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 import { serverTmdbCredential, type TmdbCredential } from "@/lib/tmdb-server-credential";
@@ -59,12 +60,9 @@ export async function POST(request: Request) {
       { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(titlesPosts.retryAfterSec(clientKey)) } },
     );
   }
-  let body: TitlesBody;
-  try {
-    body = (await request.json()) as TitlesBody;
-  } catch {
-    return NextResponse.json({ titles: [] }, { status: 400 });
-  }
+  const parsed = await readJsonBody(request, SMALL_JSON_BODY_MAX_BYTES);
+  if (!parsed.ok) return NextResponse.json({ titles: [] }, { status: parsed.status });
+  const body = (parsed.value ?? {}) as TitlesBody;
   const callerKey = cleanPreviewKey(body.tmdbKey);
   const credential = serverTmdbCredential() ?? (callerKey ? tmdbCredentialFromRaw(callerKey) : null);
   return titlesResponse(request, credential, {

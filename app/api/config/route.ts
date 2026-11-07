@@ -5,6 +5,7 @@ import { parsePolisCatalogDefinition } from "@/lib/polis-catalogs-json";
 import {
   authorizeConfigWrite,
 } from "@/lib/polis-config-api-auth";
+import { CONFIG_JSON_BODY_MAX_BYTES, readJsonBody } from "@/lib/request-json-body";
 import {
   configureSessionCookieHeader,
   createConfigureSessionToken,
@@ -115,12 +116,11 @@ function configResponse(config: StoredPolisConfig) {
 }
 
 export async function POST(request: Request) {
-  let body: ConfigBody;
-  try {
-    body = (await request.json()) as ConfigBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const parsed = await readJsonBody(request, CONFIG_JSON_BODY_MAX_BYTES);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: parsed.status });
   }
+  const body = (parsed.value ?? {}) as ConfigBody;
 
   const posterQuery = posterQueryFromBody(body);
   if (posterQuery.length > MAX_POSTER_QUERY_LEN) {

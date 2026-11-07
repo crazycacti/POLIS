@@ -7,6 +7,7 @@ import {
 } from "@/lib/polis-config-auth";
 import { isValidPolisConfigId } from "@/lib/polis-config-id";
 import { getPolisConfig } from "@/lib/polis-config-store";
+import { readJsonBody, SMALL_JSON_BODY_MAX_BYTES } from "@/lib/request-json-body";
 
 export const runtime = "nodejs";
 
@@ -34,12 +35,11 @@ export async function POST(
     );
   }
 
-  let body: UnlockBody;
-  try {
-    body = (await request.json()) as UnlockBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  const parsed = await readJsonBody(request, SMALL_JSON_BODY_MAX_BYTES);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: parsed.status });
   }
+  const body = (parsed.value ?? {}) as UnlockBody;
 
   const password = typeof body.password === "string" ? body.password.trim() : "";
   if (!password) {

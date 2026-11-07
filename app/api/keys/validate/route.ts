@@ -4,18 +4,35 @@ import {
   validateApiKey,
   type ApiKeyProvider,
 } from "@/lib/api-key-validate";
+import { proxyClientKey } from "@/lib/client-request-context";
+import { polisEnvPositiveInt } from "@/lib/polis-env-int";
+import { readJsonBody, SMALL_JSON_BODY_MAX_BYTES } from "@/lib/request-json-body";
+import { SlidingWindowLimiter } from "@/lib/sliding-window-limiter";
 
 export const runtime = "nodejs";
 
 const PROVIDERS: ApiKeyProvider[] = ["tmdb", "mdblist", "fanart", "tvdb"];
+const DEFAULT_VALIDATIONS_PER_CLIENT_PER_MIN = 20;
+
+const validations = new SlidingWindowLimiter(
+  60 * 1000,
+  () => polisEnvPositiveInt("POLIS_KEY_VALIDATIONS_PER_CLIENT_PER_MIN") ?? DEFAULT_VALIDATIONS_PER_CLIENT_PER_MIN,
+);
 
 export async function POST(request: Request) {
-  let body: { provider?: string; key?: string };
-  try {
-    body = (await request.json()) as { provider?: string; key?: string };
-  } catch {
-    return NextResponse.json({ ok: false, message: "Invalid JSON body" }, { status: 400 });
+  const clientKey = proxyClientKey(request);
+  if (!validations.take(clientKey)) {
+    return NextResponse.json(
+      { ok: false, message: "Too many key checks. Try again in a minute." },
+      { status: 429, headers: { "Retry-After": String(validations.retryAfterSec(clientKey)) } },
+    );
   }
+
+  const parsed = await readJsonBody(request, SMALL_JSON_BODY_MAX_BYTES);
+  if (!parsed.ok) {
+    return NextResponse.json({ ok: false, message: "Invalid JSON body" }, { status: parsed.status });
+  }
+  const body = (parsed.value ?? {}) as { provider?: string; key?: string };
 
   const provider = body.provider?.trim().toLowerCase() as ApiKeyProvider;
   if (!PROVIDERS.includes(provider)) {
