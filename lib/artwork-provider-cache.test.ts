@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { fetchAnilistPosterUrl } from "@/lib/anilist-client";
-import { fetchFanartPoster } from "@/lib/fanart-client";
+import { fetchFanartLogos, fetchFanartPoster } from "@/lib/fanart-client";
 import { fetchJikanPosterUrl } from "@/lib/jikan-client";
 import { fetchKitsuPosterUrl } from "@/lib/kitsu-client";
 
@@ -59,6 +59,35 @@ describe("fanart", () => {
     expect(await fetchFanartPoster(params)).toEqual({ candidate: null, degraded: false });
     await settle();
     expect(await fetchFanartPoster(params)).toEqual({ candidate: null, degraded: false });
+    expect(requests).toHaveLength(1);
+  });
+
+  test("ranks title logos by language and hd first from the cached poster response", async () => {
+    respond = () =>
+      Response.json({
+        tvposter: [{ url: "https://assets.fanart.tv/p.jpg", lang: "en" }],
+        hdtvlogo: [
+          { url: "https://assets.fanart.tv/hd-ru.png", lang: "ru", likes: "40" },
+          { url: "https://assets.fanart.tv/hd-en.png", lang: "en", likes: "2" },
+          { url: "https://assets.fanart.tv/hd-de.png", lang: "de", likes: "1" },
+        ],
+        clearlogo: [
+          { url: "https://assets.fanart.tv/sd-en.png", lang: "en", likes: "90" },
+          { url: "https://assets.fanart.tv/sd-xx.png", lang: "xx", likes: "1" },
+        ],
+      });
+    const base = { mediaType: "series" as const, tmdbId: 1, tvdbId: 504, apiKey: "fan-key-5" };
+    const poster = await fetchFanartPoster({ ...base, language: "en-US" });
+    await settle();
+    const en = await fetchFanartLogos({ ...base, language: "en-US" });
+    const de = await fetchFanartLogos({ ...base, language: "de-DE" });
+    expect(poster.candidate?.url).toBe("https://assets.fanart.tv/p.jpg");
+    expect(en.urls).toEqual([
+      "https://assets.fanart.tv/hd-en.png",
+      "https://assets.fanart.tv/sd-en.png",
+      "https://assets.fanart.tv/sd-xx.png",
+    ]);
+    expect(de.urls[0]).toBe("https://assets.fanart.tv/hd-de.png");
     expect(requests).toHaveLength(1);
   });
 

@@ -8,6 +8,7 @@ import type { ArtworkCandidate, ArtworkLookup } from "@/lib/artwork-candidate";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint } from "@/lib/upstream-guard";
 import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
+import { rankTitleLogos, type TitleLogoEntry } from "@/lib/title-logo-rank";
 
 function isTextlessFanartAsset(asset: FanartAsset): boolean {
   const code = (asset.lang ?? asset.iso_639_1 ?? "").toLowerCase();
@@ -49,42 +50,83 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const FANART_TTL_MS = 7 * DAY_MS;
 const FANART_MISSING_TTL_MS = DAY_MS;
 
-function parseFanartAssets(payload: unknown, key: "movieposter" | "tvposter"): FanartAsset[] | null {
-  if (!payload || typeof payload !== "object") return null;
-  const raw = (payload as Record<string, unknown>)[key];
+type FanartMediaType = "movie" | "series";
+
+type FanartArt = { posters: FanartAsset[]; logos: TitleLogoEntry[] };
+
+const FANART_POSTER_KEYS: Record<FanartMediaType, string> = { movie: "movieposter", series: "tvposter" };
+const FANART_HD_LOGO_KEYS: Record<FanartMediaType, string> = { movie: "hdmovielogo", series: "hdtvlogo" };
+const FANART_SD_LOGO_KEYS: Record<FanartMediaType, string> = { movie: "movielogo", series: "clearlogo" };
+const FANART_HD_LOGO_BONUS = 1_000_000;
+const FANART_ENGLISH_CODE = "en";
+const FANART_NEUTRAL_LANGUAGES = new Set(["00", "xx"]);
+
+function parseFanartRows(payload: Record<string, unknown>, key: string): Record<string, unknown>[] | null {
+  const raw = payload[key];
   if (raw == null) return [];
   if (!Array.isArray(raw)) return null;
-  return raw.flatMap((entry): FanartAsset[] => {
-    if (!entry || typeof entry !== "object") return [];
-    const row = entry as Record<string, unknown>;
-    if (typeof row.url !== "string" || !row.url) return [];
-    const lang = typeof row.lang === "string" ? row.lang : undefined;
-    const iso = typeof row.iso_639_1 === "string" ? row.iso_639_1 : undefined;
-    return [{ url: row.url, lang, iso_639_1: iso }];
+  return raw.filter((entry): entry is Record<string, unknown> =>
+    Boolean(entry) && typeof entry === "object" && typeof (entry as Record<string, unknown>).url === "string",
+  );
+}
+
+function parseFanartLogos(payload: Record<string, unknown>, key: string, bonus: number): TitleLogoEntry[] {
+  return (parseFanartRows(payload, key) ?? []).flatMap((row) => {
+    const url = String(row.url);
+    if (!url) return [];
+    const likes = Number(row.likes);
+    return [{
+      url,
+      language: typeof row.lang === "string" ? row.lang : null,
+      score: (Number.isFinite(likes) ? likes : 0) + bonus,
+    }];
   });
 }
 
-export async function fetchFanartPoster(params: {
-  mediaType: "movie" | "series";
+function parseFanartArt(payload: unknown, mediaType: FanartMediaType): FanartArt | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  const posterRows = parseFanartRows(record, FANART_POSTER_KEYS[mediaType]);
+  if (posterRows == null) return null;
+  const posters = posterRows.flatMap((row): FanartAsset[] => {
+    const url = String(row.url);
+    if (!url) return [];
+    const lang = typeof row.lang === "string" ? row.lang : undefined;
+    const iso = typeof row.iso_639_1 === "string" ? row.iso_639_1 : undefined;
+    return [{ url, lang, iso_639_1: iso }];
+  });
+  const logos = [
+    ...parseFanartLogos(record, FANART_HD_LOGO_KEYS[mediaType], FANART_HD_LOGO_BONUS),
+    ...parseFanartLogos(record, FANART_SD_LOGO_KEYS[mediaType], 0),
+  ];
+  return { posters, logos };
+}
+
+export function rankFanartLogos(logos: TitleLogoEntry[], language: string): string[] {
+  const primary = language.split("-")[0]?.trim().toLowerCase() || null;
+  return rankTitleLogos(logos, [primary, FANART_ENGLISH_CODE], FANART_NEUTRAL_LANGUAGES);
+}
+
+type FanartLookup = {
+  mediaType: FanartMediaType;
   tmdbId: number;
   tvdbId: number | null;
   apiKey: string;
-  language: string;
-  preferTextless?: boolean;
-}): Promise<ArtworkLookup> {
+};
+
+async function fetchFanartArt(params: FanartLookup): Promise<{ art: FanartArt | null; degraded: boolean }> {
   const lookupId = params.mediaType === "movie" ? String(params.tmdbId) : String(params.tvdbId ?? "");
-  if (!lookupId) return { candidate: null, degraded: false };
+  if (!lookupId) return { art: null, degraded: false };
 
   const endpoint =
     params.mediaType === "movie"
       ? `https://webservice.fanart.tv/v3/movies/${lookupId}`
       : `https://webservice.fanart.tv/v3/tv/${lookupId}`;
-  const assetKey = params.mediaType === "movie" ? "movieposter" : "tvposter";
 
   const url = `${endpoint}?api_key=${encodeURIComponent(params.apiKey)}`;
-  const result = await cachedUpstreamJson<FanartAsset[]>({
+  const result = await cachedUpstreamJson<FanartArt>({
     provider: "fanart",
-    cacheKey: [assetKey, lookupId].join("\0"),
+    cacheKey: ["art", params.mediaType, lookupId].join("\0"),
     ttlMs: FANART_TTL_MS,
     negativeTtlMs: FANART_MISSING_TTL_MS,
     label: `${params.mediaType} ${lookupId}`,
@@ -94,11 +136,25 @@ export async function fetchFanartPoster(params: {
         headers: { Accept: "application/json" },
         revalidateSeconds: upstreamNextRevalidateSeconds(FANART_TTL_MS),
       }),
-    parse: (payload) => parseFanartAssets(payload, assetKey),
+    parse: (payload) => parseFanartArt(payload, params.mediaType),
   });
+  return { art: result.value, degraded: result.outcome === "unavailable" };
+}
 
+export async function fetchFanartPoster(params: FanartLookup & {
+  language: string;
+  preferTextless?: boolean;
+}): Promise<ArtworkLookup> {
+  const { art, degraded } = await fetchFanartArt(params);
   return {
-    candidate: pickFanartPoster(result.value ?? [], params.language, params.preferTextless ?? false),
-    degraded: result.outcome === "unavailable",
+    candidate: pickFanartPoster(art?.posters ?? [], params.language, params.preferTextless ?? false),
+    degraded,
   };
+}
+
+export async function fetchFanartLogos(
+  params: FanartLookup & { language: string },
+): Promise<{ urls: string[]; degraded: boolean }> {
+  const { art, degraded } = await fetchFanartArt(params);
+  return { urls: rankFanartLogos(art?.logos ?? [], params.language), degraded };
 }
