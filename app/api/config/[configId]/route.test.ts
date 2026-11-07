@@ -1,26 +1,21 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import path from "node:path";
 
-let dir = "";
-let dbFile = "";
+const savedSecret = process.env.POLIS_SESSION_SECRET;
 
-beforeAll(async () => {
-  dir = await mkdtemp(path.join(tmpdir(), "polis-config-get-"));
-  dbFile = path.join(dir, "test.sqlite");
-  process.env.POLIS_DB_PATH = dbFile;
+beforeAll(() => {
   process.env.POLIS_SESSION_SECRET = "test-session-secret-0123456789abcdef";
 });
 
-afterAll(async () => {
-  await rm(dir, { recursive: true, force: true });
+afterAll(() => {
+  if (savedSecret == null) delete process.env.POLIS_SESSION_SECRET;
+  else process.env.POLIS_SESSION_SECRET = savedSecret;
 });
 
 async function setup() {
   const { getPolisDb } = await import("@/lib/db");
-  // Refuse to write test rows into a database other than the temporary one.
-  expect(getPolisDb().filename).toBe(dbFile);
+  // Refuse to write test rows into a database other than the temporary one from test/preload.ts.
+  expect(getPolisDb().filename.startsWith(tmpdir())).toBe(true);
   const store = await import("@/lib/polis-config-store");
   const auth = await import("@/lib/polis-config-auth");
   const { parsePosterOverlayQuery } = await import("@/lib/poster-query");
