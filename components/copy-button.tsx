@@ -1,27 +1,56 @@
 "use client";
 
-import { Copy, Check } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+type CopyState = "idle" | "copied" | "failed";
+
+const COPY_STATE_RESET_MS = 2000;
+
+const LABELS: Record<CopyState, string> = {
+  idle: "Copy",
+  copied: "Copied",
+  failed: "Copy failed",
+};
 
 export function CopyButton({ text, className }: { text: string; className?: string }) {
-  const [done, setDone] = useState(false);
+  const [state, setState] = useState<CopyState>("idle");
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    },
+    [],
+  );
+
+  function show(next: CopyState) {
+    setState(next);
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setState("idle"), COPY_STATE_RESET_MS);
+  }
 
   return (
     <button
-      type="button"
-      className={`flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:border-cyan-600/50 hover:text-white ${className ?? ""}`}
+      className={`polis-btn-secondary shrink-0 gap-1.5 ${className ?? ""}`}
       onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setDone(true);
-        setTimeout(() => setDone(false), 2000);
+        try {
+          await navigator.clipboard.writeText(text);
+          show("copied");
+        } catch {
+          show("failed");
+        }
       }}
+      type="button"
     >
-      {done ? (
-        <Check className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
+      {state === "copied" ? (
+        <Check aria-hidden className="h-3.5 w-3.5 text-emerald-400" />
+      ) : state === "failed" ? (
+        <X aria-hidden className="h-3.5 w-3.5 text-amber-300" />
       ) : (
-        <Copy className="h-3.5 w-3.5" aria-hidden />
+        <Copy aria-hidden className="h-3.5 w-3.5" />
       )}
-      {done ? "Copied" : "Copy"}
+      <span aria-live="polite">{LABELS[state]}</span>
     </button>
   );
 }
