@@ -12,30 +12,6 @@ export type IntegratorArtworkKeys = {
   tvdbApiKey?: string | null;
 };
 
-export type ServerIntegratorKeyAvailability = {
-  hasServerTmdb: boolean;
-  hasServerMdblist: boolean;
-  hasServerFanart: boolean;
-  hasServerTvdb: boolean;
-};
-
-export function mergePosterQueryForConfigurePreview(
-  posterQueryString: string,
-  server: ServerIntegratorKeyAvailability,
-  tmdbAuth: URLSearchParams | undefined,
-  artworkKeys: IntegratorArtworkKeys,
-): string {
-  return mergePosterQueryWithIntegratorAuth(
-    posterQueryString,
-    server.hasServerTmdb ? undefined : tmdbAuth,
-    {
-      mdblistApiKey: server.hasServerMdblist ? null : artworkKeys.mdblistApiKey,
-      fanartApiKey: server.hasServerFanart ? null : artworkKeys.fanartApiKey,
-      tvdbApiKey: server.hasServerTvdb ? null : artworkKeys.tvdbApiKey,
-    },
-  );
-}
-
 export function mergePosterQueryForAiometadataPattern(posterQueryString: string): string {
   const parts: string[] = [];
   const base = posterQueryString.trim();

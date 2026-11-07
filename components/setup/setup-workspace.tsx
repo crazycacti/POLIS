@@ -13,7 +13,6 @@ import { SetupTabs, type SetupTab } from "@/components/setup/setup-tabs";
 import { SetupSaveBar, type SetupSaveStatus } from "@/components/setup/setup-save-bar";
 import { SetupChecklist } from "@/components/setup/setup-checklist";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
-import { mergePosterQueryForConfigurePreview } from "@/lib/integrator-auth";
 import { SetupPasswordDialog } from "@/components/setup/setup-password-dialog";
 import { stremioUserInstallUrl } from "@/lib/polis-install-urls";
 import { aiometadataArtPatterns } from "@/lib/polis-urls";
@@ -335,30 +334,6 @@ export function SetupWorkspace(props: {
     }),
     [fanartInput, mdblistInput, tvdbInput],
   );
-  const previewQueryString = useMemo(
-    () =>
-      mergePosterQueryForConfigurePreview(
-        previewOverlayQuery,
-        {
-          hasServerTmdb: props.hasServerTmdb,
-          hasServerMdblist: props.hasServerMdblist,
-          hasServerFanart: props.hasServerFanart,
-          hasServerTvdb: props.hasServerTvdb,
-        },
-        userAuthParams,
-        browserArtworkKeys,
-      ),
-    [
-      browserArtworkKeys,
-      previewOverlayQuery,
-      props.hasServerFanart,
-      props.hasServerMdblist,
-      props.hasServerTmdb,
-      props.hasServerTvdb,
-      userAuthParams,
-    ],
-  );
-
   const idOk = isImdbId(imdbPreview);
   const hasPreviewCredential = props.hasServerTmdb || Boolean(userAuthParams);
   const hasCatalogTmdb = props.hasServerTmdb || Boolean(userAuthParams);
@@ -542,7 +517,7 @@ export function SetupWorkspace(props: {
     (imdbId: string): PreviewImageSrcs => {
       if (configId && useConfigScopedPreview) {
         const rev = `polis_r=${POLIS_RENDERER_REVISION}`;
-        const qs = previewQueryString ? `${previewQueryString}&${rev}` : rev;
+        const qs = previewOverlayQuery ? `${previewOverlayQuery}&${rev}` : rev;
         const full = `/${configId}/poster/imdb/poster-default/${imdbId}.jpg?${qs}`;
         return { full, thumb: full };
       }
@@ -553,7 +528,7 @@ export function SetupWorkspace(props: {
         thumbSrcSet: previewThumbSrcSet((width) => previewPosterPath(imdbId, previewOverlayQuery, tag, width)),
       };
     },
-    [configId, previewCookieTag, previewOverlayQuery, previewProviders, previewQueryString, useConfigScopedPreview],
+    [configId, previewCookieTag, previewOverlayQuery, previewProviders, useConfigScopedPreview],
   );
   const previewSrcsReady = useConfigScopedPreview || previewCookie?.keys === previewCallerKeys;
 
