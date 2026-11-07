@@ -8,7 +8,7 @@ import type { TmdbCastMember, TmdbCreatedBy } from "@/lib/tmdb-credits-parse";
 import { fetchTmdbSeriesVideos, type StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import { polisCacheRoot } from "@/lib/polis-cache-path";
-import { polisDiskCacheEnabled, readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
+import { polisDiskCacheEnabled, readPolisDiskJsonEntry, writePolisDiskJson } from "@/lib/polis-disk-cache";
 
 type FindResponse = {
   movie_results?: { id: number }[];
@@ -107,19 +107,30 @@ export async function resolveTitleFromImdb(params: {
 }): Promise<ResolvedTitle | null> {
   const { imdbId, stremioType, credential, language } = params;
 
-  const hint = await readTmdbIdHint(imdbId);
-  const tmdbId =
-    hint?.stremioType === stremioType
-      ? hint.tmdbId
-      : await findTmdbIdForType(imdbId, stremioType, credential, language);
+  const hinted = await readTmdbIdHint(imdbId, stremioType);
+  let tmdbId = hinted ?? (await findTmdbIdForType(imdbId, stremioType, credential, language));
   if (tmdbId == null) return null;
 
-  if (stremioType === "movie") {
-    const detailsUrl = new URL(`https://api.themoviedb.org/3/movie/${tmdbId}`);
+  const metaDetails = (id: number) => {
+    const detailsUrl = new URL(`https://api.themoviedb.org/3/${stremioType === "movie" ? "movie" : "tv"}/${id}`);
     detailsUrl.searchParams.set("language", language);
-    detailsUrl.searchParams.set("append_to_response", "release_dates,credits");
-    const detailsRaw = await tmdbApiGet(detailsUrl, credential);
-    if (!detailsRaw) return null;
+    detailsUrl.searchParams.set(
+      "append_to_response",
+      stremioType === "movie" ? "release_dates,credits" : "content_ratings,aggregate_credits",
+    );
+    return tmdbApiGet(detailsUrl, credential);
+  };
+  let detailsRaw = await metaDetails(tmdbId);
+  if (!detailsRaw && hinted != null) {
+    const refreshed = await findTmdbIdForType(imdbId, stremioType, credential, language);
+    if (refreshed != null && refreshed !== tmdbId) {
+      tmdbId = refreshed;
+      detailsRaw = await metaDetails(tmdbId);
+    }
+  }
+  if (!detailsRaw) return null;
+
+  if (stremioType === "movie") {
     const d = detailsRaw as MovieDetailsJson;
     const [logoPath, externalIds] = await Promise.all([
       fetchLogoPath("movie", tmdbId, credential, language),
@@ -138,11 +149,6 @@ export async function resolveTitleFromImdb(params: {
     );
   }
 
-  const detailsUrl = new URL(`https://api.themoviedb.org/3/tv/${tmdbId}`);
-  detailsUrl.searchParams.set("language", language);
-  detailsUrl.searchParams.set("append_to_response", "content_ratings,aggregate_credits");
-  const detailsRaw = await tmdbApiGet(detailsUrl, credential);
-  if (!detailsRaw) return null;
   const d = detailsRaw as MovieDetailsJson;
   const [logoPath, externalIds, videos] = await Promise.all([
     fetchLogoPath("tv", tmdbId, credential, language),
@@ -166,23 +172,6 @@ export async function resolveTitleFromImdb(params: {
     videos,
     credits,
   );
-}
-
-async function findTmdbIdForType(
-  imdbId: string,
-  stremioType: "movie" | "series",
-  credential: TmdbCredential,
-  language: string,
-): Promise<number | null> {
-  const findUrl = new URL(`https://api.themoviedb.org/3/find/${encodeURIComponent(imdbId)}`);
-  findUrl.searchParams.set("external_source", "imdb_id");
-  findUrl.searchParams.set("language", language);
-
-  const findRaw = await tmdbApiGet(findUrl, credential);
-  if (!findRaw) return null;
-  const find = findRaw as FindResponse;
-  const hit = stremioType === "movie" ? find.movie_results?.[0] : find.tv_results?.[0];
-  return hit?.id ?? null;
 }
 
 function isoDateMidnight(date: string | undefined): string | null {
@@ -343,7 +332,10 @@ export type TmdbFindHit = { stremioType: "movie" | "series"; tmdbId: number };
 
 const TMDB_ID_HINT_NAMESPACE = "tmdb-id";
 const TMDB_ID_HINT_SCOPE = "g";
+const TMDB_ID_HINT_KEY_VERSION = "typed";
+const UNTYPED_LOOKUP_ORDER: TmdbFindHit["stremioType"][] = ["movie", "series"];
 export const TMDB_ID_HINT_TTL_SEC = 30 * 24 * 60 * 60;
+const TMDB_ID_HINT_TTL_MS = TMDB_ID_HINT_TTL_SEC * 1000;
 
 function isTmdbFindHit(raw: unknown): raw is TmdbFindHit {
   if (!raw || typeof raw !== "object") return false;
@@ -357,55 +349,50 @@ function isTmdbFindHit(raw: unknown): raw is TmdbFindHit {
 }
 
 const TMDB_ID_HINT_MEMORY_MAX = 20_000;
-const tmdbIdHintMemory = new Map<string, { hit: TmdbFindHit; expiresAt: number }>();
+const tmdbIdHintMemory = new Map<string, { tmdbId: number; expiresAt: number }>();
 
-function tmdbIdHintMemoryKey(imdbId: string): string {
-  return `${polisCacheRoot()}\0${imdbId}`;
+function tmdbIdHintDiskKey(imdbId: string, stremioType: TmdbFindHit["stremioType"]): string {
+  return [TMDB_ID_HINT_KEY_VERSION, stremioType, imdbId].join("\0");
 }
 
-function memoryTmdbIdHint(imdbId: string): TmdbFindHit | null {
-  const key = tmdbIdHintMemoryKey(imdbId);
-  const entry = tmdbIdHintMemory.get(key);
-  if (!entry) return null;
-  if (entry.expiresAt > Date.now()) return entry.hit;
-  tmdbIdHintMemory.delete(key);
-  return null;
+function tmdbIdHintMemoryKey(imdbId: string, stremioType: TmdbFindHit["stremioType"]): string {
+  return `${polisCacheRoot()}\0${tmdbIdHintDiskKey(imdbId, stremioType)}`;
 }
 
-function rememberTmdbIdHintInMemory(imdbId: string, hit: TmdbFindHit): void {
+function rememberTmdbIdHintInMemory(imdbId: string, hit: TmdbFindHit, storedAt: number): void {
   if (!polisDiskCacheEnabled()) return;
-  const key = tmdbIdHintMemoryKey(imdbId);
+  const key = tmdbIdHintMemoryKey(imdbId, hit.stremioType);
   tmdbIdHintMemory.delete(key);
-  tmdbIdHintMemory.set(key, { hit, expiresAt: Date.now() + TMDB_ID_HINT_TTL_SEC * 1000 });
+  tmdbIdHintMemory.set(key, { tmdbId: hit.tmdbId, expiresAt: storedAt + TMDB_ID_HINT_TTL_MS });
   if (tmdbIdHintMemory.size > TMDB_ID_HINT_MEMORY_MAX) {
     const oldest = tmdbIdHintMemory.keys().next().value;
     if (oldest !== undefined) tmdbIdHintMemory.delete(oldest);
   }
 }
 
-async function readTmdbIdHint(imdbId: string): Promise<TmdbFindHit | null> {
-  const remembered = memoryTmdbIdHint(imdbId);
-  if (remembered) return remembered;
-  const raw = await readPolisDiskJson<unknown>(
+async function readTmdbIdHint(imdbId: string, stremioType: TmdbFindHit["stremioType"]): Promise<number | null> {
+  const key = tmdbIdHintMemoryKey(imdbId, stremioType);
+  const remembered = tmdbIdHintMemory.get(key);
+  if (remembered && remembered.expiresAt > Date.now()) return remembered.tmdbId;
+  if (remembered) tmdbIdHintMemory.delete(key);
+  const entry = await readPolisDiskJsonEntry(
     TMDB_ID_HINT_NAMESPACE,
     TMDB_ID_HINT_SCOPE,
-    imdbId,
-    TMDB_ID_HINT_TTL_SEC * 1000,
+    tmdbIdHintDiskKey(imdbId, stremioType),
+    TMDB_ID_HINT_TTL_MS,
   );
-  if (!isTmdbFindHit(raw)) return null;
-  const hit: TmdbFindHit = { stremioType: raw.stremioType, tmdbId: raw.tmdbId };
-  rememberTmdbIdHintInMemory(imdbId, hit);
-  return hit;
+  if (!entry || !isTmdbFindHit(entry.value) || entry.value.stremioType !== stremioType) return null;
+  rememberTmdbIdHintInMemory(imdbId, { stremioType, tmdbId: entry.value.tmdbId }, entry.mtimeMs);
+  return entry.value.tmdbId;
 }
 
 export async function rememberTmdbIdHint(imdbId: string, hit: TmdbFindHit): Promise<void> {
-  const known = await readTmdbIdHint(imdbId);
-  if (known?.stremioType === hit.stremioType && known.tmdbId === hit.tmdbId) return;
-  await writePolisDiskJson(TMDB_ID_HINT_NAMESPACE, TMDB_ID_HINT_SCOPE, imdbId, {
+  if ((await readTmdbIdHint(imdbId, hit.stremioType)) === hit.tmdbId) return;
+  await writePolisDiskJson(TMDB_ID_HINT_NAMESPACE, TMDB_ID_HINT_SCOPE, tmdbIdHintDiskKey(imdbId, hit.stremioType), {
     stremioType: hit.stremioType,
     tmdbId: hit.tmdbId,
   });
-  rememberTmdbIdHintInMemory(imdbId, hit);
+  rememberTmdbIdHintInMemory(imdbId, hit, Date.now());
 }
 
 function rememberFoundTmdbTitle(imdbId: string, hit: TmdbFindHit): TmdbFindHit {
@@ -415,25 +402,46 @@ function rememberFoundTmdbTitle(imdbId: string, hit: TmdbFindHit): TmdbFindHit {
   return hit;
 }
 
+async function findTmdbResults(imdbId: string, credential: TmdbCredential, language: string): Promise<FindResponse | null> {
+  const findUrl = new URL(`https://api.themoviedb.org/3/find/${encodeURIComponent(imdbId)}`);
+  findUrl.searchParams.set("external_source", "imdb_id");
+  findUrl.searchParams.set("language", language);
+  const findRaw = await tmdbApiGet(findUrl, credential);
+  return findRaw ? (findRaw as FindResponse) : null;
+}
+
+function findResultId(find: FindResponse, stremioType: TmdbFindHit["stremioType"]): number | null {
+  const id = (stremioType === "movie" ? find.movie_results : find.tv_results)?.[0]?.id;
+  return typeof id === "number" ? id : null;
+}
+
+async function findTmdbIdForType(
+  imdbId: string,
+  stremioType: TmdbFindHit["stremioType"],
+  credential: TmdbCredential,
+  language: string,
+): Promise<number | null> {
+  const find = await findTmdbResults(imdbId, credential, language);
+  const tmdbId = find ? findResultId(find, stremioType) : null;
+  if (tmdbId != null) rememberFoundTmdbTitle(imdbId, { stremioType, tmdbId });
+  return tmdbId;
+}
+
 export async function findTmdbTitle(
   imdbId: string,
   credential: TmdbCredential,
   language: string,
 ): Promise<TmdbFindHit | null> {
-  const hint = await readTmdbIdHint(imdbId);
-  if (hint) return hint;
-
-  const findUrl = new URL(`https://api.themoviedb.org/3/find/${encodeURIComponent(imdbId)}`);
-  findUrl.searchParams.set("external_source", "imdb_id");
-  findUrl.searchParams.set("language", language);
-
-  const findRaw = await tmdbApiGet(findUrl, credential);
-  if (!findRaw) return null;
-  const find = findRaw as FindResponse;
-  const movieId = find.movie_results?.[0]?.id;
-  if (typeof movieId === "number") return rememberFoundTmdbTitle(imdbId, { stremioType: "movie", tmdbId: movieId });
-  const tvId = find.tv_results?.[0]?.id;
-  if (typeof tvId === "number") return rememberFoundTmdbTitle(imdbId, { stremioType: "series", tmdbId: tvId });
+  for (const stremioType of UNTYPED_LOOKUP_ORDER) {
+    const tmdbId = await readTmdbIdHint(imdbId, stremioType);
+    if (tmdbId != null) return { stremioType, tmdbId };
+  }
+  const find = await findTmdbResults(imdbId, credential, language);
+  if (!find) return null;
+  for (const stremioType of UNTYPED_LOOKUP_ORDER) {
+    const tmdbId = findResultId(find, stremioType);
+    if (tmdbId != null) return rememberFoundTmdbTitle(imdbId, { stremioType, tmdbId });
+  }
   return null;
 }
 
@@ -445,12 +453,22 @@ export async function resolveTitleForArtwork(
 ): Promise<ResolvedTitle | null> {
   const hit = knownHit ?? (await findTmdbTitle(imdbId, credential, language));
   if (!hit) return null;
-  const movie = hit.stremioType === "movie";
-  const detailsUrl = new URL(`https://api.themoviedb.org/3/${movie ? "movie" : "tv"}/${hit.tmdbId}`);
-  setArtworkAppends(detailsUrl, language, movie ? "release_dates" : "content_ratings");
-  const detailsRaw = await tmdbApiGet(detailsUrl, credential);
-  if (!detailsRaw) return null;
-  return mapArtworkResolved(imdbId, hit.stremioType, hit.tmdbId, detailsRaw as MovieDetailsJson);
+  const artworkDetails = (tmdbId: number) => {
+    const movie = hit.stremioType === "movie";
+    const detailsUrl = new URL(`https://api.themoviedb.org/3/${movie ? "movie" : "tv"}/${tmdbId}`);
+    setArtworkAppends(detailsUrl, language, movie ? "release_dates" : "content_ratings");
+    return tmdbApiGet(detailsUrl, credential);
+  };
+  let tmdbId = hit.tmdbId;
+  let detailsRaw = await artworkDetails(tmdbId);
+  if (!detailsRaw) {
+    const refreshed = await findTmdbIdForType(imdbId, hit.stremioType, credential, language);
+    if (refreshed == null || refreshed === tmdbId) return null;
+    tmdbId = refreshed;
+    detailsRaw = await artworkDetails(tmdbId);
+    if (!detailsRaw) return null;
+  }
+  return mapArtworkResolved(imdbId, hit.stremioType, tmdbId, detailsRaw as MovieDetailsJson);
 }
 
 function setArtworkAppends(url: URL, language: string, appends: string): void {

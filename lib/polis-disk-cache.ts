@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { Dirent } from "node:fs";
-import { link, mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { link, mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { polisCacheRoot } from "@/lib/polis-cache-path";
@@ -109,6 +109,28 @@ export async function readPolisDiskJson<T>(
   if (!raw) return null;
   try {
     return JSON.parse(raw.toString("utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function readPolisDiskJsonEntry(
+  namespace: string,
+  scope: string,
+  cacheKey: string,
+  ttlMs: number,
+): Promise<{ value: unknown; mtimeMs: number } | null> {
+  if (!polisDiskCacheEnabled()) return null;
+  const file = filePath(namespace, scope, cacheKey, ".json");
+  try {
+    const handle = await open(/*turbopackIgnore: true*/ file, "r");
+    try {
+      const { mtimeMs } = await handle.stat();
+      if (Date.now() - mtimeMs > ttlMs) return null;
+      return { value: JSON.parse((await handle.readFile()).toString("utf8")) as unknown, mtimeMs };
+    } finally {
+      await handle.close();
+    }
   } catch {
     return null;
   }
