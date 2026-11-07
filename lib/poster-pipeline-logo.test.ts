@@ -14,6 +14,7 @@ let requests: string[] = [];
 let tvdbArtworks: object[] = [];
 let posterJpeg = Buffer.alloc(0);
 let logoPng = Buffer.alloc(0);
+let tmdbPosterLanguage = "xx";
 
 const TVDB_TITLED = "https://artworks.thetvdb.com/titled.jpg";
 const TVDB_CLEAN = "https://artworks.thetvdb.com/clean.jpg";
@@ -37,7 +38,7 @@ function tmdbResponse(url: URL, tmdbId: number, tvdbId: number): Response {
     first_air_date: "2020-01-01",
     poster_path: "/tmdb-poster.jpg",
     images: {
-      posters: [{ file_path: "/tmdb-textless.jpg", iso_639_1: "xx" }],
+      posters: [{ file_path: "/tmdb-textless.jpg", iso_639_1: tmdbPosterLanguage }],
       logos: [{ file_path: "/tmdb-logo.png", iso_639_1: "en" }],
       backdrops: [],
     },
@@ -50,6 +51,7 @@ beforeEach(async () => {
   process.env.POLIS_CACHE_DIR = root;
   delete process.env.POLIS_CACHE_DISABLE;
   requests = [];
+  tmdbPosterLanguage = "xx";
   nextId += 1;
   const tmdbId = nextId;
   const tvdbId = nextId + 5000;
@@ -117,5 +119,17 @@ describe("poster title logo", () => {
     const seen = await render("artwork=tvdb&artwork_fb=tmdb&logo=1&logo_src=tmdb,tvdb");
     expect(seen).toContain(TMDB_LOGO);
     expect(seen).not.toContain(TVDB_LOGO);
+  });
+
+  test("titled tmdb art never downloads the tmdb logo", async () => {
+    tmdbPosterLanguage = "en";
+    const seen = await render("artwork=tmdb&logo=1");
+    expect(seen.some((url) => url.startsWith("https://image.tmdb.org/t/p/") && url.endsWith("/tmdb-textless.jpg"))).toBe(true);
+    expect(seen).not.toContain(TMDB_LOGO);
+  });
+
+  test("textless tmdb art downloads the tmdb logo", async () => {
+    const seen = await render("artwork=tmdb&logo=1");
+    expect(seen).toContain(TMDB_LOGO);
   });
 });

@@ -129,6 +129,7 @@ async function fetchPosterBaseBuffer(params: {
   language: string;
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
+  onArtCandidate?: (textless: boolean) => void;
 }): Promise<PosterBase | null> {
   ensurePolisSharpConfigured();
 
@@ -137,6 +138,7 @@ async function fetchPosterBaseBuffer(params: {
       imdbId: params.imdbId,
       resolved: params.resolved,
       credential: params.credential,
+      onArtCandidate: params.onArtCandidate,
     });
     if (landscape) return landscape;
     const portrait = await fetchPosterBaseBuffer({
@@ -169,6 +171,7 @@ async function fetchPosterBaseBuffer(params: {
   if (imageUrls.length === 0) return null;
 
   for (const candidate of imageUrls) {
+    params.onArtCandidate?.(candidate.textless);
     try {
       const input = await fetchArtworkBytes(candidate.url, (target, init) =>
         fetchUpstream(target, init),
@@ -198,6 +201,7 @@ export async function getPosterBaseBufferCached(params: {
   tvdbCredentials: TvdbCredentials | null;
   configId: string | null;
   integratorFingerprint?: string;
+  onArtCandidate?: (textless: boolean) => void;
 }): Promise<PosterBase | null> {
   const cacheKey = posterArtworkCacheKey({
     imdbId: params.imdbId,

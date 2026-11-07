@@ -87,6 +87,7 @@ export async function fetchLandscapeBase(params: {
   imdbId: string;
   resolved: ResolvedTitle;
   credential: TmdbCredential;
+  onArtCandidate?: (textless: boolean) => void;
 }): Promise<{ buffer: Buffer; textless: boolean } | null> {
   let candidates: ArtworkCandidate[];
   try {
@@ -96,6 +97,7 @@ export async function fetchLandscapeBase(params: {
     return null;
   }
   for (const candidate of candidates) {
+    params.onArtCandidate?.(candidate.textless);
     try {
       const input = await fetchArtworkBytes(candidate.url, (target, init) => fetchUpstream(target, init));
       if (input) return { buffer: await fitLandscapeCanvas(input), textless: candidate.textless };

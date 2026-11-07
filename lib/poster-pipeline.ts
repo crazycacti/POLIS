@@ -3,7 +3,7 @@ import { getPosterBaseBufferCached } from "@/lib/poster-artwork-cache";
 import { integratorCacheFingerprint } from "@/lib/integrator-cache-fingerprint";
 import { fetchMdblistMediaInfo, type MdblistMediaInfo } from "@/lib/mdblist-client";
 import { overlayUsesMdblist } from "@/lib/overlay-requirements";
-import { prefetchPosterLogo } from "@/lib/poster-logo-on-poster";
+import { prefetchPosterLogo, type PrefetchedPosterLogo } from "@/lib/poster-logo-on-poster";
 import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/poster-badges";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { renderLandscapeSoft } from "@/lib/render-landscape-soft";
@@ -65,10 +65,14 @@ export async function renderPosterForImdb(params: {
     effectiveArtworkSource(resolved, params.overlay.artwork, params.overlay.artworkMovie),
     params.overlay.logoSources,
   );
-  const prefetchedLogo =
-    params.overlay.logoOnPoster && logoOrder[0] === "tmdb" && resolved.logoPath
-      ? prefetchPosterLogo(resolved.logoPath)
-      : null;
+  const tmdbLogoPath =
+    params.overlay.logoOnPoster && logoOrder[0] === "tmdb" ? resolved.logoPath : null;
+  const logoPrefetch: { current: PrefetchedPosterLogo | null } = { current: null };
+  const prefetchLogoForTextlessArt = (textless: boolean): void => {
+    if (textless && tmdbLogoPath && !logoPrefetch.current) {
+      logoPrefetch.current = prefetchPosterLogo(tmdbLogoPath);
+    }
+  };
 
   const base = await getPosterBaseBufferCached({
     imdbId: params.imdbId,
@@ -85,8 +89,10 @@ export async function renderPosterForImdb(params: {
       fanartApiKey: params.fanartApiKey,
       tvdbCredentials: params.tvdbCredentials,
     }),
+    onArtCandidate: prefetchLogoForTextlessArt,
   });
   if (!base) return null;
+  const prefetchedLogo = logoPrefetch.current;
   if (base.degraded) params.onDegraded?.();
 
   const mdblist = await mdblistPromise;
