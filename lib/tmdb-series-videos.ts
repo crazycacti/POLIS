@@ -26,6 +26,8 @@ type SeasonJson = {
   }[];
 };
 
+const TMDB_APPEND_LIMIT = 20;
+
 function maxEpisodes(): number | null {
   return polisEnvPositiveInt("POLIS_META_MAX_EPISODES");
 }
@@ -41,15 +43,24 @@ export async function fetchTmdbSeriesVideos(params: {
   imdbId: string;
   credential: TmdbCredential;
   language: string;
+  seasonCount: number;
 }): Promise<StremioMetaVideo[]> {
-  const { tmdbTvId, imdbId, credential, language } = params;
-  const showUrl = new URL(`https://api.themoviedb.org/3/tv/${tmdbTvId}`);
-  showUrl.searchParams.set("language", language);
-  const showRaw = (await tmdbApiGet(showUrl, credential)) as {
-    number_of_seasons?: number;
-  } | null;
-  const seasonCount = showRaw?.number_of_seasons ?? 0;
-  if (seasonCount < 0) return [];
+  const { tmdbTvId, imdbId, credential, language, seasonCount } = params;
+  if (!Number.isInteger(seasonCount) || seasonCount < 0) return [];
+
+  const seasonStarts: number[] = [];
+  for (let first = 0; first <= seasonCount; first += TMDB_APPEND_LIMIT) seasonStarts.push(first);
+
+  const chunks = await Promise.all(
+    seasonStarts.map(async (first) => {
+      const last = Math.min(first + TMDB_APPEND_LIMIT - 1, seasonCount);
+      const url = new URL(`https://api.themoviedb.org/3/tv/${tmdbTvId}`);
+      url.searchParams.set("language", language);
+      const appends = Array.from({ length: last - first + 1 }, (_, i) => `season/${first + i}`);
+      url.searchParams.set("append_to_response", appends.join(","));
+      return (await tmdbApiGet(url, credential)) as Record<string, unknown> | null;
+    }),
+  );
 
   const videos: StremioMetaVideo[] = [];
   const cap = maxEpisodes();
@@ -57,9 +68,8 @@ export async function fetchTmdbSeriesVideos(params: {
   for (let season = 0; season <= seasonCount; season += 1) {
     if (cap != null && videos.length >= cap) break;
 
-    const seasonUrl = new URL(`https://api.themoviedb.org/3/tv/${tmdbTvId}/season/${season}`);
-    seasonUrl.searchParams.set("language", language);
-    const seasonRaw = (await tmdbApiGet(seasonUrl, credential)) as SeasonJson | null;
+    const chunk = chunks[Math.floor(season / TMDB_APPEND_LIMIT)];
+    const seasonRaw = chunk?.[`season/${season}`] as SeasonJson | undefined;
     const episodes = seasonRaw?.episodes ?? [];
 
     for (const ep of episodes) {

@@ -1,7 +1,6 @@
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import {
   creditsBlockFromDetails,
-  fetchTmdbCredits,
   parseTmdbCredits,
   type TmdbCreditsBlock,
 } from "@/lib/tmdb-credits";
@@ -15,6 +14,7 @@ type FindResponse = {
 };
 
 type MovieDetailsJson = {
+  number_of_seasons?: number;
   title?: string;
   name?: string;
   overview?: string;
@@ -116,12 +116,11 @@ export async function resolveTitleFromImdb(params: {
     const detailsRaw = await tmdbApiGet(detailsUrl, credential);
     if (!detailsRaw) return null;
     const d = detailsRaw as MovieDetailsJson;
-    const [logoPath, externalIds, creditsBlock] = await Promise.all([
+    const [logoPath, externalIds] = await Promise.all([
       fetchLogoPath("movie", hit.id, credential),
       fetchExternalIds("movie", hit.id, credential),
-      fetchTmdbCredits("movie", hit.id, credential, language),
     ]);
-    const credits = creditsBlock ?? creditsBlockFromDetails(d);
+    const credits = creditsBlockFromDetails(d);
     return mapResolved(
       imdbId,
       "movie",
@@ -142,7 +141,7 @@ export async function resolveTitleFromImdb(params: {
   const detailsRaw = await tmdbApiGet(detailsUrl, credential);
   if (!detailsRaw) return null;
   const d = detailsRaw as MovieDetailsJson;
-  const [logoPath, externalIds, videos, creditsBlock] = await Promise.all([
+  const [logoPath, externalIds, videos] = await Promise.all([
     fetchLogoPath("tv", hit.id, credential),
     fetchExternalIds("tv", hit.id, credential),
     fetchTmdbSeriesVideos({
@@ -150,10 +149,10 @@ export async function resolveTitleFromImdb(params: {
       imdbId,
       credential,
       language,
+      seasonCount: d.number_of_seasons ?? 0,
     }),
-    fetchTmdbCredits("tv", hit.id, credential, language),
   ]);
-  const credits = creditsBlock ?? creditsBlockFromDetails(d);
+  const credits = creditsBlockFromDetails(d);
   return mapResolved(
     imdbId,
     "series",
