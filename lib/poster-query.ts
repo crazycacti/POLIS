@@ -119,14 +119,30 @@ const OVERLAY_STYLE_DEFAULT_KEYS = [
   "lineGap",
 ] as const satisfies readonly (keyof PosterOverlayQuery)[];
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+function parseIntParam(
+  searchParams: URLSearchParams,
+  key: string,
+  min: number,
+  max: number,
+): number | null {
+  const raw = searchParams.get(key)?.trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? clamp(Math.round(n), min, max) : null;
+}
+
 function parseFontParam(
   searchParams: URLSearchParams,
   key: string,
   legacyFont: number | null,
   fallback: number,
 ): number {
-  const raw = clamp(Number(searchParams.get(key) ?? NaN), 16, 72);
-  if (Number.isFinite(raw)) return raw;
+  const raw = parseIntParam(searchParams, key, 16, 72);
+  if (raw != null) return raw;
   if (legacyFont != null) return legacyFont;
   return fallback;
 }
@@ -196,9 +212,6 @@ function parseArtworkFallback(raw: string | null): PosterArtworkFallback {
   return "metahub";
 }
 
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
-}
 
 function parseGenreMode(raw: string | null): GenreMode {
   return raw === "top3" ? "top3" : "first";
@@ -211,7 +224,7 @@ function parseRatingStyle(raw: string | null): RatingStyle {
 }
 
 function parseLayout(raw: string | null): OverlayLayout {
-  return raw === "row" ? "row" : "stack";
+  return raw === "row" || raw === "stack" ? raw : POSTER_OVERLAY_DEFAULTS.layout;
 }
 
 function parseLook(raw: string | null): PosterLook {
@@ -276,18 +289,12 @@ export function serializeColorParam(value: string): string {
 
 export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOverlayQuery {
   const d = POSTER_OVERLAY_DEFAULTS;
-  const legacyFontRaw = clamp(Number(searchParams.get("font") ?? NaN), 16, 56);
-  const legacyFont = Number.isFinite(legacyFontRaw) ? legacyFontRaw : null;
-  const padX = clamp(Number(searchParams.get("pad_x") ?? NaN), 8, 120);
-  const padY = clamp(Number(searchParams.get("pad_y") ?? NaN), FOOTER_PAD_Y_MIN, FOOTER_PAD_Y_MAX);
-  const ratingPadY = clamp(
-    Number(searchParams.get("rating_pad_y") ?? NaN),
-    FOOTER_PAD_Y_MIN,
-    FOOTER_PAD_Y_MAX,
-  );
-  const lineGap = clamp(Number(searchParams.get("line_gap") ?? NaN), 4, 36);
-  const trendRankRaw = clamp(Number(searchParams.get("trend_rank") ?? NaN), 1, 10);
-  const trendRank = Number.isFinite(trendRankRaw) ? trendRankRaw : null;
+  const legacyFont = parseIntParam(searchParams, "font", 16, 56);
+  const padX = parseIntParam(searchParams, "pad_x", 8, 120);
+  const padY = parseIntParam(searchParams, "pad_y", FOOTER_PAD_Y_MIN, FOOTER_PAD_Y_MAX);
+  const ratingPadY = parseIntParam(searchParams, "rating_pad_y", FOOTER_PAD_Y_MIN, FOOTER_PAD_Y_MAX);
+  const lineGap = parseIntParam(searchParams, "line_gap", 4, 36);
+  const trendRank = parseIntParam(searchParams, "trend_rank", 1, 10);
 
   const parsed: PosterOverlayQuery = {
     genre: searchParams.has("genre") ? searchParams.get("genre") !== "0" : d.genre,
@@ -319,10 +326,10 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     ratingFontSize: parseFontParam(searchParams, "rating_font", legacyFont, d.ratingFontSize),
     trendFontSize: parseFontParam(searchParams, "trend_font", null, d.trendFontSize),
     qualityMarkSize: parseFontParam(searchParams, "mark_font", null, d.qualityMarkSize),
-    padX: Number.isFinite(padX) ? padX : d.padX,
-    padY: Number.isFinite(padY) ? padY : d.padY,
-    ratingPadY: Number.isFinite(ratingPadY) ? ratingPadY : d.ratingPadY,
-    lineGap: Number.isFinite(lineGap) ? lineGap : d.lineGap,
+    padX: padX ?? d.padX,
+    padY: padY ?? d.padY,
+    ratingPadY: ratingPadY ?? d.ratingPadY,
+    lineGap: lineGap ?? d.lineGap,
     trendRank,
   };
   return syncFooterPadsWhenBothEnabled(parsed);

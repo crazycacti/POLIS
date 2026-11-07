@@ -128,3 +128,38 @@ describe("genre default", () => {
     expect(parsePosterOverlayQuery(new URLSearchParams("genre=1")).genre).toBe(true);
   });
 });
+
+describe("numeric style params", () => {
+  test("empty values fall back to defaults", () => {
+    const parsed = parsePosterOverlayQuery(
+      new URLSearchParams("pad_x=&pad_y=&rating_font=&line_gap=&trend_rank="),
+    );
+    expect(parsed.padX).toBe(POSTER_OVERLAY_DEFAULTS.padX);
+    expect(parsed.padY).toBe(POSTER_OVERLAY_DEFAULTS.padY);
+    expect(parsed.ratingFontSize).toBe(POSTER_OVERLAY_DEFAULTS.ratingFontSize);
+    expect(parsed.lineGap).toBe(POSTER_OVERLAY_DEFAULTS.lineGap);
+    expect(parsed.trendRank).toBeNull();
+  });
+
+  test("fractional values round to the same integer and round-trip", () => {
+    const a = parsePosterOverlayQuery(new URLSearchParams("pad_x=30.0001&rating_font=40.4"));
+    const b = parsePosterOverlayQuery(new URLSearchParams("pad_x=30.0002&rating_font=39.6"));
+    expect(a.padX).toBe(30);
+    expect(a.ratingFontSize).toBe(40);
+    expect(serializePosterQuery(a)).toBe(serializePosterQuery(b));
+    const reparsed = parsePosterOverlayQuery(new URLSearchParams(serializePosterQuery(a)));
+    expect(serializePosterQuery(reparsed)).toBe(serializePosterQuery(a));
+  });
+});
+
+describe("layout param", () => {
+  test("falls back to the default layout when missing or unknown", () => {
+    expect(parsePosterOverlayQuery(new URLSearchParams()).layout).toBe(
+      POSTER_OVERLAY_DEFAULTS.layout,
+    );
+    expect(parsePosterOverlayQuery(new URLSearchParams("layout=grid")).layout).toBe(
+      POSTER_OVERLAY_DEFAULTS.layout,
+    );
+    expect(parsePosterOverlayQuery(new URLSearchParams("layout=stack")).layout).toBe("stack");
+  });
+});
