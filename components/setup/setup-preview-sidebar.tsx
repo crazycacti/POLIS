@@ -2,11 +2,6 @@
 
 import { useMemo, useState } from "react";
 
-import {
-  ClientPreview,
-  ClientPreviewTabs,
-  type ClientPreviewView,
-} from "@/components/setup/setup-client-previews";
 import type { PosterPart } from "@/components/setup/setup-poster-parts";
 import { SelectionCheck, SetupSegmented } from "@/components/setup/setup-ui";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
@@ -75,7 +70,6 @@ export function SetupPreviewSidebar(props: {
   onEditPart: (part: PosterPart) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [view, setView] = useState<ClientPreviewView>("poster");
 
   const { liveTitles, posterSrcForImdb, overlayQueryString, showcaseQueryString } = props;
   const options = useMemo<TitleOption[]>(
@@ -101,10 +95,6 @@ export function SetupPreviewSidebar(props: {
   const { displaySrc, isLoading, loadFailed } = usePreloadedPosterSrc(targetSrc);
   const waitingForPreview = Boolean(targetSrc) && !displaySrc && !loadFailed;
   const showPoster = Boolean(displaySrc) && !loadFailed;
-  const neighborSrcs = options
-    .filter((option) => option.key !== activeOption?.key)
-    .slice(0, 2)
-    .map((option) => option.src);
 
   const liveMessage =
     (usingCustom ? props.liveError : null) ??
@@ -126,10 +116,7 @@ export function SetupPreviewSidebar(props: {
         <SetupSegmented label="Shape" onChange={props.onShapeChange} options={SHAPES} value={props.shape} />
       </div>
 
-      {showPoster && view !== "poster" ? (
-        <ClientPreview landscape={props.landscape} neighborSrcs={neighborSrcs} src={displaySrc!} view={view} />
-      ) : (
-        <div className={`polis-poster-frame relative mx-auto overflow-hidden rounded-xl lg:max-w-none ${props.landscape ? "max-w-[400px]" : "max-w-[220px]"}`}>
+      <div className={`polis-poster-frame relative mx-auto overflow-hidden rounded-xl lg:max-w-none ${props.landscape ? "max-w-[400px]" : "max-w-[220px]"}`}>
           {showPoster ? (
             <>
               <img
@@ -155,7 +142,6 @@ export function SetupPreviewSidebar(props: {
             </div>
           )}
         </div>
-      )}
 
       <div aria-label="Preview title" className="mt-3 flex justify-center gap-2 lg:justify-start" role="group">
         {options.map((option) => {
@@ -198,9 +184,6 @@ export function SetupPreviewSidebar(props: {
         />
       </label>
 
-      <div className="mt-3">
-        <ClientPreviewTabs onChange={setView} value={view} />
-      </div>
     </aside>
   );
 }
