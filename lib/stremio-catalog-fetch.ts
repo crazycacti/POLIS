@@ -14,6 +14,7 @@ import { isImdbId } from "@/lib/stremio-imdb-id";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import { fetchUpstream } from "@/lib/upstream-fetch";
+import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
 
 export type StremioCatalogMeta = {
   id: string;
@@ -30,6 +31,7 @@ const TMDB_CATALOG_PAGE_SIZE = TMDB_DISCOVER_PAGE_SIZE;
 const TMDB_EXACT_SKIP_LIMIT = 200;
 const TMDB_EXTERNAL_ID_CONCURRENCY = 10;
 const TMDB_EXTERNAL_IDS_TTL_SEC = 30 * 24 * 60 * 60;
+const MDBLIST_CATALOG_REVALIDATE_SEC = 600;
 
 type TmdbTrendingRow = {
   id?: number;
@@ -300,16 +302,30 @@ async function fetchMdblistCatalogMetas(params: {
 
   let payload: unknown;
   try {
-    const response = await fetchUpstream(url, {
-      headers: { Accept: "application/json" },
-      revalidateSeconds: 600,
-    });
-    if (!response.ok) {
-      await response.body?.cancel();
-      console.warn(`[polis] mdblist catalog ${def.id} returned HTTP ${response.status}`);
+    const result = await upstreamGuard.request(
+      { provider: "mdblist", credentialFingerprint: upstreamCredentialFingerprint(apiKey) },
+      () =>
+        fetchUpstream(url, {
+          headers: { Accept: "application/json" },
+          revalidateSeconds: MDBLIST_CATALOG_REVALIDATE_SEC,
+        }),
+      async (response) => {
+        if (!response.ok) {
+          await response.body?.cancel();
+          return { ok: false as const, status: response.status };
+        }
+        return { ok: true as const, payload: (await response.json()) as unknown };
+      },
+    );
+    if (!result.ok) {
+      console.warn(`[polis] mdblist catalog ${def.id} skipped: ${result.reason}`);
       return [];
     }
-    payload = (await response.json()) as unknown;
+    if (!result.value.ok) {
+      console.warn(`[polis] mdblist catalog ${def.id} returned HTTP ${result.value.status}`);
+      return [];
+    }
+    payload = result.value.payload;
   } catch (error) {
     console.warn(`[polis] mdblist catalog ${def.id} failed: ${errorMessageWithout(error, apiKey)}`);
     return [];

@@ -201,3 +201,41 @@ describe("mdblist catalog failures", () => {
     }
   });
 });
+
+describe("mdblist catalog rate limits", () => {
+  it("stops calling MDBList for that key after a 429", async () => {
+    const def: PolisCatalogDefinition = {
+      id: "mdblist-watchlist-movie",
+      type: "movie",
+      name: "Watchlist",
+      provider: { kind: "mdblist", list: "watchlist" },
+    };
+    const realFetch = globalThis.fetch;
+    const realWarn = console.warn;
+    let calls = 0;
+    console.warn = () => {};
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("{}", { status: 429, headers: { "retry-after": "600" } });
+    }) as typeof fetch;
+    try {
+      const request = () =>
+        fetchPolisCatalogMetas({
+          type: "movie",
+          catalogId: def.id,
+          credential: null,
+          mdblistApiKey: "catalog-429-key",
+          language: "en-US",
+          publicBase: "http://localhost:3050",
+          extra: new URLSearchParams(),
+          catalogDefinitions: [def],
+        });
+      expect(await request()).toEqual([]);
+      expect(await request()).toEqual([]);
+      expect(calls).toBe(1);
+    } finally {
+      globalThis.fetch = realFetch;
+      console.warn = realWarn;
+    }
+  });
+});

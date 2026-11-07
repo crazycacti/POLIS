@@ -1,5 +1,6 @@
 import type { MdblistListSummary } from "@/lib/mdblist-list-catalog";
 import { fetchUpstream } from "@/lib/upstream-fetch";
+import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
 
 export type { MdblistListSummary } from "@/lib/mdblist-list-catalog";
 export { mdblistListToCatalogDefinitions } from "@/lib/mdblist-list-catalog";
@@ -64,16 +65,23 @@ function summariesFromRows(rows: Record<string, unknown>[]): MdblistListSummary[
 
 async function mdblistListsGet(url: URL, apiKey: string): Promise<MdblistListSummary[]> {
   url.searchParams.set("apikey", apiKey);
-  const res = await fetchUpstream(url, {
-    headers: { Accept: "application/json" },
-    revalidateSeconds: 0,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `MDBList HTTP ${res.status}`);
-  }
-  const payload = (await res.json()) as unknown;
-  return summariesFromRows(rowsFromPayload(payload));
+  const result = await upstreamGuard.request(
+    { provider: "mdblist", credentialFingerprint: upstreamCredentialFingerprint(apiKey) },
+    () =>
+      fetchUpstream(url, {
+        headers: { Accept: "application/json" },
+        revalidateSeconds: 0,
+      }),
+    async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `MDBList HTTP ${res.status}`);
+      }
+      return summariesFromRows(rowsFromPayload((await res.json()) as unknown));
+    },
+  );
+  if (!result.ok) throw new Error("MDBList rate limit reached, try again later");
+  return result.value;
 }
 
 export async function fetchMdblistUserListsByUsername(
