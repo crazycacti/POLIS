@@ -406,7 +406,7 @@ export async function resolveTitleForArtwork(
   if (!hit) return null;
   const movie = hit.stremioType === "movie";
   const detailsUrl = new URL(`https://api.themoviedb.org/3/${movie ? "movie" : "tv"}/${hit.tmdbId}`);
-  setArtworkAppends(detailsUrl, language, movie ? "release_dates,credits" : "content_ratings");
+  setArtworkAppends(detailsUrl, language, movie ? "release_dates" : "content_ratings");
   const detailsRaw = await tmdbApiGet(detailsUrl, credential);
   if (!detailsRaw) return null;
   return mapArtworkResolved(imdbId, hit.stremioType, hit.tmdbId, detailsRaw as MovieDetailsJson);
