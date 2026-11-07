@@ -421,6 +421,12 @@
   }
 }
 
+@utility polis-overlay {
+  @apply fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto p-4;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(4px);
+}
+
 @utility polis-dialog-panel {
   @apply w-full min-w-[min(100%,22rem)] max-w-md rounded-xl border border-zinc-800/80 bg-zinc-950 p-6 shadow-2xl;
 }

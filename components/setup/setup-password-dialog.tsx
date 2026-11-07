@@ -14,25 +14,49 @@ export function SetupPasswordDialog(props: {
   onConfirm: (password: string, passwordConfirm: string) => void;
   username: string;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (props.open && !dialog.open) {
-      dialog.showModal();
-      setPassword("");
-      setConfirm("");
-      setLocalError(null);
-    }
-    if (!props.open && dialog.open) {
-      dialog.close();
-    }
+    if (!props.open) return;
+    setPassword("");
+    setConfirm("");
+    setLocalError(null);
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    panelRef.current?.querySelector<HTMLInputElement>("input[name='new-password']")?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      returnFocusRef.current?.focus();
+    };
   }, [props.open]);
+
+  function keepFocusInside(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      handleClose();
+      return;
+    }
+    if (e.key !== "Tab" || !panelRef.current) return;
+    const focusable = [
+      ...panelRef.current.querySelectorAll<HTMLElement>("input:not([tabindex='-1']), button"),
+    ].filter((el) => !el.hasAttribute("disabled"));
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   function handleClose() {
     if (props.saving) return;
@@ -57,17 +81,19 @@ export function SetupPasswordDialog(props: {
 
   const displayError = localError ?? props.error;
 
+  if (!props.open) return null;
+
+  // Not a modal <dialog>: showModal makes everything outside it inert, which blocks password manager menus.
   return (
-    <dialog
-      aria-labelledby={titleId}
-      className="polis-dialog"
-      onCancel={(e) => {
-        e.preventDefault();
-        handleClose();
-      }}
-      onClose={handleClose}
-      ref={dialogRef}
-    >
+    <div className="polis-overlay" role="presentation">
+      <div
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="w-full max-w-md"
+        onKeyDown={keepFocusInside}
+        ref={panelRef}
+        role="dialog"
+      >
       <form className="polis-dialog-panel" onSubmit={handleSubmit}>
         <h2 className="text-lg font-semibold text-white" id={titleId}>
           {props.isNewProfile ? "Protect your profile" : "Set a profile password"}
@@ -106,6 +132,7 @@ export function SetupPasswordDialog(props: {
           </button>
         </div>
       </form>
-    </dialog>
+      </div>
+    </div>
   );
 }
