@@ -1,6 +1,6 @@
 import { mergePosterQueryWithIntegratorAuth } from "@/lib/integrator-auth";
 import { defaultPosterQueryString, posterShapeFromQuery } from "@/lib/poster-query";
-import { backdropArtUrl, logoArtUrl, posterArtUrl } from "@/lib/polis-urls";
+import { backdropArtUrl, landscapePosterArtUrl, logoArtUrl, posterArtUrl } from "@/lib/polis-urls";
 import type { StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import type { ResolvedTitle } from "@/lib/tmdb-resolve";
 
@@ -118,6 +118,12 @@ export function buildStremioMetaRecord(
 
   if (resolved.posterPath) {
     out.poster = posterArtUrl({
+      publicBase,
+      imdbId: resolved.imdbId,
+      query: qs,
+      configId,
+    });
+    out.landscapePoster = landscapePosterArtUrl({
       publicBase,
       imdbId: resolved.imdbId,
       query: qs,

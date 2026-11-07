@@ -5,7 +5,7 @@ import {
 import { defaultPosterQueryString, posterShapeFromQuery, type PosterShape } from "@/lib/poster-query";
 import { appendTrendRankToPosterQuery } from "@/lib/poster-badges";
 import { TMDB_TRENDING_TTL_SEC, tmdbTrendingUrl } from "@/lib/tmdb-trending-rank";
-import { posterArtUrl } from "@/lib/polis-urls";
+import { landscapePosterArtUrl, posterArtUrl } from "@/lib/polis-urls";
 import {
   parseCatalogSkip,
   STREMIO_CATALOG_PAGE_SIZE,
@@ -20,6 +20,7 @@ export type StremioCatalogMeta = {
   type: "movie" | "series";
   name: string;
   poster?: string;
+  landscapePoster?: string;
   posterShape?: PosterShape;
   releaseInfo?: string;
 };
@@ -159,6 +160,12 @@ async function tmdbRowToCatalogMeta(params: {
     name,
     releaseInfo: releaseInfo || undefined,
     poster: posterArtUrl({
+      publicBase: params.publicBase,
+      imdbId,
+      query: appendTrendRankToPosterQuery(params.posterQs, params.trendRank ?? null),
+      configId: params.configId,
+    }),
+    landscapePoster: landscapePosterArtUrl({
       publicBase: params.publicBase,
       imdbId,
       query: appendTrendRankToPosterQuery(params.posterQs, params.trendRank ?? null),
@@ -325,6 +332,7 @@ async function fetchMdblistCatalogMetas(params: {
       name: titleFromMdblistRow(row),
       releaseInfo: yearFromMdblistRow(row),
       poster: posterArtUrl({ publicBase, imdbId, query: posterQs, configId: params.configId }),
+      landscapePoster: landscapePosterArtUrl({ publicBase, imdbId, query: posterQs, configId: params.configId }),
     });
   }
 

@@ -34,6 +34,7 @@ export function SetupSaveBar(props: {
   onGoToKeys: () => void;
   installUrl: string | null;
   posterPattern: string | null;
+  landscapePattern: string | null;
   saveLabel: string;
   saving: boolean;
   onSave: () => void;
@@ -160,7 +161,12 @@ export function SetupSaveBar(props: {
               posters.
             </p>
             {props.posterPattern ? (
-              <PatternRow label="Poster" value={props.posterPattern} />
+              <>
+                <PatternRow label="Poster URL pattern" value={props.posterPattern} />
+                {props.landscapePattern ? (
+                  <PatternRow label="Landscape URL pattern" value={props.landscapePattern} />
+                ) : null}
+              </>
             ) : (
               <p className="text-sm text-zinc-400">Set POLIS_PUBLIC_URL first.</p>
             )}

@@ -821,6 +821,7 @@ export function SetupWorkspace(props: {
         keysMissingReason={keysMissingReason}
         onGoToKeys={() => setTab("keys")}
         onSave={handleSaveClick}
+        landscapePattern={patterns?.landscapePattern ?? null}
         posterPattern={patterns?.posterPattern ?? null}
         saveLabel={configId ? "Save" : "Create profile"}
         saving={configSaving}

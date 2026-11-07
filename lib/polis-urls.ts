@@ -23,6 +23,26 @@ export function posterArtUrl(params: {
   return qs ? `${b}${path}?${qs}` : `${b}${path}`;
 }
 
+const SHAPE_PARAM = "shape";
+const LANDSCAPE_SHAPE = "landscape";
+
+function queryWithoutShape(query: string): string {
+  const params = new URLSearchParams(query);
+  params.delete(SHAPE_PARAM);
+  return params.toString();
+}
+
+export function landscapePosterArtUrl(params: {
+  publicBase: string;
+  imdbId: string;
+  query: string;
+  configId?: string | null;
+}): string {
+  const base = queryWithoutShape(params.query);
+  const query = base ? `${base}&${SHAPE_PARAM}=${LANDSCAPE_SHAPE}` : `${SHAPE_PARAM}=${LANDSCAPE_SHAPE}`;
+  return posterArtUrl({ ...params, query });
+}
+
 export function backdropArtUrl(
   publicBase: string,
   imdbId: string,
@@ -45,6 +65,7 @@ export function logoArtUrl(publicBase: string, imdbId: string, configId?: string
 
 export type AiometadataPatternSet = {
   posterPattern: string;
+  landscapePattern: string;
 };
 
 export function examplePosterUrl(publicBase: string, imdbId = "tt0111161"): string {
@@ -57,9 +78,10 @@ export function aiometadataArtPatterns(
   posterQueryString: string,
 ): AiometadataPatternSet {
   const b = normalizePublicBase(publicBase);
-  const posterMerged = mergePosterQueryForAiometadataPattern(posterQueryString.trim());
-  const posterSuffix = posterMerged ? `?${posterMerged}` : "";
+  const merged = mergePosterQueryForAiometadataPattern(queryWithoutShape(posterQueryString.trim()));
+  const path = `${b}/poster/imdb/poster-default/{imdb_id}.jpg?${merged}`;
   return {
-    posterPattern: `${b}/poster/imdb/poster-default/{imdb_id}.jpg${posterSuffix}`,
+    posterPattern: `${path}&${SHAPE_PARAM}={shape}`,
+    landscapePattern: `${path}&${SHAPE_PARAM}=${LANDSCAPE_SHAPE}`,
   };
 }
