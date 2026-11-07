@@ -26,10 +26,10 @@ import { escapeXml } from "@/lib/xml-escape";
 const PAD_X = 0.08;
 const PAD_BOTTOM = 0.055;
 const PAD_TOP = 0.05;
-const RING_DIAMETER = 0.17;
-const RING_STROKE = 0.012;
+export const RING_DIAMETER = 0.17;
+export const RING_STROKE = 0.012;
 const FOOTER_GAP = 0.04;
-const TOP_ITEM_GAP = 0.5;
+export const TOP_ITEM_GAP = 0.5;
 const TOP_ROW_MIN_SCALE = 0.75;
 const TOP_ROW_SCALE_STEP = 0.05;
 const DOLBY_GLYPH_HEIGHT = 0.9;
@@ -46,12 +46,12 @@ const SCRIM_BAND = 0.38;
 const BLUR_SIGMA = 0.012;
 
 const LOGO_SHADOW_SIGMA = 0.012;
-const LOGO_SHADOW_OFFSET = 0.004;
+export const LOGO_SHADOW_OFFSET = 0.004;
 const LOGO_SHADOW_ALPHA = 0.55;
 const LOGO_MIN_CONTRAST = 3;
 const LIGHT_LOGO_LUMINANCE = 0.4;
 const LOGO_BACKDROP_PERCENTILE = 0.75;
-const LOGO_MIN_LEGIBLE_SHARE = 0.6;
+export const LOGO_MIN_LEGIBLE_SHARE = 0.6;
 export const MAX_LOGO_ALTERNATES = 2;
 const LOGO_SCRIM_MAX_ALPHA = 0.6;
 const LOGO_SCRIM_PAD = 0.06;
@@ -59,8 +59,8 @@ const LOGO_SCRIM_SIGMA = 0.03;
 
 const RING_TRACK = "rgba(255,255,255,0.22)";
 const RING_DISC = "rgba(0,0,0,0.38)";
-const CAPSULE_HEIGHT = 1.85;
-const CAPSULE_PAD_X = 0.62;
+export const CAPSULE_HEIGHT = 1.85;
+export const CAPSULE_PAD_X = 0.62;
 const CAPSULE_ALPHA = 0.86;
 const TAB_HEIGHT = 1.95;
 const TAB_RADIUS = 0.34;
@@ -68,9 +68,9 @@ const CAPSULE_MAX_LUMINANCE = 0.12;
 const CAPSULE_DARKEN = 0.45;
 const TEXT_PRIMARY = "#ffffff";
 
-type Rect = { left: number; top: number; width: number; height: number };
+export type Rect = { left: number; top: number; width: number; height: number };
 
-function ringColor(
+export function ringColor(
   overlay: Pick<PosterOverlayQuery, "ratingColor">,
   valueTen: number,
   source: RatingSource | null,
@@ -81,6 +81,32 @@ function ringColor(
 
 function scoreLabel(valueTen: number): string {
   return valueTen >= 10 ? "10" : valueTen.toFixed(1);
+}
+
+export function ratingRingSvg(params: {
+  cx: number;
+  cy: number;
+  diameter: number;
+  stroke: number;
+  valueTen: number;
+  color: string;
+  scoreFs: number;
+}): string[] {
+  const { cx, cy, stroke, valueTen, scoreFs } = params;
+  const r = (params.diameter - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const filled = Math.max(0, Math.min(1, valueTen / 10)) * circumference;
+  const color = escapeXml(params.color);
+  const parts = [
+    `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(2)}" fill="${RING_DISC}" stroke="${RING_TRACK}" stroke-width="${stroke.toFixed(2)}"/>`,
+    `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(2)}" fill="none" stroke="${color}" stroke-width="${stroke.toFixed(2)}" stroke-linecap="round" stroke-dasharray="${filled.toFixed(2)} ${circumference.toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`,
+  ];
+  const label = scoreLabel(valueTen);
+  const x = cx - measureSoftText(label, scoreFs, 700) / 2;
+  const baseline = cy + softCapHeight(scoreFs, 700) / 2;
+  const placed = softTextPath(label, x, baseline, scoreFs, 700);
+  if (placed) parts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
+  return parts;
 }
 
 function gradientSvg(w: number, h: number, stops: [number, number][]): Buffer {
@@ -106,7 +132,7 @@ async function softBlurBand(baseBuf: Buffer, w: number, h: number): Promise<{ in
   return { input: band, top, left: 0 };
 }
 
-async function logoShadow(logo: Buffer, w: number): Promise<{ input: Buffer; pad: number }> {
+export async function logoShadow(logo: Buffer, w: number): Promise<{ input: Buffer; pad: number }> {
   const pad = Math.ceil(w * LOGO_SHADOW_SIGMA * 3);
   const alpha = await sharp(logo)
     .ensureAlpha()
@@ -142,7 +168,7 @@ type LogoSample = {
   backdropHigh: number;
 };
 
-async function sampleLogo(logo: Buffer, base: Buffer, rect: Rect): Promise<LogoSample> {
+export async function sampleLogo(logo: Buffer, base: Buffer, rect: Rect): Promise<LogoSample> {
   const [logoRaw, backRaw] = await Promise.all([
     sharp(logo).ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
     sharp(base).extract(rect).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
@@ -198,9 +224,15 @@ export function logoScrimAlpha(logoLum: number, backdropLum: number): number {
   return Math.min(LOGO_SCRIM_MAX_ALPHA, 1 - Math.max(0, maxBackdrop) / backdropLum);
 }
 
-function logoScrim(rect: Rect, w: number, h: number, alpha: number): { input: Buffer; top: number; left: number } {
-  const blur = w * LOGO_SCRIM_SIGMA;
-  const inset = Math.round(w * LOGO_SCRIM_PAD / 2);
+export function logoScrim(
+  rect: Rect,
+  w: number,
+  h: number,
+  alpha: number,
+  scaleRef = w,
+): { input: Buffer; top: number; left: number } {
+  const blur = scaleRef * LOGO_SCRIM_SIGMA;
+  const inset = Math.round(scaleRef * LOGO_SCRIM_PAD / 2);
   const pad = inset + Math.ceil(blur * 3);
   const left = Math.max(0, rect.left - pad);
   const top = Math.max(0, rect.top - pad);
@@ -225,9 +257,9 @@ async function capsuleFill(base: Buffer, rect: Rect): Promise<string> {
   return `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${CAPSULE_ALPHA})`;
 }
 
-type Capsule = { text: string; rect: Rect; fs: number; tab: boolean };
+export type Capsule = { text: string; rect: Rect; fs: number; tab: boolean };
 
-function capsuleAt(text: string, fs: number, left: number, centerY: number, maxW: number): Capsule | null {
+export function capsuleAt(text: string, fs: number, left: number, centerY: number, maxW: number): Capsule | null {
   const padX = Math.round(fs * CAPSULE_PAD_X);
   const fitted = fitSoftText(text, fs, 600, maxW - padX * 2);
   if (!fitted) return null;
@@ -245,7 +277,7 @@ function topTabAt(text: string, fs: number, w: number, maxW: number): Capsule | 
   return { text: fitted, fs, tab: true, rect: { left: Math.round((w - width) / 2), top: 0, width, height } };
 }
 
-async function capsuleSvg(base: Buffer, capsule: Capsule): Promise<string[]> {
+export async function capsuleSvg(base: Buffer, capsule: Capsule): Promise<string[]> {
   const { rect, fs, text } = capsule;
   const fill = await capsuleFill(base, rect);
   const { left: x, top: y, width: cw, height: ch } = rect;
@@ -265,7 +297,7 @@ export type TopItem =
   | { kind: "text"; text: string; width: number }
   | { kind: "glyph"; buf: Buffer; width: number; height: number };
 
-async function buildTopItems(
+export async function buildTopItems(
   markIds: QualityMarkId[],
   ageLabel: string | null,
   fs: number,
@@ -285,7 +317,7 @@ async function buildTopItems(
   return items;
 }
 
-function itemsCapsuleWidth(items: TopItem[], scale: number, fs: number): number {
+export function itemsCapsuleWidth(items: TopItem[], scale: number, fs: number): number {
   if (items.length === 0) return 0;
   const content = items.reduce((sum, item) => sum + item.width * scale, 0);
   const gaps = fs * scale * TOP_ITEM_GAP * (items.length - 1);
@@ -335,7 +367,7 @@ function scaleTopItem(item: TopItem, scale: number): TopItem {
     : { ...item, width: item.width * scale, height: item.height * scale };
 }
 
-async function marksCapsuleSvg(
+export async function marksCapsuleSvg(
   base: Buffer,
   capsule: { rect: Rect; items: TopItem[]; fs: number },
 ): Promise<{ parts: string[]; glyphs: OverlayOptions[] }> {
@@ -537,20 +569,17 @@ export async function renderSoftPoster(params: {
   let genreRight = w - padX;
   if (showRing && valueTen != null) {
     const cx = w - padX - ringD / 2;
-    const cy = footerCenterY;
-    const r = (ringD - ringStroke) / 2;
-    const circumference = 2 * Math.PI * r;
-    const filled = Math.max(0, Math.min(1, valueTen / 10)) * circumference;
-    const color = escapeXml(ringColor(overlay, valueTen, params.ratingColorSource));
     svgParts.push(
-      `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(2)}" fill="${RING_DISC}" stroke="${RING_TRACK}" stroke-width="${ringStroke.toFixed(2)}"/>`,
-      `<circle cx="${cx}" cy="${cy}" r="${r.toFixed(2)}" fill="none" stroke="${color}" stroke-width="${ringStroke.toFixed(2)}" stroke-linecap="round" stroke-dasharray="${filled.toFixed(2)} ${circumference.toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`,
+      ...ratingRingSvg({
+        cx,
+        cy: footerCenterY,
+        diameter: ringD,
+        stroke: ringStroke,
+        valueTen,
+        color: ringColor(overlay, valueTen, params.ratingColorSource),
+        scoreFs,
+      }),
     );
-    const label = scoreLabel(valueTen);
-    const x = cx - measureSoftText(label, scoreFs, 700) / 2;
-    const baseline = cy + softCapHeight(scoreFs, 700) / 2;
-    const placed = softTextPath(label, x, baseline, scoreFs, 700);
-    if (placed) svgParts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
     genreRight = cx - ringD / 2 - Math.round(w * FOOTER_GAP);
   }
 
