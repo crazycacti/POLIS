@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { fetchTvdbSeriesPoster, tvdbLoginResult } from "@/lib/tvdb-client";
+import { fetchTvdbSeriesLogos, fetchTvdbSeriesPoster, tvdbLoginResult } from "@/lib/tvdb-client";
 
 let root = "";
 const savedEnv = { ...process.env };
@@ -69,5 +69,27 @@ describe("tvdb requests", () => {
     expect(await fetchTvdbSeriesPoster(params)).toEqual({ candidate: null, degraded: true });
     expect((await fetchTvdbSeriesPoster(params)).candidate?.url).toBe("https://artworks.thetvdb.com/p.jpg");
     expect(requests).toEqual(["/v4/login", "/v4/series/4343/artworks", "/v4/login", "/v4/series/4343/artworks"]);
+  });
+
+  test("reads clearlogos from the cached series artwork without another request", async () => {
+    respond = (url) =>
+      url.pathname.endsWith("/login")
+        ? Response.json({ data: { token: "t" } })
+        : Response.json({
+            data: {
+              artworks: [
+                { image: "https://artworks.thetvdb.com/p.jpg", type: 2, score: 5, language: "eng" },
+                { image: "https://artworks.thetvdb.com/logo.png", type: 23, score: 5, language: "eng" },
+                { image: "https://artworks.thetvdb.com/season.jpg", type: 7, score: 9, language: "eng" },
+              ],
+            },
+          });
+    const params = { tvdbId: 4444, credentials: { apiKey: "logo-key-0005" }, language: "en-US" };
+    const poster = await fetchTvdbSeriesPoster(params);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const logos = await fetchTvdbSeriesLogos(params);
+    expect(poster.candidate?.url).toBe("https://artworks.thetvdb.com/p.jpg");
+    expect(logos).toEqual({ urls: ["https://artworks.thetvdb.com/logo.png"], degraded: false });
+    expect(requests).toEqual(["/v4/login", "/v4/series/4444/artworks"]);
   });
 });

@@ -1,4 +1,5 @@
 import type { ArtworkCandidate, ArtworkLookup } from "@/lib/artwork-candidate";
+import { rankTitleLogos } from "@/lib/title-logo-rank";
 import { polisSingleflight } from "@/lib/polis-singleflight";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
@@ -24,6 +25,10 @@ type TvdbArtworksResponse = {
 };
 
 const TVDB_POSTER_ARTWORK_TYPE = 2;
+const TVDB_SERIES_CLEARLOGO_ARTWORK_TYPE = 23;
+const TVDB_SERIES_ARTWORK_TYPES = new Set([TVDB_POSTER_ARTWORK_TYPE, TVDB_SERIES_CLEARLOGO_ARTWORK_TYPE]);
+const TVDB_ENGLISH_CODE = "eng";
+const TVDB_NEUTRAL_LANGUAGES = new Set(["zxx", "mul"]);
 const TVDB_TOKEN_CACHE_MAX = 16;
 
 // TVDB tags artwork with ISO 639-2 codes, not the ISO 639-1 codes TMDB uses.
@@ -213,6 +218,7 @@ function parseTvdbArtworks(payload: unknown): TvdbArtworkRecordWithText[] | null
   return tvdbArtworkRecords(payload as TvdbArtworksResponse).flatMap((row): TvdbArtworkRecordWithText[] => {
     if (!row || typeof row !== "object") return [];
     const r = row as TvdbArtworkRecordWithText;
+    if (typeof r.type !== "number" || !TVDB_SERIES_ARTWORK_TYPES.has(r.type)) return [];
     return [{
       image: typeof r.image === "string" ? r.image : undefined,
       thumbnail: typeof r.thumbnail === "string" ? r.thumbnail : undefined,
@@ -224,18 +230,28 @@ function parseTvdbArtworks(payload: unknown): TvdbArtworkRecordWithText[] | null
   });
 }
 
-export async function fetchTvdbSeriesPoster(params: {
-  tvdbId: number;
-  credentials: TvdbCredentials;
-  language: string;
-  preferTextless?: boolean;
-}): Promise<ArtworkLookup> {
+export function rankTvdbLogos(records: TvdbArtworkRecordWithText[], language: string): string[] {
+  return rankTitleLogos(
+    records.flatMap((r) => {
+      const url = r.image ?? r.thumbnail;
+      if (r.type !== TVDB_SERIES_CLEARLOGO_ARTWORK_TYPE || !url) return [];
+      return [{ url, language: r.language ?? null, score: r.score ?? 0 }];
+    }),
+    [tvdbLanguageCode(language), TVDB_ENGLISH_CODE],
+    TVDB_NEUTRAL_LANGUAGES,
+  );
+}
+
+type TvdbSeriesLookup = { tvdbId: number; credentials: TvdbCredentials };
+
+async function fetchTvdbSeriesArtworks(
+  params: TvdbSeriesLookup,
+): Promise<{ records: TvdbArtworkRecordWithText[]; degraded: boolean }> {
   const url = new URL(`${TVDB_V4_API_BASE}/series/${params.tvdbId}/artworks`);
-  url.searchParams.set("type", String(TVDB_POSTER_ARTWORK_TYPE));
 
   const result = await cachedUpstreamJson<TvdbArtworkRecordWithText[]>({
     provider: "tvdb",
-    cacheKey: ["series-artworks", TVDB_POSTER_ARTWORK_TYPE, params.tvdbId].join("\0"),
+    cacheKey: ["series-artworks", [...TVDB_SERIES_ARTWORK_TYPES].join(","), params.tvdbId].join("\0"),
     ttlMs: TVDB_ARTWORK_TTL_MS,
     negativeTtlMs: TVDB_ARTWORK_MISSING_TTL_MS,
     label: `series ${params.tvdbId}`,
@@ -253,8 +269,20 @@ export async function fetchTvdbSeriesPoster(params: {
     },
     parse: parseTvdbArtworks,
   });
-  return {
-    candidate: pickTvdbPoster(result.value ?? [], params.language, params.preferTextless),
-    degraded: result.outcome === "unavailable",
-  };
+  return { records: result.value ?? [], degraded: result.outcome === "unavailable" };
+}
+
+export async function fetchTvdbSeriesPoster(params: TvdbSeriesLookup & {
+  language: string;
+  preferTextless?: boolean;
+}): Promise<ArtworkLookup> {
+  const { records, degraded } = await fetchTvdbSeriesArtworks(params);
+  return { candidate: pickTvdbPoster(records, params.language, params.preferTextless), degraded };
+}
+
+export async function fetchTvdbSeriesLogos(
+  params: TvdbSeriesLookup & { language: string },
+): Promise<{ urls: string[]; degraded: boolean }> {
+  const { records, degraded } = await fetchTvdbSeriesArtworks(params);
+  return { urls: rankTvdbLogos(records, params.language), degraded };
 }
