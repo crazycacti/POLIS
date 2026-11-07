@@ -123,7 +123,7 @@ export async function resolveTitleFromImdb(params: {
     if (!detailsRaw) return null;
     const d = detailsRaw as MovieDetailsJson;
     const [logoPath, externalIds] = await Promise.all([
-      fetchLogoPath("movie", hit.id, credential),
+      fetchLogoPath("movie", hit.id, credential, language),
       fetchExternalIds("movie", hit.id, credential),
     ]);
     const credits = creditsBlockFromDetails(d);
@@ -148,7 +148,7 @@ export async function resolveTitleFromImdb(params: {
   if (!detailsRaw) return null;
   const d = detailsRaw as MovieDetailsJson;
   const [logoPath, externalIds, videos] = await Promise.all([
-    fetchLogoPath("tv", hit.id, credential),
+    fetchLogoPath("tv", hit.id, credential, language),
     fetchExternalIds("tv", hit.id, credential),
     fetchTmdbSeriesVideos({
       tmdbTvId: hit.id,
@@ -274,17 +274,35 @@ async function fetchExternalIds(
   return raw as ExternalIdsJson;
 }
 
+export const TMDB_IMAGES_TTL_SEC = 7 * 24 * 60 * 60;
+
+export function tmdbIncludeImageLanguage(language: string): string {
+  const primary = language.split("-")[0]?.trim().toLowerCase() || "en";
+  return [...new Set([primary, "en", "null", "xx"])].join(",");
+}
+
+async function fetchTmdbLogos(
+  kind: "movie" | "tv",
+  tmdbId: number,
+  credential: TmdbCredential,
+  includeImageLanguage: string | null,
+): Promise<LogoImageJson[]> {
+  const url = new URL(`https://api.themoviedb.org/3/${kind}/${tmdbId}/images`);
+  if (includeImageLanguage) url.searchParams.set("include_image_language", includeImageLanguage);
+  const raw = await tmdbApiGet(url, credential, { ttlSec: TMDB_IMAGES_TTL_SEC });
+  if (!raw || typeof raw !== "object") return [];
+  return (raw as ImagesJson).logos ?? [];
+}
+
 async function fetchLogoPath(
   kind: "movie" | "tv",
   tmdbId: number,
   credential: TmdbCredential,
+  language: string,
 ): Promise<string | null> {
-  const url = new URL(
-    `https://api.themoviedb.org/3/${kind}/${tmdbId}/images`,
-  );
-  const raw = await tmdbApiGet(url, credential);
-  if (!raw) return null;
-  return pickLogoPath((raw as ImagesJson).logos);
+  const preferred = await fetchTmdbLogos(kind, tmdbId, credential, tmdbIncludeImageLanguage(language));
+  if (preferred.length > 0) return pickLogoPath(preferred);
+  return pickLogoPath(await fetchTmdbLogos(kind, tmdbId, credential, null));
 }
 
 function pickLogoPath(rawLogos: LogoImageJson[] | undefined): string | null {
@@ -345,10 +363,9 @@ export async function resolveTitleForArtwork(
 }
 
 function setArtworkAppends(url: URL, language: string, appends: string): void {
-  const primary = language.split("-")[0]?.trim().toLowerCase() || "en";
   url.searchParams.set("language", language);
   url.searchParams.set("append_to_response", `${appends},images,external_ids`);
-  url.searchParams.set("include_image_language", [...new Set([primary, "en", "null", "xx"])].join(","));
+  url.searchParams.set("include_image_language", tmdbIncludeImageLanguage(language));
 }
 
 function mapArtworkResolved(

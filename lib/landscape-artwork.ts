@@ -5,7 +5,7 @@ import { fetchArtworkBytes } from "@/lib/artwork-url-allow";
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
-import type { ResolvedTitle, TmdbBackdropImage } from "@/lib/tmdb-resolve";
+import { TMDB_IMAGES_TTL_SEC, type ResolvedTitle, type TmdbBackdropImage } from "@/lib/tmdb-resolve";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 
 export const LANDSCAPE_WIDTH = 960;
@@ -59,7 +59,7 @@ async function fetchTmdbBackdrops(
   const kind = resolved.stremioType === "movie" ? "movie" : "tv";
   const url = new URL(`https://api.themoviedb.org/3/${kind}/${resolved.tmdbNumericId}/images`);
   url.searchParams.set("include_image_language", "null");
-  const raw = await tmdbApiGet(url, credential);
+  const raw = await tmdbApiGet(url, credential, { ttlSec: TMDB_IMAGES_TTL_SEC });
   if (!raw || typeof raw !== "object") return [];
   const backdrops = (raw as { backdrops?: unknown }).backdrops;
   return Array.isArray(backdrops) ? (backdrops as TmdbBackdropImage[]) : [];

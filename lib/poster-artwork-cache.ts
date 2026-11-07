@@ -148,7 +148,7 @@ async function fetchPosterBaseBuffer(params: {
 
   const tmdbPosters =
     params.overlay.artwork === "tmdb"
-      ? await fetchTmdbImagePosters(params.resolved, params.credential)
+      ? await fetchTmdbImagePosters(params.resolved, params.credential, params.language)
       : undefined;
 
   const imageUrls = await resolvePosterImageCandidates({
