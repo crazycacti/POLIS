@@ -1,5 +1,5 @@
 import { mergePosterQueryWithIntegratorAuth } from "@/lib/integrator-auth";
-import { defaultPosterQueryString } from "@/lib/poster-query";
+import { defaultPosterQueryString, posterShapeFromQuery } from "@/lib/poster-query";
 import { backdropArtUrl, logoArtUrl, posterArtUrl } from "@/lib/polis-urls";
 import type { StremioMetaVideo } from "@/lib/tmdb-series-videos";
 import type { ResolvedTitle } from "@/lib/tmdb-resolve";
@@ -72,7 +72,7 @@ export function buildStremioMetaRecord(
     type: resolved.stremioType === "movie" ? "movie" : "series",
     name: resolved.title,
     description: resolved.overview || undefined,
-    posterShape: "poster",
+    posterShape: posterShapeFromQuery(qs),
   };
 
   if (resolved.releaseInfo) {

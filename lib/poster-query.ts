@@ -392,6 +392,10 @@ export function serializePosterQuery(opts: PosterOverlayQuery): string {
   return p.toString();
 }
 
+export function posterShapeFromQuery(queryString: string): PosterShape {
+  return parsePosterShape(new URLSearchParams(queryString).get("shape"));
+}
+
 export function defaultPosterQueryString(): string {
   const raw = process.env.POLIS_POSTER_QUERY?.trim();
   if (!raw) return serializePosterQuery(POSTER_OVERLAY_DEFAULTS);

@@ -2,7 +2,7 @@ import {
   findPolisCatalogDefinition,
   type PolisCatalogDefinition,
 } from "@/lib/polis-catalogs";
-import { defaultPosterQueryString } from "@/lib/poster-query";
+import { defaultPosterQueryString, posterShapeFromQuery, type PosterShape } from "@/lib/poster-query";
 import { appendTrendRankToPosterQuery } from "@/lib/poster-badges";
 import { TMDB_TRENDING_TTL_SEC, tmdbTrendingUrl } from "@/lib/tmdb-trending-rank";
 import { posterArtUrl } from "@/lib/polis-urls";
@@ -20,6 +20,7 @@ export type StremioCatalogMeta = {
   type: "movie" | "series";
   name: string;
   poster?: string;
+  posterShape?: PosterShape;
   releaseInfo?: string;
 };
 
@@ -322,6 +323,15 @@ export async function fetchPolisCatalogMetas(params: {
   );
   if (!def) return [];
 
+  const posterShape = posterShapeFromQuery(params.posterQueryString?.trim() || defaultPosterQueryString());
+  const metas = await fetchCatalogMetasForDefinition(def, params);
+  return metas.map((meta) => ({ ...meta, posterShape }));
+}
+
+async function fetchCatalogMetasForDefinition(
+  def: PolisCatalogDefinition,
+  params: Parameters<typeof fetchPolisCatalogMetas>[0],
+): Promise<StremioCatalogMeta[]> {
   const skip = parseCatalogSkip(params.extra);
 
   if (def.provider.kind === "tmdb") {
