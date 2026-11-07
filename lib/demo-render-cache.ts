@@ -23,7 +23,7 @@ function demoMemoryCacheTtlMs(): number | null {
   return sec != null ? sec * 1000 : null;
 }
 
-function cacheKey(demoId: string, rawQueryString: string): string {
+export function demoRenderCacheKey(demoId: string, rawQueryString: string): string {
   return `${POLIS_RENDERER_REVISION}:${demoPosterCacheKey(demoId, rawQueryString)}`;
 }
 
@@ -66,7 +66,7 @@ export async function renderDemoPosterJpegCached(
   demoId: string,
   rawQueryString: string,
 ): Promise<Buffer | null> {
-  const key = cacheKey(demoId, rawQueryString);
+  const key = demoRenderCacheKey(demoId, rawQueryString);
 
   const mem = memoryHit(key);
   if (mem) return mem;
