@@ -40,8 +40,10 @@ export function mergePosterQueryForAiometadataPattern(posterQueryString: string)
   const parts: string[] = [];
   const base = posterQueryString.trim();
   if (base) parts.push(base);
-  parts.push("tmdb_key={tmdb_key}");
-  parts.push("mdblist_key={mdblist_key}");
+  // AIOMetadata drops the whole URL when a required placeholder is empty; "?" keeps POLIS server keys as fallback.
+  parts.push("tmdb_key={tmdb_key?}");
+  parts.push("mdblist_key={mdblist_key?}");
+  parts.push("fanart_api_key={fanart_key?}");
   return parts.join("&");
 }
 
