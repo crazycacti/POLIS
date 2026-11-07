@@ -1,12 +1,12 @@
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
-import { fetchUpstream } from "@/lib/upstream-fetch";
+import { fetchUpstream, IMAGE_FETCH_TIMEOUT_MS } from "@/lib/upstream-fetch";
 import sharp from "sharp";
 
 export async function renderBackdropJpeg(backdropPath: string | null): Promise<Buffer | null> {
   ensurePolisSharpConfigured();
   if (!backdropPath) return null;
   const url = `https://image.tmdb.org/t/p/original${backdropPath}`;
-  const res = await fetchUpstream(url, { revalidateSeconds: 86400 });
+  const res = await fetchUpstream(url, { revalidateSeconds: 86400, timeoutMs: IMAGE_FETCH_TIMEOUT_MS });
   if (!res.ok) return null;
   const buf = Buffer.from(await res.arrayBuffer());
   return sharp(buf)

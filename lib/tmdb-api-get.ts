@@ -30,7 +30,7 @@ async function readTmdbDiskCache(cacheKey: string, ttlMs: number): Promise<unkno
 export async function tmdbApiGet(
   url: URL,
   credential: TmdbCredential,
-  options: { ttlSec?: number } = {},
+  options: { ttlSec?: number; timeoutMs?: number } = {},
 ): Promise<unknown> {
   const target = new URL(url.toString());
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -50,6 +50,7 @@ export async function tmdbApiGet(
 
     const response = await fetchUpstream(target, {
       headers,
+      timeoutMs: options.timeoutMs,
       revalidateSeconds: polisDiskCacheEnabled() ? 0 : ttlMs / 1000,
     });
     if (!response.ok) {
