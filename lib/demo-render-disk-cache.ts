@@ -2,13 +2,18 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { polisCacheRoot } from "@/lib/polis-cache-path";
 import { posterDiskExtension } from "@/lib/poster-output-format";
 
-const CACHE_ROOT = path.join(process.cwd(), ".cache/demo-rendered");
+const DEMO_RENDER_CACHE_DIR = "demo-rendered";
+
+function demoRenderCacheRoot(): string {
+  return path.join(polisCacheRoot(), DEMO_RENDER_CACHE_DIR);
+}
 
 function filePath(cacheKey: string): string {
   const hash = createHash("sha256").update(cacheKey).digest("hex");
-  return path.join(CACHE_ROOT, `${hash}${posterDiskExtension()}`);
+  return path.join(demoRenderCacheRoot(), `${hash}${posterDiskExtension()}`);
 }
 
 export async function resolveDemoRenderDiskCachePath(cacheKey: string): Promise<string | null> {
@@ -32,6 +37,6 @@ export async function readDemoRenderDiskCache(cacheKey: string): Promise<Buffer 
 }
 
 export async function writeDemoRenderDiskCache(cacheKey: string, image: Buffer): Promise<void> {
-  await mkdir(CACHE_ROOT, { recursive: true });
+  await mkdir(demoRenderCacheRoot(), { recursive: true });
   await writeFile(filePath(cacheKey), image);
 }

@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
+  resolveDemoRenderDiskCachePath,
+  writeDemoRenderDiskCache,
+} from "@/lib/demo-render-disk-cache";
+import {
   linkPolisDiskCacheAlias,
   readPolisDiskBytes,
   resolvePolisDiskCachePath,
@@ -81,5 +85,18 @@ describe("polis disk cache", () => {
     expect(await resolvePolisDiskCachePath("poster", "g", "a", ".webp")).toBeNull();
     expect(await resolvePolisDiskCachePath("poster", "g", "a-latest", ".webp")).toBeNull();
     expect(await resolvePolisDiskCachePath("poster", "g", "c", ".webp")).not.toBeNull();
+  });
+
+  test("demo renders live under the cache root and the sweep removes old ones", async () => {
+    await writeDemoRenderDiskCache("old-demo", Buffer.from("old"));
+    await writeDemoRenderDiskCache("new-demo", Buffer.from("new"));
+    const oldFile = (await resolveDemoRenderDiskCachePath("old-demo"))!;
+    expect(oldFile.startsWith(root)).toBe(true);
+    const when = new Date(Date.now() - 46 * DAY_MS);
+    await utimes(oldFile, when, when);
+
+    expect((await sweepPolisDiskCache()).removed).toBe(1);
+    expect(await resolveDemoRenderDiskCachePath("old-demo")).toBeNull();
+    expect(await resolveDemoRenderDiskCachePath("new-demo")).not.toBeNull();
   });
 });
