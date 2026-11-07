@@ -13,7 +13,7 @@ async function encodeAtQuality(baseBuf: Buffer, webpQuality: number, jpegQuality
     return sharp(baseBuf).jpeg({ quality: jpegQuality, mozjpeg: true }).toBuffer();
   }
   return sharp(baseBuf)
-    .webp({ quality: webpQuality, effort: WEBP_EFFORT, smartSubsample: true })
+    .webp({ quality: webpQuality, effort: WEBP_EFFORT })
     .toBuffer();
 }
 
