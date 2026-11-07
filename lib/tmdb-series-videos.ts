@@ -27,6 +27,7 @@ type SeasonJson = {
 };
 
 const TMDB_APPEND_LIMIT = 20;
+const SEASON_CHUNK_TIMEOUT_MS = 20_000;
 
 function maxEpisodes(): number | null {
   return polisEnvPositiveInt("POLIS_META_MAX_EPISODES");
@@ -51,16 +52,23 @@ export async function fetchTmdbSeriesVideos(params: {
   const seasonStarts: number[] = [];
   for (let first = 0; first <= seasonCount; first += TMDB_APPEND_LIMIT) seasonStarts.push(first);
 
-  const chunks = await Promise.all(
+  const settled = await Promise.allSettled(
     seasonStarts.map(async (first) => {
       const last = Math.min(first + TMDB_APPEND_LIMIT - 1, seasonCount);
       const url = new URL(`https://api.themoviedb.org/3/tv/${tmdbTvId}`);
       url.searchParams.set("language", language);
       const appends = Array.from({ length: last - first + 1 }, (_, i) => `season/${first + i}`);
       url.searchParams.set("append_to_response", appends.join(","));
-      return (await tmdbApiGet(url, credential)) as Record<string, unknown> | null;
+      const chunk = await tmdbApiGet(url, credential, { timeoutMs: SEASON_CHUNK_TIMEOUT_MS });
+      if (!chunk) throw new Error(`TMDB returned no data for seasons ${first}-${last}`);
+      return chunk as Record<string, unknown>;
     }),
   );
+  const failed = settled.filter((result) => result.status === "rejected").length;
+  if (failed > 0) {
+    console.warn(`[polis] ${failed} of ${settled.length} season requests failed for tmdb tv ${tmdbTvId}`);
+  }
+  const chunks = settled.map((result) => (result.status === "fulfilled" ? result.value : null));
 
   const videos: StremioMetaVideo[] = [];
   const cap = maxEpisodes();
