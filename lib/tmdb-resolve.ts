@@ -252,7 +252,10 @@ function mapResolved(
     runtimeMinutes: runtimeMinutesFor(stremioType, d),
     posterPath: d.poster_path ?? null,
     backdropPath: d.backdrop_path ?? null,
-    voteAverage: typeof d.vote_average === "number" ? d.vote_average : null,
+    voteAverage:
+      typeof d.vote_average === "number" && d.vote_average > 0 && (d.vote_count ?? 0) > 0
+        ? d.vote_average
+        : null,
     voteCount: typeof d.vote_count === "number" ? d.vote_count : null,
     genreNames: genres,
     cast,
