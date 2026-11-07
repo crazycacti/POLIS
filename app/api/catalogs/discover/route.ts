@@ -10,6 +10,8 @@ import {
 
 export const runtime = "nodejs";
 
+const DISCOVER_SERVER_KEY_PROFILE = "list-search";
+
 type DiscoverBody = {
   mdblistApiKey?: string;
   username?: string;
@@ -24,10 +26,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const mdblistKey =
-    (typeof body.mdblistApiKey === "string" ? body.mdblistApiKey.trim() : "") ||
-    process.env.MDBLIST_API_KEY?.trim() ||
-    "";
+  const callerKey = typeof body.mdblistApiKey === "string" ? body.mdblistApiKey.trim() : "";
+  const serverKey = process.env.MDBLIST_API_KEY?.trim() || "";
+  const mdblistKey = callerKey || serverKey;
+  const listsOptions = callerKey ? {} : { serverKeyProfile: DISCOVER_SERVER_KEY_PROFILE };
   const hasServerTmdb = Boolean(
     process.env.TMDB_ACCESS_TOKEN?.trim() || process.env.TMDB_API_KEY?.trim(),
   );
@@ -56,11 +58,13 @@ export async function POST(request: Request) {
     const username = body.username?.trim();
     await runWithClientRequestContext(request, async () => {
       if (search) {
-        response.mdblistLists = await searchMdblistLists(search, mdblistKey);
+        response.mdblistLists = await searchMdblistLists(search, mdblistKey, listsOptions);
       } else if (username) {
-        response.mdblistLists = await fetchMdblistUserListsByUsername(username, mdblistKey);
+        response.mdblistLists = await fetchMdblistUserListsByUsername(username, mdblistKey, listsOptions);
+      } else if (callerKey) {
+        response.mdblistLists = await fetchMdblistOwnLists(callerKey);
       } else {
-        response.mdblistLists = await fetchMdblistOwnLists(mdblistKey);
+        response.error = "Add your MDBList key under API keys to load your lists.";
       }
     });
   } catch (err) {

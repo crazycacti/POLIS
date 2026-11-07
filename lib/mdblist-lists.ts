@@ -69,13 +69,20 @@ export function mdblistBlockedMessage(reason: UpstreamBlockReason): string {
   return "MDBList rate limit reached. Try again later.";
 }
 
-async function mdblistListsGet(url: URL, apiKey: string): Promise<MdblistListSummary[]> {
+export type MdblistListsOptions = { serverKeyProfile?: string | null };
+
+async function mdblistListsGet(
+  url: URL,
+  apiKey: string,
+  options: MdblistListsOptions = {},
+): Promise<MdblistListSummary[]> {
   url.searchParams.set("apikey", apiKey);
   const result = await upstreamGuard.request(
     {
       provider: "mdblist",
       credentialFingerprint: upstreamCredentialFingerprint(apiKey),
       authFailureCooldown: false,
+      serverKeyProfile: options.serverKeyProfile ?? null,
     },
     () =>
       fetchUpstream(url, {
@@ -97,11 +104,12 @@ async function mdblistListsGet(url: URL, apiKey: string): Promise<MdblistListSum
 export async function fetchMdblistUserListsByUsername(
   username: string,
   apiKey: string,
+  options: MdblistListsOptions = {},
 ): Promise<MdblistListSummary[]> {
   const user = username.trim();
   if (!user) return [];
   const url = new URL(`https://api.mdblist.com/lists/user/${encodeURIComponent(user)}`);
-  return mdblistListsGet(url, apiKey);
+  return mdblistListsGet(url, apiKey, options);
 }
 
 export async function fetchMdblistOwnLists(apiKey: string): Promise<MdblistListSummary[]> {
@@ -112,10 +120,11 @@ export async function fetchMdblistOwnLists(apiKey: string): Promise<MdblistListS
 export async function searchMdblistLists(
   query: string,
   apiKey: string,
+  options: MdblistListsOptions = {},
 ): Promise<MdblistListSummary[]> {
   const q = query.trim();
   if (!q) return [];
   const url = new URL("https://api.mdblist.com/lists/search");
   url.searchParams.set("query", q);
-  return mdblistListsGet(url, apiKey);
+  return mdblistListsGet(url, apiKey, options);
 }
