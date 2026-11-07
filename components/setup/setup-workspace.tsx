@@ -65,7 +65,12 @@ import {
 import { isImdbId } from "@/lib/stremio-imdb-id";
 import type { ApiKeyProvider } from "@/lib/api-key-validate";
 import { parsePreviewTitles, type PreviewTitle } from "@/lib/preview-title-list";
-import { previewKeysCookieHeader, previewProvidersTag, type PreviewCallerKeys } from "@/lib/preview-keys";
+import {
+  previewKeySetHash,
+  previewKeysCookieHeader,
+  previewProvidersTag,
+  type PreviewCallerKeys,
+} from "@/lib/preview-keys";
 import { previewPosterPath } from "@/lib/preview-poster-urls";
 import { PREVIEW_SMALL_THUMB_WIDTH, previewThumbSrcSet } from "@/lib/preview-sizes";
 
@@ -97,6 +102,8 @@ const BROWSER_KEY_STORAGE: Record<ApiKeyProvider, string> = {
 const NEW_PROFILE_USERNAME = "POLIS profile";
 const LS_CATALOGS = "polis_user_catalogs";
 const LS_CATALOGS_CUSTOMIZED = "polis_catalogs_customized";
+
+const PREVIEW_TITLES_DEBOUNCE_MS = 600;
 
 const CONFIG_FETCH_INIT = { credentials: "include" as const };
 
@@ -511,13 +518,20 @@ export function SetupWorkspace(props: {
       props.hasServerTvdb,
     ],
   );
-  const [previewCookieTag, setPreviewCookieTag] = useState<string | null>(null);
+  const [previewCookie, setPreviewCookie] = useState<{ keys: PreviewCallerKeys; tag: string } | null>(null);
   useEffect(() => {
     if (!catalogsHydrated) return;
+    let cancelled = false;
     // Preview images read keys from this path-scoped cookie so keys stay out of image URLs; URLs change only after it is written.
     document.cookie = previewKeysCookieHeader(previewCallerKeys, window.location.protocol === "https:");
-    setPreviewCookieTag(previewProviders);
+    void previewKeySetHash(previewCallerKeys).then((hash) => {
+      if (!cancelled) setPreviewCookie({ keys: previewCallerKeys, tag: `${previewProviders}-${hash}` });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [catalogsHydrated, previewCallerKeys, previewProviders]);
+  const previewCookieTag = previewCookie?.tag ?? null;
 
   const profileHasMissingKey =
     (configHasTmdbKey && !props.hasServerTmdb && !browserTmdbKey) ||
@@ -541,7 +555,7 @@ export function SetupWorkspace(props: {
     },
     [configId, previewCookieTag, previewOverlayQuery, previewProviders, previewQueryString, useConfigScopedPreview],
   );
-  const previewSrcsReady = useConfigScopedPreview || previewCookieTag === previewProviders;
+  const previewSrcsReady = useConfigScopedPreview || previewCookie?.keys === previewCallerKeys;
 
   const livePreviewSrc = useMemo(
     () =>
@@ -561,15 +575,16 @@ export function SetupWorkspace(props: {
         : null,
     [browserTmdbKey, previewCallerKeys, props.hasServerTmdb],
   );
+  const debouncedTitlesBody = useDebouncedValue(previewTitlesBody, PREVIEW_TITLES_DEBOUNCE_MS);
   const [previewTitles, setPreviewTitles] = useState<PreviewTitle[]>([]);
   useEffect(() => {
     if (!catalogsHydrated) return;
     const controller = new AbortController();
-    const init: RequestInit = previewTitlesBody
+    const init: RequestInit = debouncedTitlesBody
       ? {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: previewTitlesBody,
+          body: debouncedTitlesBody,
           signal: controller.signal,
         }
       : { signal: controller.signal };
@@ -585,7 +600,7 @@ export function SetupWorkspace(props: {
       }
     })();
     return () => controller.abort();
-  }, [catalogsHydrated, previewTitlesBody]);
+  }, [catalogsHydrated, debouncedTitlesBody]);
 
   const patterns = origin ? aiometadataArtPatterns(origin, queryString) : null;
 

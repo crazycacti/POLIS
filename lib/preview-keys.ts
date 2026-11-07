@@ -69,3 +69,32 @@ export function previewProvidersTag(available: {
 }): string {
   return `t${Number(available.tmdb)}m${Number(available.mdblist)}f${Number(available.fanart)}v${Number(available.tvdb)}`;
 }
+
+const KEY_SET_HASH_CHARS = 8;
+const NO_KEYS_HASH = "none";
+const FNV_OFFSET_BASIS = 0x811c9dc5;
+const FNV_PRIME = 0x01000193;
+const HEX_RADIX = 16;
+const BYTE_HEX_CHARS = 2;
+const UINT32_HEX_CHARS = 8;
+
+function fnv1aHex(text: string): string {
+  let hash = FNV_OFFSET_BASIS;
+  for (const byte of new TextEncoder().encode(text)) {
+    hash ^= byte;
+    hash = Math.imul(hash, FNV_PRIME) >>> 0;
+  }
+  return hash.toString(HEX_RADIX).padStart(UINT32_HEX_CHARS, "0");
+}
+
+export async function previewKeySetHash(keys: PreviewCallerKeys): Promise<string> {
+  if (!hasPreviewCallerKeys(keys)) return NO_KEYS_HASH;
+  const joined = serializePreviewKeysCookie(keys);
+  const subtle = globalThis.crypto?.subtle;
+  // crypto.subtle exists only in secure contexts; plain-http LAN installs fall back to FNV-1a.
+  if (!subtle) return fnv1aHex(joined).slice(0, KEY_SET_HASH_CHARS);
+  const digest = new Uint8Array(await subtle.digest("SHA-256", new TextEncoder().encode(joined)));
+  return Array.from(digest, (byte) => byte.toString(HEX_RADIX).padStart(BYTE_HEX_CHARS, "0"))
+    .join("")
+    .slice(0, KEY_SET_HASH_CHARS);
+}
