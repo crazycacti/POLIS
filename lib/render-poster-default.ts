@@ -260,10 +260,7 @@ export async function renderPosterJpeg(params: {
     ratingTextFill,
   });
 
-  const composited = await sharp(baseBuf)
-    .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
-    .toBuffer();
-  return encodePosterImage(composited);
+  return encodePosterImage(sharp(baseBuf).composite([{ input: Buffer.from(svg), top: 0, left: 0 }]));
 }
 
 function textColorOnSolidBackground(color: string): string {

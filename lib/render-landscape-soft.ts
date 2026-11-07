@@ -3,7 +3,7 @@ import sharp, { type OverlayOptions } from "sharp";
 import { fitLandscapeCanvas, LANDSCAPE_HEIGHT, LANDSCAPE_WIDTH } from "@/lib/landscape-artwork";
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import type { PosterPillBadge } from "@/lib/poster-badges";
-import { encodePosterImageWithinBudget } from "@/lib/poster-encode";
+import { encodePosterImageWithinBudget, INTERMEDIATE_PNG } from "@/lib/poster-encode";
 import { preparePosterLogoRaster, type PrefetchedPosterLogo } from "@/lib/poster-logo-on-poster";
 import { normalizeQualityMarkIds, type QualityMarkId } from "@/lib/poster-quality-marks";
 import type { LogoSize, PosterOverlayQuery } from "@/lib/poster-query";
@@ -75,7 +75,7 @@ async function placeLogo(params: {
   const logo =
     width === raster.width && height === raster.height
       ? raster.buffer
-      : await sharp(raster.buffer).resize({ width, height, fit: "fill" }).png().toBuffer();
+      : await sharp(raster.buffer).resize({ width, height, fit: "fill" }).png(INTERMEDIATE_PNG).toBuffer();
   const sample = await sampleLogo(logo, params.baseBuf, rect);
   const scrimAlpha = logoScrimAlpha(sample.meanLogoLum, sample.backdropHigh);
   return { logo, rect, scrimAlpha, share: logoLegibleShare(sample, scrimAlpha) };
@@ -222,6 +222,8 @@ export async function renderLandscapeSoft(params: {
   }
   layers.push(...glyphLayers);
 
-  const composed = layers.length > 0 ? await sharp(baseBuf).composite(layers).toBuffer() : baseBuf;
-  return encodePosterImageWithinBudget(composed, LANDSCAPE_BYTE_BUDGET);
+  return encodePosterImageWithinBudget(
+    layers.length > 0 ? sharp(baseBuf).composite(layers) : baseBuf,
+    LANDSCAPE_BYTE_BUDGET,
+  );
 }

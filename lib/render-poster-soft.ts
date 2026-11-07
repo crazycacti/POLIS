@@ -2,7 +2,7 @@ import sharp, { type OverlayOptions } from "sharp";
 
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import type { PosterPillBadge } from "@/lib/poster-badges";
-import { encodePosterImage } from "@/lib/poster-encode";
+import { encodePosterImage, INTERMEDIATE_PNG } from "@/lib/poster-encode";
 import { normalizeGenreLabel } from "@/lib/poster-footer-pill";
 import { regionBadgeBackground } from "@/lib/poster-overlay-colors";
 import { preparePosterLogoRaster, type PrefetchedPosterLogo } from "@/lib/poster-logo-on-poster";
@@ -23,6 +23,8 @@ import { ratingDisplayColor } from "@/lib/rating-colors";
 import type { RatingSource } from "@/lib/ratings";
 import { escapeXml } from "@/lib/xml-escape";
 
+const POSTER_WIDTH = 500;
+const POSTER_HEIGHT = 750;
 const PAD_X = 0.08;
 const PAD_BOTTOM = 0.055;
 const PAD_TOP = 0.05;
@@ -121,13 +123,13 @@ function gradientSvg(w: number, h: number, stops: [number, number][]): Buffer {
 async function softBlurBand(baseBuf: Buffer, w: number, h: number): Promise<{ input: Buffer; top: number; left: number }> {
   const bandH = Math.round(h * BLUR_BAND);
   const top = h - bandH;
-  const mask = await sharp(gradientSvg(w, bandH, [[0, 0.9], [0.5, 0.55], [1, 0]])).png().toBuffer();
+  const mask = await sharp(gradientSvg(w, bandH, [[0, 0.9], [0.5, 0.55], [1, 0]])).png(INTERMEDIATE_PNG).toBuffer();
   const band = await sharp(baseBuf)
     .extract({ left: 0, top, width: w, height: bandH })
     .blur(Math.max(1, w * BLUR_SIGMA))
     .ensureAlpha()
     .composite([{ input: mask, blend: "dest-in" }])
-    .png()
+    .png(INTERMEDIATE_PNG)
     .toBuffer();
   return { input: band, top, left: 0 };
 }
@@ -146,7 +148,7 @@ export async function logoShadow(logo: Buffer, w: number): Promise<{ input: Buff
     create: { width: meta.width ?? 1, height: meta.height ?? 1, channels: 3, background: "#000000" },
   })
     .joinChannel(alpha)
-    .png()
+    .png(INTERMEDIATE_PNG)
     .toBuffer();
   return { input, pad };
 }
@@ -446,7 +448,7 @@ export async function marksCapsuleSvg(
       const width = Math.max(1, Math.round(item.width));
       const height = Math.max(1, Math.round(item.height));
       glyphs.push({
-        input: await sharp(item.buf).resize({ width, height, fit: "fill" }).png().toBuffer(),
+        input: await sharp(item.buf).resize({ width, height, fit: "fill" }).png(INTERMEDIATE_PNG).toBuffer(),
         left: Math.round(x),
         top: Math.round(centerY - height / 2),
       });
@@ -503,12 +505,15 @@ export async function renderSoftPoster(params: {
   ensurePolisSharpConfigured();
   const { overlay } = params;
 
-  const baseBuf = await sharp(params.imageBuffer)
-    .resize(500, 750, { fit: "cover", position: "attention" })
-    .toBuffer();
-  const meta = await sharp(baseBuf).metadata();
-  const w = meta.width ?? 500;
-  const h = meta.height ?? 750;
+  const inputMeta = await sharp(params.imageBuffer).metadata();
+  const baseBuf =
+    inputMeta.width === POSTER_WIDTH && inputMeta.height === POSTER_HEIGHT
+      ? params.imageBuffer
+      : await sharp(params.imageBuffer)
+          .resize(POSTER_WIDTH, POSTER_HEIGHT, { fit: "cover", position: "attention" })
+          .toBuffer();
+  const w = POSTER_WIDTH;
+  const h = POSTER_HEIGHT;
 
   const padX = Math.round(w * PAD_X);
   const padBottom = Math.round(w * PAD_BOTTOM);
@@ -597,7 +602,7 @@ export async function renderSoftPoster(params: {
       const logo =
         logoW === raster.width && logoH === raster.height
           ? raster.buffer
-          : await sharp(raster.buffer).resize({ width: logoW, height: logoH, fit: "fill" }).png().toBuffer();
+          : await sharp(raster.buffer).resize({ width: logoW, height: logoH, fit: "fill" }).png(INTERMEDIATE_PNG).toBuffer();
       const sample = await sampleLogo(logo, baseBuf, rect);
       const scrimAlpha = logoScrimAlpha(sample.meanLogoLum, sample.backdropHigh);
       return { logo, rect, scrimAlpha, share: logoLegibleShare(sample, scrimAlpha) };
@@ -679,7 +684,5 @@ export async function renderSoftPoster(params: {
   }
 
   layers.push(...glyphLayers);
-  const composed: Buffer = layers.length > 0 ? await sharp(baseBuf).composite(layers).toBuffer() : baseBuf;
-
-  return encodePosterImage(composed);
+  return encodePosterImage(layers.length > 0 ? sharp(baseBuf).composite(layers) : baseBuf);
 }
