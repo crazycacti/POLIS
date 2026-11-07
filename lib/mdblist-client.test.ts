@@ -42,9 +42,11 @@ function lookup(imdbId: string, apiKey: string, serverKeyProfile: string | null 
 
 async function seedStale(imdbId: string) {
   const day = 24 * 60 * 60 * 1000;
-  await writePolisDiskJson("api/mdblist", "g", ["media-v1", "movie", imdbId].join("\0"), {
+  await writePolisDiskJson("api/mdblist", "g", ["media-v2", "movie", imdbId].join("\0"), {
     at: Date.now() - 2 * day,
-    value: { ratings: { imdb: 6.1 }, releaseDate: null, status: null, keywordNames: [], certification: null, filenames: [] },
+    value: {
+      info: { ratings: { imdb: 6.1 }, releaseDate: null, status: null, keywordNames: [], certification: null, filenames: [] },
+    },
   });
 }
 
@@ -77,11 +79,30 @@ describe("fetchMdblistMediaInfo", () => {
     expect(requests).toHaveLength(1);
   });
 
-  test("treats 404 as a known miss with a single request", async () => {
-    respond = () => new Response("{}", { status: 404 });
-    expect(await lookup("tt0000105", "key-404")).toEqual({ info: null, degraded: false });
-    expect(requests).toHaveLength(1);
-    expect(requests[0]!.hostname).toBe("api.mdblist.com");
+  test("asks the legacy endpoint once when the modern one has no record", async () => {
+    respond = (url) =>
+      url.hostname === "mdblist.com"
+        ? Response.json({ ratings: [{ source: "imdb", value: 5.5 }] })
+        : new Response("{}", { status: 404 });
+    const first = await lookup("tt0000105", "key-404");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const second = await lookup("tt0000105", "key-404");
+    expect(first.info?.ratings).toEqual({ imdb: 5.5 });
+    expect(second).toEqual(first);
+    expect(requests.map((u) => u.hostname)).toEqual(["api.mdblist.com", "mdblist.com"]);
+  });
+
+  test("asks the legacy endpoint when the modern payload cannot be read", async () => {
+    respond = (url) =>
+      url.hostname === "mdblist.com" ? Response.json({ ratings: [{ source: "imdb", value: 6.6 }] }) : Response.json("oops");
+    expect((await lookup("tt0000110", "key-unparsed")).info?.ratings).toEqual({ imdb: 6.6 });
+    expect(requests.map((u) => u.hostname)).toEqual(["api.mdblist.com", "mdblist.com"]);
+  });
+
+  test("does not ask the legacy endpoint after a 429 or 5xx", async () => {
+    respond = () => new Response("{}", { status: 503 });
+    expect(await lookup("tt0000111", "key-503")).toEqual({ info: null, degraded: true });
+    expect(requests.map((u) => u.hostname)).toEqual(["api.mdblist.com"]);
   });
 
   test("caps one profile's share of the server key", async () => {

@@ -134,7 +134,9 @@ export function parseMdblistMediaInfo(payload: unknown): MdblistMediaInfo | null
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_MDBLIST_TTL_SEC = 24 * 60 * 60;
 const MDBLIST_MISSING_TTL_MS = DAY_MS;
-const MDBLIST_MEDIA_CACHE_VERSION = "media-v1";
+const MDBLIST_LEGACY_TIMEOUT_MS = 15_000;
+const MDBLIST_MEDIA_CACHE_VERSION = "media-v2";
+const MDBLIST_LEGACY_CACHE_VERSION = "legacy-v1";
 
 function mdblistTtlMs(): number {
   return (polisEnvPositiveInt("POLIS_CACHE_MDBLIST_TTL_SEC") ?? DEFAULT_MDBLIST_TTL_SEC) * 1000;
@@ -142,12 +144,46 @@ function mdblistTtlMs(): number {
 
 export type MdblistLookup = { info: MdblistMediaInfo | null; degraded: boolean };
 
-export async function fetchMdblistMediaInfo(params: {
+type MdblistModernEntry = { info: MdblistMediaInfo | null };
+
+type MdblistLookupParams = {
   imdbId: string;
   stremioType: "movie" | "series";
   apiKey: string;
   serverKeyProfile?: string | null;
-}): Promise<MdblistLookup> {
+};
+
+function mdblistCacheOptions(params: MdblistLookupParams, version: string, ttlMs: number) {
+  const mediaType = params.stremioType === "movie" ? "movie" : "show";
+  return {
+    provider: "mdblist" as const,
+    cacheKey: [version, mediaType, params.imdbId].join("\0"),
+    ttlMs,
+    negativeTtlMs: MDBLIST_MISSING_TTL_MS,
+    label: `${mediaType} ${params.imdbId}`,
+    credentialFingerprint: upstreamCredentialFingerprint(params.apiKey),
+    serverKeyProfile: params.serverKeyProfile ?? null,
+  };
+}
+
+function fetchMdblistLegacyInfo(params: MdblistLookupParams, ttlMs: number) {
+  const url = new URL("https://mdblist.com/api/");
+  url.searchParams.set("apikey", params.apiKey);
+  url.searchParams.set("i", params.imdbId);
+  url.searchParams.set("m", params.stremioType === "movie" ? "movie" : "show");
+  return cachedUpstreamJson<MdblistMediaInfo>({
+    ...mdblistCacheOptions(params, MDBLIST_LEGACY_CACHE_VERSION, ttlMs),
+    request: () =>
+      fetchUpstream(url, {
+        headers: { Accept: "application/json" },
+        revalidateSeconds: upstreamNextRevalidateSeconds(ttlMs),
+        timeoutMs: MDBLIST_LEGACY_TIMEOUT_MS,
+      }),
+    parse: parseMdblistMediaInfo,
+  });
+}
+
+export async function fetchMdblistMediaInfo(params: MdblistLookupParams): Promise<MdblistLookup> {
   const mediaType = params.stremioType === "movie" ? "movie" : "show";
   const url = new URL(
     `https://api.mdblist.com/imdb/${mediaType}/${encodeURIComponent(params.imdbId)}`,
@@ -156,20 +192,18 @@ export async function fetchMdblistMediaInfo(params: {
   url.searchParams.set("append_to_response", "keyword");
   const ttlMs = mdblistTtlMs();
 
-  const result = await cachedUpstreamJson<MdblistMediaInfo>({
-    provider: "mdblist",
-    cacheKey: [MDBLIST_MEDIA_CACHE_VERSION, mediaType, params.imdbId].join("\0"),
-    ttlMs,
-    negativeTtlMs: MDBLIST_MISSING_TTL_MS,
-    label: `${mediaType} ${params.imdbId}`,
-    credentialFingerprint: upstreamCredentialFingerprint(params.apiKey),
-    serverKeyProfile: params.serverKeyProfile ?? null,
+  const modern = await cachedUpstreamJson<MdblistModernEntry>({
+    ...mdblistCacheOptions(params, MDBLIST_MEDIA_CACHE_VERSION, ttlMs),
     request: () =>
       fetchUpstream(url, {
         headers: { Accept: "application/json" },
         revalidateSeconds: upstreamNextRevalidateSeconds(ttlMs),
       }),
-    parse: parseMdblistMediaInfo,
+    parse: (payload) => ({ info: parseMdblistMediaInfo(payload) }),
   });
-  return { info: result.value, degraded: result.outcome === "unavailable" };
+  if (modern.outcome === "unavailable") return { info: null, degraded: true };
+  if (modern.value?.info) return { info: modern.value.info, degraded: false };
+
+  const legacy = await fetchMdblistLegacyInfo(params, ttlMs);
+  return { info: legacy.value, degraded: legacy.outcome === "unavailable" };
 }
