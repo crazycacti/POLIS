@@ -6,6 +6,8 @@ type FanartAsset = {
 
 import type { ArtworkCandidate } from "@/lib/artwork-candidate";
 import { fetchUpstream } from "@/lib/upstream-fetch";
+import { upstreamCredentialFingerprint } from "@/lib/upstream-guard";
+import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
 function isTextlessFanartAsset(asset: FanartAsset): boolean {
   const code = (asset.lang ?? asset.iso_639_1 ?? "").toLowerCase();
@@ -43,6 +45,25 @@ export function pickFanartPoster(
   return fanartCandidate(assets.find(isTextlessFanartAsset) ?? assets[0]);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const FANART_TTL_MS = 7 * DAY_MS;
+const FANART_MISSING_TTL_MS = DAY_MS;
+
+function parseFanartAssets(payload: unknown, key: "movieposter" | "tvposter"): FanartAsset[] | null {
+  if (!payload || typeof payload !== "object") return null;
+  const raw = (payload as Record<string, unknown>)[key];
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return null;
+  return raw.flatMap((entry): FanartAsset[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Record<string, unknown>;
+    if (typeof row.url !== "string" || !row.url) return [];
+    const lang = typeof row.lang === "string" ? row.lang : undefined;
+    const iso = typeof row.iso_639_1 === "string" ? row.iso_639_1 : undefined;
+    return [{ url: row.url, lang, iso_639_1: iso }];
+  });
+}
+
 export async function fetchFanartPoster(params: {
   mediaType: "movie" | "series";
   tmdbId: number;
@@ -58,19 +79,23 @@ export async function fetchFanartPoster(params: {
     params.mediaType === "movie"
       ? `https://webservice.fanart.tv/v3/movies/${lookupId}`
       : `https://webservice.fanart.tv/v3/tv/${lookupId}`;
+  const assetKey = params.mediaType === "movie" ? "movieposter" : "tvposter";
 
   const url = `${endpoint}?api_key=${encodeURIComponent(params.apiKey)}`;
-  const response = await fetchUpstream(url, {
-    headers: { Accept: "application/json" },
-    revalidateSeconds: 86400,
+  const result = await cachedUpstreamJson<FanartAsset[]>({
+    provider: "fanart",
+    cacheKey: [assetKey, lookupId].join("\0"),
+    ttlMs: FANART_TTL_MS,
+    negativeTtlMs: FANART_MISSING_TTL_MS,
+    label: `${params.mediaType} ${lookupId}`,
+    credentialFingerprint: upstreamCredentialFingerprint(params.apiKey),
+    request: () =>
+      fetchUpstream(url, {
+        headers: { Accept: "application/json" },
+        revalidateSeconds: upstreamNextRevalidateSeconds(FANART_TTL_MS),
+      }),
+    parse: (payload) => parseFanartAssets(payload, assetKey),
   });
-  if (!response.ok) return null;
 
-  const payload = (await response.json()) as Record<string, FanartAsset[] | undefined>;
-  const posters =
-    params.mediaType === "movie"
-      ? (payload.movieposter ?? [])
-      : (payload.tvposter ?? []);
-
-  return pickFanartPoster(posters, params.language, params.preferTextless ?? false);
+  return pickFanartPoster(result.value ?? [], params.language, params.preferTextless ?? false);
 }
