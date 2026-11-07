@@ -239,8 +239,8 @@ function dedupeCandidates(candidates: ArtworkCandidate[]): ArtworkCandidate[] {
   return out;
 }
 
-function effectiveArtworkSource(
-  resolved: ResolvedTitle,
+export function effectiveArtworkSource(
+  resolved: Pick<ResolvedTitle, "stremioType">,
   artworkSource: PosterArtworkSource,
   artworkMovie: PosterArtworkMovieSource,
 ): PosterArtworkSource | PosterArtworkMovieSource {
@@ -286,16 +286,6 @@ export async function resolvePosterImageCandidates(params: {
 
   const primary = await urlForArtworkSourceSafe(source, ctx);
   if (primary) urls.push(primary);
-
-  if (ctx.preferTextlessArtwork && source !== "tmdb") {
-    const tmdbTextless = await urlForArtworkSourceSafe("tmdb", {
-      ...ctx,
-      preferTextlessArtwork: true,
-    });
-    if (tmdbTextless?.textless) {
-      urls.unshift(tmdbTextless);
-    }
-  }
 
   const fb = params.artworkFallback;
   if (fb !== source && fb !== params.artworkSource) {
