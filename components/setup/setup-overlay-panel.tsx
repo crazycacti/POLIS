@@ -65,7 +65,7 @@ function Segmented<T extends string>(props: {
       {props.options.map((option) => (
         <button
           aria-pressed={props.value === option.value}
-          className={`min-h-9 rounded-full px-4 text-sm transition-colors ${
+          className={`polis-focus min-h-10 rounded-full px-4 text-sm transition-colors ${
             props.value === option.value ? "polis-selected" : "text-zinc-400 hover:bg-white/5 hover:text-white"
           }`}
           key={option.value}

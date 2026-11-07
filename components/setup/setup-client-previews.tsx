@@ -26,7 +26,7 @@ export function ClientPreviewTabs(props: {
         return (
           <button
             aria-pressed={selected}
-            className={`min-h-9 rounded-md px-2 text-sm transition-colors ${
+            className={`polis-focus min-h-10 rounded-md px-2 text-sm transition-colors ${
               selected ? "polis-selected" : "text-zinc-400 hover:bg-white/5 hover:text-white"
             }`}
             key={view.id}

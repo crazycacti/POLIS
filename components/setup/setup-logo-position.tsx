@@ -25,17 +25,14 @@ export function SetupLogoPosition(props: { value: GridCell; onChange: (cell: Gri
             <button
               aria-label={label}
               aria-pressed={selected}
-              className={`flex h-11 w-11 items-center justify-center rounded-md transition-colors ${
+              className={`polis-focus flex h-11 w-11 items-center justify-center rounded-md transition-colors ${
                 selected ? "polis-selected" : "hover:bg-white/5"
               }`}
               key={label}
               onClick={() => props.onChange(index as GridCell)}
               type="button"
             >
-              <span
-                aria-hidden
-                className={`h-2 w-5 rounded-full ${selected ? "bg-cyan-300" : "bg-zinc-600"}`}
-              />
+              <span aria-hidden className="h-2 w-5 rounded-full bg-zinc-500" />
             </button>
           );
         })}
