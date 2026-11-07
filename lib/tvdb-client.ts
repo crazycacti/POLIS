@@ -129,9 +129,8 @@ async function tvdbLoginFresh(credentials: TvdbCredentials, cacheKey: string): P
   } catch {
     return rememberLoginFailure(cacheKey, { ok: false, status: 0, message: "network" }, LOGIN_TRANSIENT_FAILURE_TTL_MS);
   }
-  upstreamGuard.observe(scope, response);
-
   const bodyText = await response.text();
+  upstreamGuard.observe(scope, response, bodyText);
   if (!response.ok) {
     const result: TvdbLoginFailure = {
       ok: false,

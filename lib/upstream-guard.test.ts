@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   redactUpstreamSecrets,
+  UPSTREAM_PROVIDER_POLICIES,
   UpstreamGuard,
   type UpstreamCallScope,
   type UpstreamProviderPolicy,
@@ -13,6 +14,7 @@ const MINUTE_MS = 60 * SECOND_MS;
 function clockedGuard(options: {
   start?: number;
   policy?: Partial<UpstreamProviderPolicy>;
+  mdblistPolicy?: Partial<UpstreamProviderPolicy>;
   maxWaitMs?: number;
   sharePercent?: number;
 }) {
@@ -31,7 +33,7 @@ function clockedGuard(options: {
       await Promise.resolve();
     },
     maxWaitMs: options.maxWaitMs ?? 2 * SECOND_MS,
-    policies: { tmdb: policy, mdblist: policy },
+    policies: { tmdb: policy, mdblist: { ...UPSTREAM_PROVIDER_POLICIES.mdblist, ...options.mdblistPolicy } },
     sharePercent: () => options.sharePercent ?? 20,
   });
   return { guard, clock };
@@ -86,31 +88,45 @@ describe("per key cooldowns and quota", () => {
   test("honors Retry-After on 429 for that key only", async () => {
     const { guard, clock } = clockedGuard({});
     expect(await call(guard, scope, ok({ "retry-after": "30" }, 429))).toBe(429);
-    expect(await call(guard, scope)).toBe("cooldown");
+    expect(await call(guard, scope)).toBe("rate_limited");
     expect(await call(guard, { ...scope, credentialFingerprint: "key-b" })).toBe(200);
     clock.now += 31 * SECOND_MS;
     expect(await call(guard, scope)).toBe(200);
   });
 
-  test("pauses MDBList until the next UTC midnight without headers", async () => {
-    const { guard, clock } = clockedGuard({
-      start: Date.UTC(2026, 10, 7, 22),
-      policy: { defaultCooldownMs: "next_utc_midnight" },
-    });
-    const mdb: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "mdb-a" };
+  test("pauses MDBList briefly for a 429 without quota details", async () => {
+    const { guard, clock } = clockedGuard({});
+    const mdb: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "mdb-short" };
     expect(await call(guard, mdb, ok({}, 429))).toBe(429);
-    clock.now = Date.UTC(2026, 10, 7, 23, 59);
-    expect(await call(guard, mdb)).toBe("cooldown");
-    clock.now = Date.UTC(2026, 10, 8, 0, 0, 1);
+    expect(await call(guard, mdb)).toBe("rate_limited");
+    clock.now += MINUTE_MS + 1;
     expect(await call(guard, mdb)).toBe(200);
   });
 
-  test("uses x-ratelimit-reset when there is no Retry-After", async () => {
+  test("pauses MDBList until the next UTC midnight when the daily limit is used up", async () => {
+    const { guard, clock } = clockedGuard({ start: Date.UTC(2026, 10, 7, 22) });
+    const byBody: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "mdb-body" };
+    const byHeader: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "mdb-header" };
+    const dailyBody = async () => Response.json({ error: "Daily API limit exceeded!" }, { status: 429 });
+    expect(await call(guard, byBody, dailyBody)).toBe(429);
+    expect(await call(guard, byHeader, ok({ "x-ratelimit-remaining": "0" }, 429))).toBe(429);
+    clock.now = Date.UTC(2026, 10, 7, 23, 59);
+    expect(await call(guard, byBody)).toBe("rate_limited");
+    expect(await call(guard, byHeader)).toBe("rate_limited");
+    clock.now = Date.UTC(2026, 10, 8, 0, 0, 1);
+    expect(await call(guard, byBody)).toBe(200);
+    expect(await call(guard, byHeader)).toBe(200);
+  });
+
+  test.each([
+    ["seconds from now", (_now: number) => "120"],
+    ["epoch seconds", (now: number) => String(Math.floor(now / SECOND_MS) + 120)],
+    ["epoch milliseconds", (now: number) => String(now + 120 * SECOND_MS)],
+  ])("reads x-ratelimit-reset as %s", async (_label, reset) => {
     const { guard, clock } = clockedGuard({});
-    const resetAt = Math.floor(clock.now / SECOND_MS) + 120;
-    await call(guard, scope, ok({ "x-ratelimit-reset": String(resetAt) }, 429));
+    await call(guard, scope, ok({ "x-ratelimit-reset": reset(clock.now) }, 429));
     clock.now += 119 * SECOND_MS;
-    expect(await call(guard, scope)).toBe("cooldown");
+    expect(await call(guard, scope)).toBe("rate_limited");
     clock.now += 2 * SECOND_MS;
     expect(await call(guard, scope)).toBe(200);
   });
@@ -123,7 +139,7 @@ describe("per key cooldowns and quota", () => {
   });
 
   test("skips background calls near the known daily limit", async () => {
-    const { guard } = clockedGuard({ policy: { dailyLimit: () => 20 } });
+    const { guard } = clockedGuard({ mdblistPolicy: { dailyLimit: () => 20 } });
     const mdb: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "mdb-b", background: true };
     for (let i = 0; i < 19; i += 1) expect(await call(guard, mdb)).toBe(200);
     expect(await call(guard, mdb)).toBe("quota_low");
@@ -133,7 +149,7 @@ describe("per key cooldowns and quota", () => {
   test("pauses a key for 15 minutes after an auth failure unless opted out", async () => {
     const { guard, clock } = clockedGuard({});
     await call(guard, scope, ok({}, 401));
-    expect(await call(guard, scope)).toBe("cooldown");
+    expect(await call(guard, scope)).toBe("auth_rejected");
     clock.now += 15 * MINUTE_MS + 1;
     expect(await call(guard, scope)).toBe(200);
 
@@ -145,7 +161,7 @@ describe("per key cooldowns and quota", () => {
 
 describe("per profile share of the server key", () => {
   test("caps each profile at its share and resets daily", async () => {
-    const { guard, clock } = clockedGuard({ policy: { dailyLimit: () => 10 }, sharePercent: 20 });
+    const { guard, clock } = clockedGuard({ mdblistPolicy: { dailyLimit: () => 10 }, sharePercent: 20 });
     const server: UpstreamCallScope = { provider: "mdblist", credentialFingerprint: "server", serverKeyProfile: "p1" };
     expect(await call(guard, server)).toBe(200);
     expect(await call(guard, server)).toBe(200);

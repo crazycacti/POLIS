@@ -7,7 +7,7 @@ export type UpstreamProvider = "tmdb" | "mdblist" | "fanart" | "tvdb" | "anilist
 
 export type UpstreamKeySource = "server" | "profile" | "request";
 
-export type UpstreamBlockReason = "cooldown" | "quota_low" | "profile_budget" | "busy";
+export type UpstreamBlockReason = "rate_limited" | "auth_rejected" | "quota_low" | "profile_budget" | "busy";
 
 export type UpstreamCallScope = {
   provider: UpstreamProvider;
@@ -22,12 +22,14 @@ type RateWindow = { limit: number; windowMs: number };
 export type UpstreamProviderPolicy = {
   windows: RateWindow[];
   maxConcurrent: number;
-  defaultCooldownMs: number | "next_utc_midnight";
+  defaultCooldownMs: number;
   dailyLimit: () => number | null;
+  dailyLimitBodyPattern?: RegExp;
 };
 
 type KeyState = {
   cooldownUntil: number;
+  cooldownReason: "rate_limited" | "auth_rejected";
   limit: number | null;
   remaining: number | null;
   resetAt: number | null;
@@ -50,6 +52,7 @@ const MAX_TRACKED_PROFILES = 5_000;
 const MAX_WARNING_KEYS = 500;
 const WARN_INTERVAL_MS = MINUTE_MS;
 const EPOCH_SECONDS_THRESHOLD = 1_000_000_000;
+const EPOCH_MILLISECONDS_THRESHOLD = 1_000_000_000_000;
 const DEFAULT_MDBLIST_DAILY_LIMIT = 1_000;
 const DEFAULT_SERVER_KEY_SHARE_PERCENT = 20;
 const MAX_PERCENT = 100;
@@ -67,8 +70,9 @@ export const UPSTREAM_PROVIDER_POLICIES: Record<UpstreamProvider, UpstreamProvid
   mdblist: {
     windows: [{ limit: 10, windowMs: SECOND_MS }],
     maxConcurrent: 4,
-    defaultCooldownMs: "next_utc_midnight",
+    defaultCooldownMs: MINUTE_MS,
     dailyLimit: () => polisEnvPositiveInt("POLIS_MDBLIST_DAILY_LIMIT") ?? DEFAULT_MDBLIST_DAILY_LIMIT,
+    dailyLimitBodyPattern: /daily api limit/i,
   },
   fanart: {
     windows: [{ limit: 10, windowMs: SECOND_MS }],
@@ -153,7 +157,9 @@ export function retryAfterMs(headers: Headers, now: number): number | null {
 function rateLimitResetAt(headers: Headers, now: number): number | null {
   const reset = headerNumber(headers, ["x-ratelimit-reset", "ratelimit-reset"]);
   if (reset == null) return null;
-  return reset > EPOCH_SECONDS_THRESHOLD ? reset * SECOND_MS : now + reset * SECOND_MS;
+  if (reset > EPOCH_MILLISECONDS_THRESHOLD) return reset;
+  if (reset > EPOCH_SECONDS_THRESHOLD) return reset * SECOND_MS;
+  return now + reset * SECOND_MS;
 }
 
 function serverKeySharePercent(): number {
@@ -223,6 +229,7 @@ export class UpstreamGuard {
     }
     const created: KeyState = {
       cooldownUntil: 0,
+      cooldownReason: "rate_limited",
       limit: null,
       remaining: null,
       resetAt: null,
@@ -244,7 +251,12 @@ export class UpstreamGuard {
   }
 
   inCooldown(provider: UpstreamProvider, fingerprint: string): boolean {
-    return this.keyState(provider, fingerprint).cooldownUntil > this.now();
+    return this.cooldownReason(provider, fingerprint) != null;
+  }
+
+  private cooldownReason(provider: UpstreamProvider, fingerprint: string): UpstreamBlockReason | null {
+    const state = this.keyState(provider, fingerprint);
+    return state.cooldownUntil > this.now() ? state.cooldownReason : null;
   }
 
   quotaLow(provider: UpstreamProvider, fingerprint: string): boolean {
@@ -270,7 +282,8 @@ export class UpstreamGuard {
   }
 
   backgroundSkipReason(scope: UpstreamCallScope): UpstreamBlockReason | null {
-    if (this.inCooldown(scope.provider, scope.credentialFingerprint)) return "cooldown";
+    const cooldown = this.cooldownReason(scope.provider, scope.credentialFingerprint);
+    if (cooldown) return cooldown;
     const background = scope.background ?? upstreamCallIsBackground();
     if (background && this.quotaLow(scope.provider, scope.credentialFingerprint)) return "quota_low";
     return null;
@@ -331,7 +344,7 @@ export class UpstreamGuard {
     }
   }
 
-  observe(scope: UpstreamCallScope, response: Response): void {
+  observe(scope: UpstreamCallScope, response: Response, bodyText: string | null = null): void {
     const state = this.keyState(scope.provider, scope.credentialFingerprint);
     const now = this.now();
     const limit = headerNumber(response.headers, ["x-ratelimit-limit", "ratelimit-limit"]);
@@ -343,11 +356,13 @@ export class UpstreamGuard {
     }
 
     if (response.status === 429) {
-      const policyDefault = this.policies[scope.provider].defaultCooldownMs;
-      const fallbackMs =
-        policyDefault === "next_utc_midnight" ? nextUtcMidnight(now) - now : policyDefault;
+      const policy = this.policies[scope.provider];
+      const dailyExhausted =
+        policy.dailyLimit() != null &&
+        (remaining === 0 || (bodyText != null && policy.dailyLimitBodyPattern?.test(bodyText) === true));
+      const fallbackMs = dailyExhausted ? nextUtcMidnight(now) - now : policy.defaultCooldownMs;
       const cooldownMs = Math.min(MAX_COOLDOWN_MS, retryAfterMs(response.headers, now) ?? fallbackMs);
-      state.cooldownUntil = Math.max(state.cooldownUntil, now + cooldownMs);
+      this.startCooldown(state, now + cooldownMs, "rate_limited");
       this.warnOnce(
         `${scope.provider}:429:${scope.credentialFingerprint}`,
         `${scope.provider} rate limited this key, pausing calls for ${Math.ceil(cooldownMs / SECOND_MS)}s`,
@@ -356,12 +371,18 @@ export class UpstreamGuard {
     }
 
     if ((response.status === 401 || response.status === 403) && scope.authFailureCooldown !== false) {
-      state.cooldownUntil = Math.max(state.cooldownUntil, now + AUTH_FAILURE_COOLDOWN_MS);
+      this.startCooldown(state, now + AUTH_FAILURE_COOLDOWN_MS, "auth_rejected");
       this.warnOnce(
         `${scope.provider}:auth:${scope.credentialFingerprint}`,
         `${scope.provider} rejected this key with HTTP ${response.status}, pausing calls for 15 minutes`,
       );
     }
+  }
+
+  private startCooldown(state: KeyState, until: number, reason: KeyState["cooldownReason"]): void {
+    if (until <= state.cooldownUntil) return;
+    state.cooldownUntil = until;
+    state.cooldownReason = reason;
   }
 
   async request<T>(
@@ -386,7 +407,9 @@ export class UpstreamGuard {
 
     try {
       const response = await call();
-      this.observe(scope, response);
+      const bodyText =
+        response.status === 429 ? await response.clone().text().catch(() => null) : null;
+      this.observe(scope, response, bodyText);
       return { ok: true, value: await read(response) };
     } finally {
       release();
