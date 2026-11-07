@@ -1,10 +1,10 @@
+import { proxyClientKey } from "@/lib/client-request-context";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 
 const WINDOW_MS = 60 * 60 * 1000;
 const DEFAULT_PER_CLIENT_PER_HOUR = 5;
 const DEFAULT_SERVER_PER_HOUR = 60;
 const MAX_TRACKED_CLIENTS = 10_000;
-const UNKNOWN_CLIENT = "unknown";
 
 type CreateWindow = { count: number; windowStart: number };
 
@@ -19,11 +19,8 @@ function serverLimit(): number {
   return polisEnvPositiveInt("POLIS_PROFILE_CREATE_PER_HOUR") ?? DEFAULT_SERVER_PER_HOUR;
 }
 
-// The proxy in front of POLIS appends the caller's address last; earlier entries come from the caller.
 export function profileCreateClientKey(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const last = forwarded?.split(",").map((part) => part.trim()).filter(Boolean).at(-1);
-  return last || request.headers.get("x-real-ip")?.trim() || UNKNOWN_CLIENT;
+  return proxyClientKey(request);
 }
 
 function current(entry: CreateWindow | undefined, now: number): CreateWindow {
