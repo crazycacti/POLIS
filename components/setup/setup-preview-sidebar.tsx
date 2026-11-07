@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   ClientPreview,
@@ -11,33 +11,56 @@ import { SelectionCheck } from "@/components/setup/setup-ui";
 import { usePreloadedPosterSrc } from "@/components/setup/use-preloaded-poster-src";
 import { DEMO_TITLES } from "@/lib/demo-catalog";
 import { resolveSetupDemoPosterSrc } from "@/lib/demo-poster-urls";
+import type { PreviewTitle } from "@/lib/preview-title-list";
 
 const CUSTOM_TITLE = "custom";
+
+type TitleOption = { key: string; label: string; src: string };
 
 export function SetupPreviewSidebar(props: {
   imdbPreview: string;
   onImdbChange: (value: string) => void;
   idOk: boolean;
   livePreviewSrc: string | null;
+  liveTitles: PreviewTitle[];
+  posterSrcForImdb: (imdbId: string) => string;
   liveError: string | null;
   hasPreviewCredential: boolean;
   overlayQueryString: string;
   showcaseQueryString: string;
   landscape: boolean;
 }) {
-  const [selected, setSelected] = useState<string>(DEMO_TITLES[0]!.id);
+  const [selected, setSelected] = useState<string | null>(null);
   const [view, setView] = useState<ClientPreviewView>("poster");
 
-  const demoSrc = (demoId: string) =>
-    resolveSetupDemoPosterSrc(demoId, props.overlayQueryString, props.showcaseQueryString);
+  const { liveTitles, posterSrcForImdb, overlayQueryString, showcaseQueryString } = props;
+  const options = useMemo<TitleOption[]>(
+    () =>
+      liveTitles.length > 0
+        ? liveTitles.map((title) => ({
+            key: title.imdbId,
+            label: title.title,
+            src: posterSrcForImdb(title.imdbId),
+          }))
+        : DEMO_TITLES.map((demo) => ({
+            key: demo.id,
+            label: demo.title,
+            src: resolveSetupDemoPosterSrc(demo.id, overlayQueryString, showcaseQueryString),
+          })),
+    [liveTitles, overlayQueryString, posterSrcForImdb, showcaseQueryString],
+  );
   const usingCustom = selected === CUSTOM_TITLE;
-  const targetSrc = usingCustom ? props.livePreviewSrc : demoSrc(selected);
+  const activeOption = usingCustom
+    ? null
+    : (options.find((option) => option.key === selected) ?? options[0] ?? null);
+  const targetSrc = usingCustom ? props.livePreviewSrc : (activeOption?.src ?? null);
   const { displaySrc, isLoading, loadFailed } = usePreloadedPosterSrc(targetSrc);
   const waitingForPreview = Boolean(targetSrc) && !displaySrc && !loadFailed;
   const showPoster = Boolean(displaySrc) && !loadFailed;
-  const neighborSrcs = DEMO_TITLES.filter((demo) => demo.id !== selected)
+  const neighborSrcs = options
+    .filter((option) => option.key !== activeOption?.key)
     .slice(0, 2)
-    .map((demo) => demoSrc(demo.id));
+    .map((option) => option.src);
 
   const liveMessage =
     (usingCustom ? props.liveError : null) ??
@@ -86,15 +109,16 @@ export function SetupPreviewSidebar(props: {
       )}
 
       <div aria-label="Preview title" className="mt-3 flex justify-center gap-2 lg:justify-start" role="group">
-        {DEMO_TITLES.map((demo) => {
-          const isSelected = selected === demo.id;
+        {options.map((option) => {
+          const isSelected = option.key === activeOption?.key;
           return (
             <button
-              aria-label={demo.title}
+              aria-label={option.label}
               aria-pressed={isSelected}
               className="polis-focus relative w-12 shrink-0 rounded-md lg:w-auto lg:flex-1"
-              key={demo.id}
-              onClick={() => setSelected(demo.id)}
+              key={option.key}
+              onClick={() => setSelected(option.key)}
+              title={option.label}
               type="button"
             >
               <img
@@ -102,7 +126,7 @@ export function SetupPreviewSidebar(props: {
                 className={`${props.landscape ? "aspect-video" : "aspect-2/3"} w-full rounded-md object-cover ${isSelected ? "ring-2 ring-cyan-400" : ""}`}
                 decoding="async"
                 loading="lazy"
-                src={demoSrc(demo.id)}
+                src={option.src}
               />
               {isSelected ? <SelectionCheck /> : null}
             </button>

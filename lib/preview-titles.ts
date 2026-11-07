@@ -1,12 +1,10 @@
 import { readPolisDiskJson, writePolisDiskJson } from "@/lib/polis-disk-cache";
 import { polisSingleflight } from "@/lib/polis-singleflight";
+import { parsePreviewTitles, type PreviewTitle } from "@/lib/preview-title-list";
 import { mapWithConcurrency, tmdbImdbIdForItem } from "@/lib/stremio-catalog-fetch";
-import { isImdbId } from "@/lib/stremio-imdb-id";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
-
-export type PreviewTitle = { imdbId: string; title: string; type: "movie" | "series" };
 
 export const PREVIEW_TITLE_LIMIT = 6;
 export const PREVIEW_TITLES_TTL_SEC = 24 * 60 * 60;
@@ -37,20 +35,6 @@ export function trendingPreviewCandidates(payload: unknown): TrendingCandidate[]
     out.push({ tmdbId: record.id, title, type });
   }
   return out;
-}
-
-export function parsePreviewTitles(raw: unknown): PreviewTitle[] | null {
-  if (!Array.isArray(raw)) return null;
-  const titles: PreviewTitle[] = [];
-  for (const row of raw) {
-    if (!row || typeof row !== "object") return null;
-    const record = row as Record<string, unknown>;
-    if (typeof record.imdbId !== "string" || !isImdbId(record.imdbId)) return null;
-    if (typeof record.title !== "string" || !record.title.trim()) return null;
-    if (record.type !== "movie" && record.type !== "series") return null;
-    titles.push({ imdbId: record.imdbId, title: record.title, type: record.type });
-  }
-  return titles;
 }
 
 export function tmdbCredentialFromRaw(raw: string): TmdbCredential | null {
