@@ -5,7 +5,8 @@ import path from "node:path";
 
 import { writePolisDiskJson } from "@/lib/polis-disk-cache";
 import { tmdbApiGet } from "@/lib/tmdb-api-get";
-import { resolveTitleFromImdb } from "@/lib/tmdb-resolve";
+import { fetchTmdbImagePosters } from "@/lib/artwork-poster";
+import { resolveTitleFromImdb, type ResolvedTitle } from "@/lib/tmdb-resolve";
 
 let root = "";
 const savedEnv = { ...process.env };
@@ -87,5 +88,49 @@ describe("tmdb logo lookup", () => {
       "de,en,null,xx",
       null,
     ]);
+  });
+});
+
+describe("tmdb poster list", () => {
+  const resolved: ResolvedTitle = {
+    imdbId: "tt0088088",
+    stremioType: "series",
+    title: "Anime",
+    overview: "",
+    releaseYear: "2020",
+    releaseInfo: "2020",
+    releasedIso: null,
+    lastAirDateIso: null,
+    status: null,
+    runtimeMinutes: null,
+    posterPath: null,
+    backdropPath: null,
+    voteAverage: null,
+    voteCount: null,
+    genreNames: [],
+    cast: [],
+    castMembers: [],
+    directors: [],
+    country: null,
+    tmdbNumericId: 88,
+    tvdbId: null,
+    logoPath: null,
+    certification: null,
+    videos: null,
+  };
+
+  test("falls back to every language when no poster matches the user language", async () => {
+    respond = (url) =>
+      Response.json({
+        posters: url.searchParams.has("include_image_language") ? [] : [{ file_path: "/ja.jpg", iso_639_1: "ja" }],
+      });
+    const credential = { kind: "api_key" as const, key: "poster-key" };
+    expect(await fetchTmdbImagePosters(resolved, credential, "en-US")).toEqual([
+      { file_path: "/ja.jpg", iso_639_1: "ja" },
+    ]);
+    expect(await fetchTmdbImagePosters({ ...resolved, tmdbNumericId: 89, posterImages: [] }, credential, "en-US")).toEqual([
+      { file_path: "/ja.jpg", iso_639_1: "ja" },
+    ]);
+    expect(requests.map((u) => u.searchParams.get("include_image_language"))).toEqual(["en,null,xx", null, null]);
   });
 });

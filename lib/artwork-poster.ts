@@ -57,18 +57,29 @@ export function pickTmdbPosterPath(
   return posters.find((p) => p.file_path)?.file_path ?? null;
 }
 
+async function fetchTmdbPosterRows(
+  resolved: ResolvedTitle,
+  credential: TmdbCredential,
+  includeImageLanguage: string | null,
+): Promise<TmdbImageRow[]> {
+  const kind = resolved.stremioType === "movie" ? "movie" : "tv";
+  const url = new URL(`https://api.themoviedb.org/3/${kind}/${resolved.tmdbNumericId}/images`);
+  if (includeImageLanguage) url.searchParams.set("include_image_language", includeImageLanguage);
+  const raw = await tmdbApiGet(url, credential, { ttlSec: TMDB_IMAGES_TTL_SEC });
+  if (!raw || typeof raw !== "object") return [];
+  return (raw as { posters?: TmdbImageRow[] }).posters ?? [];
+}
+
 export async function fetchTmdbImagePosters(
   resolved: ResolvedTitle,
   credential: TmdbCredential,
   language: string,
 ): Promise<TmdbImageRow[]> {
-  if (resolved.posterImages) return resolved.posterImages;
-  const kind = resolved.stremioType === "movie" ? "movie" : "tv";
-  const url = new URL(`https://api.themoviedb.org/3/${kind}/${resolved.tmdbNumericId}/images`);
-  url.searchParams.set("include_image_language", tmdbIncludeImageLanguage(language));
-  const raw = await tmdbApiGet(url, credential, { ttlSec: TMDB_IMAGES_TTL_SEC });
-  if (!raw || typeof raw !== "object") return [];
-  return (raw as { posters?: TmdbImageRow[] }).posters ?? [];
+  const preferred =
+    resolved.posterImages ??
+    (await fetchTmdbPosterRows(resolved, credential, tmdbIncludeImageLanguage(language)));
+  if (preferred.some((row) => row.file_path)) return preferred;
+  return fetchTmdbPosterRows(resolved, credential, null);
 }
 
 function pickTmdbImagesPosterPath(
