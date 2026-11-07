@@ -1,59 +1,30 @@
 "use client";
 
-export type SetupTab = "style" | "keys" | "catalogs" | "export";
+export type SetupTab = "style" | "catalogs" | "keys";
 
 const TABS: { id: SetupTab; label: string }[] = [
   { id: "style", label: "Overlays" },
-  { id: "keys", label: "API keys" },
   { id: "catalogs", label: "Catalogs" },
-  { id: "export", label: "Install" },
+  { id: "keys", label: "API keys" },
 ];
 
-const INSTALL_LOCK_TOOLTIP_ID = "setup-install-lock-reason";
-
-export function SetupTabs(props: {
-  active: SetupTab;
-  onChange: (tab: SetupTab) => void;
-  installLocked?: boolean;
-  installLockTooltip?: string;
-}) {
+export function SetupTabs(props: { active: SetupTab; onChange: (tab: SetupTab) => void }) {
   return (
     <nav
       aria-label="Setup sections"
       className="mb-6 flex flex-wrap gap-2 border-b border-white/5 pb-4"
     >
-      {TABS.map((tab) => {
-        const locked = tab.id === "export" && props.installLocked;
-        const tooltip = locked ? props.installLockTooltip : undefined;
-
-        const button = (
-          <button
-            aria-current={props.active === tab.id ? "page" : undefined}
-            aria-describedby={tooltip ? INSTALL_LOCK_TOOLTIP_ID : undefined}
-            aria-disabled={locked ? true : undefined}
-            className={`polis-tab ${props.active === tab.id ? "polis-tab-active" : ""} ${locked ? "polis-tab-locked" : ""}`}
-            onClick={() => {
-              if (!locked) props.onChange(tab.id);
-            }}
-            type="button"
-          >
-            {tab.label}
-          </button>
-        );
-
-        if (!locked || !tooltip) {
-          return <span key={tab.id}>{button}</span>;
-        }
-
-        return (
-          <span className="polis-tab-tooltip-wrap" key={tab.id}>
-            {button}
-            <span className="polis-tab-tooltip" id={INSTALL_LOCK_TOOLTIP_ID} role="tooltip">
-              {tooltip}
-            </span>
-          </span>
-        );
-      })}
+      {TABS.map((tab) => (
+        <button
+          aria-current={props.active === tab.id ? "page" : undefined}
+          className={`polis-tab ${props.active === tab.id ? "polis-tab-active" : ""}`}
+          key={tab.id}
+          onClick={() => props.onChange(tab.id)}
+          type="button"
+        >
+          {tab.label}
+        </button>
+      ))}
     </nav>
   );
 }

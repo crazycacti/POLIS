@@ -134,34 +134,6 @@
   @apply polis-selected;
 }
 
-@utility polis-tab-locked {
-  @apply cursor-not-allowed opacity-60;
-  &:hover {
-    @apply text-zinc-400;
-  }
-}
-
-@utility polis-tab-tooltip-wrap {
-  @apply relative inline-block;
-  &:hover .polis-tab-tooltip {
-    @apply opacity-100;
-  }
-  &:focus-within .polis-tab-tooltip {
-    @apply opacity-100;
-  }
-}
-
-@utility polis-tab-tooltip {
-  @apply pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-[16rem] -translate-x-1/2 rounded-lg border border-zinc-700/90 bg-zinc-900 px-3 py-2 text-left text-xs leading-snug text-zinc-200 opacity-0 shadow-xl transition-opacity duration-150;
-  .polis-tab-tooltip-wrap:hover & {
-    @apply opacity-100;
-  }
-
-  .polis-tab-tooltip-wrap:focus-within & {
-    @apply opacity-100;
-  }
-}
-
 @utility polis-toggle-row {
   @apply flex cursor-pointer items-center justify-between gap-4;
 }
@@ -499,6 +471,7 @@
 @utility polis-configure-page {
   html:has(&) {
     scroll-behavior: auto;
+    scroll-padding-bottom: 10rem;
   }
   overflow-anchor: none;
 }

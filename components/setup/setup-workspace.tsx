@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { CopyButton } from "@/components/copy-button";
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
-import { SetupPanel, PatternRow } from "@/components/setup/setup-ui";
+import { SetupPanel } from "@/components/setup/setup-ui";
 import { SetupLooks } from "@/components/setup/setup-looks";
 import { SetupPreviewSidebar } from "@/components/setup/setup-preview-sidebar";
 import { useDebouncedValue } from "@/components/setup/use-preloaded-poster-src";
 import { SetupCatalogsPanel } from "@/components/setup/setup-catalogs-panel";
 import { SetupTabs, type SetupTab } from "@/components/setup/setup-tabs";
+import { SetupSaveBar, type SetupSaveStatus } from "@/components/setup/setup-save-bar";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import { mergePosterQueryForConfigurePreview } from "@/lib/integrator-auth";
 import { SetupPasswordDialog } from "@/components/setup/setup-password-dialog";
@@ -48,6 +48,7 @@ import { hasMdblistCredential } from "@/lib/overlay-requirements";
 import { hasRequiredSetupKeys, hasTmdbCredential } from "@/lib/setup-required-keys";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
+import { hasUnsavedSetupChanges, setupSnapshot } from "@/lib/setup-dirty-state";
 import { isImdbId } from "@/lib/stremio-imdb-id";
 
 const LS_SECRET = "polis_user_tmdb_secret";
@@ -100,6 +101,8 @@ export function SetupWorkspace(props: {
   const [catalogsCustomized, setCatalogsCustomized] = useState(false);
   const [catalogsHydrated, setCatalogsHydrated] = useState(false);
   const [setupHydrated, setSetupHydrated] = useState(false);
+  const [baselineArmed, setBaselineArmed] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const origin = props.initialOrigin.trim();
 
   function markCatalogsCustomized() {
@@ -295,22 +298,20 @@ export function SetupWorkspace(props: {
   const hasInstallTmdb = hasTmdbCredential(props.hasServerTmdb || hasProfileTmdb, secretInput);
   const hasInstallMdblist = hasMdblist || hasProfileMdblist;
 
-  const installLockTooltip = useMemo(() => {
-    if (hasRequiredKeys) return undefined;
+  const missingKeyNames = useMemo(() => {
     const missing: string[] = [];
     if (!hasInstallTmdb) missing.push("TMDB");
     if (!hasInstallMdblist) missing.push("MDBList");
-    if (missing.length === 0) {
-      return "Add your API keys on the API keys tab to unlock Install.";
+    return missing;
+  }, [hasInstallMdblist, hasInstallTmdb]);
+
+  const keysMissingReason = useMemo(() => {
+    if (hasRequiredKeys) return null;
+    if (missingKeyNames.length === 1) {
+      return missingKeyNames[0] === "TMDB" ? "Add a TMDB key to save" : "Add an MDBList key to save";
     }
-    if (missing.length === 2) {
-      return "TMDB and MDBList are required for poster overlays. Add both keys on the API keys tab to unlock Install.";
-    }
-    if (missing[0] === "TMDB") {
-      return "TMDB and MDBList are required for poster overlays. Add your TMDB key on the API keys tab to unlock Install.";
-    }
-    return "TMDB and MDBList are required for poster overlays. Add your MDBList key on the API keys tab to unlock Install.";
-  }, [hasInstallMdblist, hasInstallTmdb, hasRequiredKeys]);
+    return "Add TMDB and MDBList keys to save";
+  }, [hasRequiredKeys, missingKeyNames]);
 
   const overlayKeysMessage = useMemo(() => {
     if (hasRequiredKeys) return null;
@@ -322,16 +323,9 @@ export function SetupWorkspace(props: {
 
     if (!setupHydrated) {
       setSetupHydrated(true);
-      if (!hasRequiredKeys) {
-        setTab("keys");
-        return;
-      }
+      if (!hasRequiredKeys) setTab("keys");
     }
-
-    if (tab === "export" && !hasRequiredKeys) {
-      setTab("keys");
-    }
-  }, [catalogsHydrated, setupHydrated, hasRequiredKeys, tab]);
+  }, [catalogsHydrated, setupHydrated, hasRequiredKeys]);
 
   const artworkKeys: ArtworkKeyAvailability = useMemo(
     () => ({
@@ -426,6 +420,36 @@ export function SetupWorkspace(props: {
     useConfigScopedPreview,
   ]);
   const patterns = origin ? aiometadataArtPatterns(origin, queryString) : null;
+
+  const currentSnapshot = useMemo(
+    () => setupSnapshot(queryString, selectedCatalogs),
+    [queryString, selectedCatalogs],
+  );
+  const hasUnsavedChanges = hasUnsavedSetupChanges(savedSnapshot, currentSnapshot);
+
+  useEffect(() => {
+    if (overlaySettled && !baselineArmed) setBaselineArmed(true);
+  }, [baselineArmed, overlaySettled]);
+
+  useEffect(() => {
+    if (baselineArmed && savedSnapshot === null) setSavedSnapshot(currentSnapshot);
+  }, [baselineArmed, currentSnapshot, savedSnapshot]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const saveStatus: SetupSaveStatus = configSaving
+    ? "saving"
+    : !configExists || hasUnsavedChanges
+      ? "dirty"
+      : "saved";
   function handleSaveClick() {
     if (!origin) {
       setConfigError("Set POLIS_PUBLIC_URL on the server first.");
@@ -451,6 +475,7 @@ export function SetupWorkspace(props: {
     setConfigSaving(true);
     setConfigError(null);
     setPasswordDialogError(null);
+    const sentSnapshot = setupSnapshot(queryString, selectedCatalogs);
     try {
       const catalogsToSave =
         selectedCatalogs.length > 0 ? selectedCatalogs : defaultCatalogSelection;
@@ -516,6 +541,7 @@ export function SetupWorkspace(props: {
       if (integrator.tmdbSecret) setConfigHasTmdbKey(true);
       if (integrator.mdblistApiKey) setConfigHasMdblistKey(true);
       setInstallUrl(stremioUserInstallUrl(origin, data.configId));
+      setSavedSnapshot(sentSnapshot);
     } catch {
       const message = "Network error saving config.";
       if (password !== undefined) {
@@ -585,7 +611,7 @@ export function SetupWorkspace(props: {
   }
 
   return (
-    <div className="polis-configure-page mx-auto max-w-5xl px-4 pb-16 pt-8 sm:px-6">
+    <div className="polis-configure-page mx-auto max-w-5xl px-4 pt-8 sm:px-6">
       <SetupPasswordDialog
         error={passwordDialogError}
         isNewProfile={!configId}
@@ -613,12 +639,7 @@ export function SetupWorkspace(props: {
         </p>
       ) : null}
 
-      <SetupTabs
-        active={tab}
-        installLocked={!hasRequiredKeys}
-        installLockTooltip={installLockTooltip}
-        onChange={setTab}
-      />
+      <SetupTabs active={tab} onChange={setTab} />
 
       {tab === "style" && overlayKeysMessage ? (
         <KeysRequiredNotice message={overlayKeysMessage} onGoToKeys={() => setTab("keys")} />
@@ -774,62 +795,17 @@ export function SetupWorkspace(props: {
         />
       ) : null}
 
-      {tab === "export" ? (
-        <>
-          {overlayKeysMessage ? (
-            <KeysRequiredNotice message={overlayKeysMessage} onGoToKeys={() => setTab("keys")} />
-          ) : null}
-
-          <SetupPanel
-            title="Addon install"
-            hint="Save to update this profile, then install the URL in Stremio."
-          >
-            <button
-              className="polis-btn mb-4"
-              disabled={configSaving || !hasRequiredKeys}
-              onClick={handleSaveClick}
-              type="button"
-            >
-              {configSaving ? "Saving…" : configId ? "Save changes" : "Save and create profile"}
-            </button>
-            {configError ? <p className="mb-3 text-sm text-amber-200/95">{configError}</p> : null}
-            {installUrl ? (
-              <InstallLinks installUrl={installUrl} />
-            ) : (
-              <p className="text-sm text-zinc-400">
-                Your install URL appears here after you save. Saving again updates this profile; the
-                URL stays the same.
-              </p>
-            )}
-          </SetupPanel>
-
-          <SetupPanel
-            title="AIOMetadata pattern"
-            hint="Paste into customPosterUrlPattern in AIOMetadata. Add matching TMDB and MDBList keys in AIOMetadata API settings; AIO fills {tmdb_key} and {mdblist_key} when fetching posters."
-          >
-            {patterns ? (
-              <div className="space-y-4">
-                <PatternRow label="Poster" value={patterns.posterPattern} />
-              </div>
-            ) : (
-              <p className="text-sm text-zinc-400">Set POLIS_PUBLIC_URL first.</p>
-            )}
-          </SetupPanel>
-
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-function CopyRow({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div>
-      <p className="mb-1.5 text-sm text-zinc-300">{label}</p>
-      <div className="polis-code flex flex-wrap items-center justify-between gap-3">
-        <code className="break-all text-xs text-zinc-300">{value ?? "Set POLIS_PUBLIC_URL"}</code>
-        {value ? <CopyButton text={value} /> : null}
-      </div>
+      <SetupSaveBar
+        error={configError}
+        installUrl={installUrl}
+        keysMissingReason={keysMissingReason}
+        onGoToKeys={() => setTab("keys")}
+        onSave={handleSaveClick}
+        posterPattern={patterns?.posterPattern ?? null}
+        saveLabel={configId ? "Save" : "Create profile"}
+        saving={configSaving}
+        status={saveStatus}
+      />
     </div>
   );
 }
@@ -841,35 +817,6 @@ function KeysRequiredNotice(props: { message: string; onGoToKeys: () => void }) 
       <button className="polis-btn-secondary" onClick={props.onGoToKeys} type="button">
         Go to API keys
       </button>
-    </div>
-  );
-}
-
-const HTTP_SCHEME = /^https?:\/\//i;
-const STREMIO_WEB_ADDONS_URL = "https://web.stremio.com/#/addons?addon=";
-
-function InstallLinks({ installUrl }: { installUrl: string }) {
-  const stremioDeepLink = HTTP_SCHEME.test(installUrl)
-    ? installUrl.replace(HTTP_SCHEME, "stremio://")
-    : null;
-  return (
-    <div className="space-y-3">
-      <CopyRow label="Install URL (Stremio)" value={installUrl} />
-      <div className="flex flex-wrap gap-2">
-        {stremioDeepLink ? (
-          <a className="polis-btn-secondary" href={stremioDeepLink}>
-            Install in Stremio
-          </a>
-        ) : null}
-        <a
-          className="polis-btn-secondary"
-          href={`${STREMIO_WEB_ADDONS_URL}${encodeURIComponent(installUrl)}`}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          Open in Stremio Web
-        </a>
-      </div>
     </div>
   );
 }

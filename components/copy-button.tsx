@@ -13,7 +13,15 @@ const LABELS: Record<CopyState, string> = {
   failed: "Copy failed",
 };
 
-export function CopyButton({ text, className }: { text: string; className?: string }) {
+export function CopyButton({
+  text,
+  className,
+  label,
+}: {
+  text: string;
+  className?: string;
+  label?: string;
+}) {
   const [state, setState] = useState<CopyState>("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -50,7 +58,7 @@ export function CopyButton({ text, className }: { text: string; className?: stri
       ) : (
         <Copy aria-hidden className="h-3.5 w-3.5" />
       )}
-      <span aria-live="polite">{LABELS[state]}</span>
+      <span aria-live="polite">{state === "idle" && label ? label : LABELS[state]}</span>
     </button>
   );
 }
