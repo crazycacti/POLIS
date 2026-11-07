@@ -1,5 +1,13 @@
-import { pickAnimeMatchByYear, type AnimeSearchContext } from "@/lib/anime-artwork-match";
+import {
+  ANIME_ARTWORK_MISSING_TTL_MS,
+  ANIME_ARTWORK_TTL_MS,
+  animeSearchCacheKey,
+  pickAnimeMatchByYear,
+  type AnimePosterRow,
+  type AnimeSearchContext,
+} from "@/lib/anime-artwork-match";
 import { fetchUpstream } from "@/lib/upstream-fetch";
+import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
 type AniListMediaRow = {
   id: number;
@@ -15,8 +23,7 @@ type AniListSearchResponse = {
   };
 };
 
-export async function fetchAnilistPosterUrl(ctx: AnimeSearchContext): Promise<string | null> {
-  const query = `
+const ANILIST_SEARCH_QUERY = `
     query ($search: String) {
       Page(page: 1, perPage: 8) {
         media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
@@ -28,21 +35,33 @@ export async function fetchAnilistPosterUrl(ctx: AnimeSearchContext): Promise<st
     }
   `;
 
-  const response = await fetchUpstream("https://graphql.anilist.co", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query, variables: { search: ctx.title } }),
-    revalidateSeconds: 86400,
+function parseAnilistRows(payload: unknown): AnimePosterRow[] | null {
+  if (!payload || typeof payload !== "object") return null;
+  const media = (payload as AniListSearchResponse).data?.Page?.media;
+  if (!Array.isArray(media)) return null;
+  return media.flatMap((m): AnimePosterRow[] => {
+    const url = m?.coverImage?.extraLarge ?? m?.coverImage?.large ?? null;
+    if (typeof url !== "string" || !url) return [];
+    const year = m.startDate?.year;
+    return [{ year: typeof year === "number" ? year : null, url }];
   });
-  if (!response.ok) return null;
+}
 
-  const payload = (await response.json()) as AniListSearchResponse;
-  const media = payload.data?.Page?.media ?? [];
-  const rows = media.map((m) => ({
-    year: m.startDate?.year ?? null,
-    url: m.coverImage?.extraLarge ?? m.coverImage?.large ?? null,
-  }));
-  const withUrl = rows.filter((r): r is { year: number | null; url: string } => Boolean(r.url));
-  const picked = pickAnimeMatchByYear(withUrl, ctx.releaseYear);
-  return picked?.url ?? null;
+export async function fetchAnilistPosterUrl(ctx: AnimeSearchContext): Promise<string | null> {
+  const result = await cachedUpstreamJson<AnimePosterRow[]>({
+    provider: "anilist",
+    cacheKey: animeSearchCacheKey("search", ctx.title),
+    ttlMs: ANIME_ARTWORK_TTL_MS,
+    negativeTtlMs: ANIME_ARTWORK_MISSING_TTL_MS,
+    label: "anime search",
+    request: () =>
+      fetchUpstream("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query: ANILIST_SEARCH_QUERY, variables: { search: ctx.title } }),
+        revalidateSeconds: upstreamNextRevalidateSeconds(ANIME_ARTWORK_TTL_MS),
+      }),
+    parse: parseAnilistRows,
+  });
+  return pickAnimeMatchByYear(result.value ?? [], ctx.releaseYear)?.url ?? null;
 }

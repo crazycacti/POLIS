@@ -1,5 +1,13 @@
-import { pickAnimeMatchByYear, type AnimeSearchContext } from "@/lib/anime-artwork-match";
+import {
+  ANIME_ARTWORK_MISSING_TTL_MS,
+  ANIME_ARTWORK_TTL_MS,
+  animeSearchCacheKey,
+  pickAnimeMatchByYear,
+  type AnimePosterRow,
+  type AnimeSearchContext,
+} from "@/lib/anime-artwork-match";
 import { fetchUpstream } from "@/lib/upstream-fetch";
+import { cachedUpstreamJson, upstreamNextRevalidateSeconds } from "@/lib/upstream-json-cache";
 
 type KitsuPosterImage = {
   large?: string | null;
@@ -33,28 +41,36 @@ function kitsuPosterFromAttributes(attrs: KitsuAnimeAttributes): string | null {
   return img?.large ?? img?.original ?? img?.medium ?? null;
 }
 
+function parseKitsuRows(payload: unknown): AnimePosterRow[] | null {
+  if (!payload || typeof payload !== "object") return null;
+  const data = (payload as KitsuListResponse).data;
+  if (!Array.isArray(data)) return null;
+  return data.flatMap((row): AnimePosterRow[] => {
+    const attrs = row?.attributes;
+    if (!attrs) return [];
+    const poster = kitsuPosterFromAttributes(attrs);
+    if (typeof poster !== "string" || !poster) return [];
+    return [{ year: yearFromKitsuDate(attrs.startDate), url: poster }];
+  });
+}
+
 export async function fetchKitsuPosterUrl(ctx: AnimeSearchContext): Promise<string | null> {
   const url = new URL("https://kitsu.app/api/edge/anime");
   url.searchParams.set("filter[text]", ctx.title);
   url.searchParams.set("page[limit]", "8");
 
-  const response = await fetchUpstream(url, {
-    headers: { Accept: "application/vnd.api+json" },
-    revalidateSeconds: 86400,
+  const result = await cachedUpstreamJson<AnimePosterRow[]>({
+    provider: "kitsu",
+    cacheKey: animeSearchCacheKey("search", ctx.title),
+    ttlMs: ANIME_ARTWORK_TTL_MS,
+    negativeTtlMs: ANIME_ARTWORK_MISSING_TTL_MS,
+    label: "anime search",
+    request: () =>
+      fetchUpstream(url, {
+        headers: { Accept: "application/vnd.api+json" },
+        revalidateSeconds: upstreamNextRevalidateSeconds(ANIME_ARTWORK_TTL_MS),
+      }),
+    parse: parseKitsuRows,
   });
-  if (!response.ok) return null;
-
-  const payload = (await response.json()) as KitsuListResponse;
-  const rows =
-    payload.data?.map((row) => {
-      const attrs = row.attributes;
-      if (!attrs) return null;
-      const poster = kitsuPosterFromAttributes(attrs);
-      if (!poster) return null;
-      return { year: yearFromKitsuDate(attrs.startDate), url: poster };
-    }) ?? [];
-
-  const withUrl = rows.filter((r): r is { year: number | null; url: string } => r != null);
-  const picked = pickAnimeMatchByYear(withUrl, ctx.releaseYear);
-  return picked?.url ?? null;
+  return pickAnimeMatchByYear(result.value ?? [], ctx.releaseYear)?.url ?? null;
 }
