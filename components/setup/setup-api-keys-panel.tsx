@@ -89,7 +89,7 @@ function ApiKeyInput(props: {
         aria-controls={`polis-api-key-${props.id}`}
         aria-label={visible ? "Hide API key" : "Show API key"}
         aria-pressed={visible}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40"
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200 polis-focus disabled:pointer-events-none disabled:opacity-40"
         disabled={props.disabled}
         onClick={() => setVisible((v) => !v)}
         type="button"
@@ -240,7 +240,7 @@ export function SetupApiKeysPanel(props: {
             </div>
 
             {card.requiredNote ? (
-              <p className="mb-2 text-xs text-zinc-400">{card.requiredNote}</p>
+              <p className="mb-2 text-sm text-zinc-400">{card.requiredNote}</p>
             ) : null}
 
             <ApiKeyInput
@@ -254,7 +254,7 @@ export function SetupApiKeysPanel(props: {
             {!inputDisabled ? (
               <div className="mb-2 flex flex-wrap gap-2">
                 <button
-                  className="polis-btn text-xs"
+                  className="polis-btn-secondary"
                   disabled={st?.state === "checking"}
                   onClick={() => validateKey(card.id)}
                   type="button"
@@ -263,7 +263,7 @@ export function SetupApiKeysPanel(props: {
                 </button>
                 {value.trim() ? (
                   <button
-                    className="rounded-full border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
+                    className="polis-btn-secondary"
                     onClick={() => clearFor(card.id)}
                     type="button"
                   >
@@ -272,7 +272,7 @@ export function SetupApiKeysPanel(props: {
                 ) : null}
               </div>
             ) : (
-              <p className="mb-2 text-xs text-zinc-400">
+              <p className="mb-2 text-sm text-zinc-400">
                 Or set <code className="text-zinc-400">{card.envVar}</code> on the server.
               </p>
             )}
@@ -281,10 +281,10 @@ export function SetupApiKeysPanel(props: {
               <p
                 className={
                   st.state === "valid"
-                    ? "mb-2 text-xs text-emerald-400/95"
+                    ? "mb-2 text-sm text-emerald-400/95"
                     : st.state === "checking"
-                      ? "mb-2 text-xs text-zinc-400"
-                      : "mb-2 text-xs text-amber-200/95"
+                      ? "mb-2 text-sm text-zinc-400"
+                      : "mb-2 text-sm text-amber-200/95"
                 }
               >
                 {st.message}

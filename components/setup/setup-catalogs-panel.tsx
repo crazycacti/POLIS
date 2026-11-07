@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { SetupPanel, SetupToggle } from "@/components/setup/setup-ui";
@@ -146,7 +146,7 @@ export function SetupCatalogsPanel(props: {
                 ? "TMDB trending and popular"
                 : "MDBList watchlist"}
           </p>
-          <button className="polis-btn text-xs" onClick={props.onApplyDefaults} type="button">
+          <button className="polis-btn-secondary" onClick={props.onApplyDefaults} type="button">
             Use defaults
           </button>
         </div>
@@ -195,7 +195,7 @@ export function SetupCatalogsPanel(props: {
                 value={username}
               />
               <button
-                className="polis-btn text-xs"
+                className="polis-btn-secondary"
                 disabled={discovering}
                 onClick={() => discover("user")}
                 type="button"
@@ -203,7 +203,7 @@ export function SetupCatalogsPanel(props: {
                 {discovering ? "Loading…" : "Load user lists"}
               </button>
               <button
-                className="polis-btn text-xs"
+                className="polis-btn-secondary"
                 disabled={discovering}
                 onClick={() => discover("mine")}
                 type="button"
@@ -219,7 +219,7 @@ export function SetupCatalogsPanel(props: {
                 value={search}
               />
               <button
-                className="polis-btn text-xs"
+                className="polis-btn-secondary"
                 disabled={discovering || !search.trim()}
                 onClick={() => discover("search")}
                 type="button"
@@ -259,7 +259,7 @@ export function SetupCatalogsPanel(props: {
 
       <SetupPanel
         title="Selected"
-        hint="Order here is the order shown in Stremio. Toggle off to remove. Save on the Install tab to apply."
+        hint="Order here is the order shown in Stremio. Save on the Install tab to apply."
       >
         {props.selected.length === 0 ? (
           <p className="text-sm text-zinc-400">No catalogs enabled yet.</p>
@@ -272,22 +272,12 @@ export function SetupCatalogsPanel(props: {
                   key={key}
                   className="polis-catalog-toggle-row flex flex-col gap-2 sm:flex-row sm:items-center"
                 >
-                  <div className="min-w-0 flex-1">
-                    <SetupToggle
-                      checked
-                      label={`${c.name} (${c.type})`}
-                      onChange={(on) => {
-                        if (!on) {
-                          props.onChange(removeCatalogSelection(props.selected, key));
-                        }
-                      }}
-                    />
-                  </div>
-                  <span className="flex shrink-0 items-center justify-end gap-0.5 sm:pl-2">
+                  <span className="min-w-0 flex-1 text-sm text-zinc-200">{`${c.name} (${c.type})`}</span>
+                  <span className="flex shrink-0 items-center justify-end gap-1 sm:pl-2">
                     <span className="mr-1 font-mono text-xs text-zinc-400">{index + 1}</span>
                     <button
                       aria-label={`Move ${c.name} up`}
-                      className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30"
+                      className="polis-icon-btn"
                       disabled={index === 0}
                       onClick={() =>
                         props.onChange(moveCatalogSelection(props.selected, key, "up"))
@@ -298,7 +288,7 @@ export function SetupCatalogsPanel(props: {
                     </button>
                     <button
                       aria-label={`Move ${c.name} down`}
-                      className="rounded-md p-1 text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 disabled:opacity-30"
+                      className="polis-icon-btn"
                       disabled={index === props.selected.length - 1}
                       onClick={() =>
                         props.onChange(moveCatalogSelection(props.selected, key, "down"))
@@ -306,6 +296,14 @@ export function SetupCatalogsPanel(props: {
                       type="button"
                     >
                       <ChevronDown aria-hidden className="h-4 w-4" />
+                    </button>
+                    <button
+                      aria-label={`Remove ${c.name}`}
+                      className="polis-icon-btn"
+                      onClick={() => props.onChange(removeCatalogSelection(props.selected, key))}
+                      type="button"
+                    >
+                      <X aria-hidden className="h-4 w-4" />
                     </button>
                   </span>
                 </li>
