@@ -1,20 +1,23 @@
-import Link from "next/link";
-
-import { SiteSupportLinks } from "@/components/site-support-links";
+const linkClass = "text-zinc-300 underline decoration-zinc-600 underline-offset-2 hover:text-white";
 
 export function PageFooter() {
   return (
-    <footer className="mt-auto border-t border-white/5 px-4 py-8 text-xs text-zinc-400 sm:px-6">
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4">
-        <Link
-          className="text-cyan-400 underline decoration-zinc-600 underline-offset-2 hover:text-cyan-300"
-          href="https://stremio.github.io/stremio-addon-sdk/testing.html#how-to-install-addon-in-stremio"
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          Stremio: install addon from URL
-        </Link>
-        <SiteSupportLinks />
+    <footer className="border-t border-white/5 px-4 py-8 text-xs text-zinc-400 sm:px-6">
+      <div className="mx-auto flex max-w-5xl flex-col gap-1">
+        <p>
+          This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by{" "}
+          <a className={linkClass} href="https://www.themoviedb.org" rel="noopener noreferrer" target="_blank">
+            TMDB
+          </a>
+          .
+        </p>
+        <p>
+          Metadata provided by{" "}
+          <a className={linkClass} href="https://thetvdb.com" rel="noopener noreferrer" target="_blank">
+            TheTVDB
+          </a>
+          .
+        </p>
       </div>
     </footer>
   );

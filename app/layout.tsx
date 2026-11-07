@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { DemoPosterPreload } from "@/components/demo-poster-preload";
 import { SiteJsonLd } from "@/components/site-json-ld";
+import { PageFooter } from "@/components/page-footer";
 import { SiteNav } from "@/components/site-nav";
 import { rootMetadata } from "@/lib/site-seo";
 
@@ -50,6 +51,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans`}>
         <SiteNav />
         {children}
+        <PageFooter />
       </body>
     </html>
   );
