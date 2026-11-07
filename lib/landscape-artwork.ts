@@ -22,18 +22,33 @@ function isTmdbImagePath(path: string | null | undefined): path is string {
   return typeof path === "string" && /^\/[A-Za-z0-9_-]+\.(jpe?g|png|webp)$/i.test(path);
 }
 
+const MAX_TEXTLESS_CANDIDATES = 3;
+const PORTRAIT_FALLBACK_BLUR_SIGMA = 24;
+const PORTRAIT_FALLBACK_DIM = 0.55;
+
+type LandscapePick = { path: string; textless: boolean };
+
+export function rankLandscapeBackdrops(
+  backdrops: TmdbBackdropImage[],
+  defaultPath: string | null,
+): LandscapePick[] {
+  const picks: LandscapePick[] = backdrops
+    .filter((row) => isTextlessBackdrop(row) && isTmdbImagePath(row.file_path))
+    .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0))
+    .slice(0, MAX_TEXTLESS_CANDIDATES)
+    .map((row) => ({ path: row.file_path!, textless: true }));
+  if (isTmdbImagePath(defaultPath) && !picks.some((pick) => pick.path === defaultPath)) {
+    const listed = backdrops.find((row) => row.file_path === defaultPath);
+    picks.push({ path: defaultPath, textless: listed != null && isTextlessBackdrop(listed) });
+  }
+  return picks;
+}
+
 export function pickLandscapeBackdrop(
   backdrops: TmdbBackdropImage[],
   defaultPath: string | null,
-): { path: string; textless: boolean } | null {
-  const textless = backdrops
-    .filter((row) => isTextlessBackdrop(row) && isTmdbImagePath(row.file_path))
-    .sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
-  const best = textless[0]?.file_path;
-  if (isTmdbImagePath(best)) return { path: best, textless: true };
-  if (!isTmdbImagePath(defaultPath)) return null;
-  const listed = backdrops.find((row) => row.file_path === defaultPath);
-  return { path: defaultPath, textless: listed != null && isTextlessBackdrop(listed) };
+): LandscapePick | null {
+  return rankLandscapeBackdrops(backdrops, defaultPath)[0] ?? null;
 }
 
 async function fetchTmdbBackdrops(
@@ -50,13 +65,15 @@ async function fetchTmdbBackdrops(
   return Array.isArray(backdrops) ? (backdrops as TmdbBackdropImage[]) : [];
 }
 
-export async function resolveLandscapeCandidate(
+export async function resolveLandscapeCandidates(
   resolved: ResolvedTitle,
   credential: TmdbCredential,
-): Promise<ArtworkCandidate | null> {
+): Promise<ArtworkCandidate[]> {
   const backdrops = await fetchTmdbBackdrops(resolved, credential);
-  const pick = pickLandscapeBackdrop(backdrops, resolved.backdropPath);
-  return pick ? { url: `${TMDB_BACKDROP_BASE_URL}${pick.path}`, textless: pick.textless } : null;
+  return rankLandscapeBackdrops(backdrops, resolved.backdropPath).map((pick) => ({
+    url: `${TMDB_BACKDROP_BASE_URL}${pick.path}`,
+    textless: pick.textless,
+  }));
 }
 
 export async function fitLandscapeCanvas(input: Buffer): Promise<Buffer> {
@@ -71,12 +88,33 @@ export async function fetchLandscapeBase(params: {
   resolved: ResolvedTitle;
   credential: TmdbCredential;
 }): Promise<{ buffer: Buffer; textless: boolean } | null> {
-  const candidate = await resolveLandscapeCandidate(params.resolved, params.credential);
-  if (!candidate) return null;
-  const input = await fetchArtworkBytes(candidate.url, (target, init) => fetchUpstream(target, init));
-  if (!input) {
-    console.warn(`[polis] landscape backdrop download failed for ${params.imdbId}`);
+  let candidates: ArtworkCandidate[];
+  try {
+    candidates = await resolveLandscapeCandidates(params.resolved, params.credential);
+  } catch (error) {
+    console.warn(`[polis] landscape backdrop lookup failed for ${params.imdbId}`, error);
     return null;
   }
-  return { buffer: await fitLandscapeCanvas(input), textless: candidate.textless };
+  for (const candidate of candidates) {
+    try {
+      const input = await fetchArtworkBytes(candidate.url, (target, init) => fetchUpstream(target, init));
+      if (input) return { buffer: await fitLandscapeCanvas(input), textless: candidate.textless };
+    } catch (error) {
+      console.warn(`[polis] landscape backdrop failed for ${params.imdbId}`, error);
+    }
+  }
+  return null;
+}
+
+export async function landscapeFromPortrait(portrait: Buffer): Promise<Buffer> {
+  ensurePolisSharpConfigured();
+  const background = await sharp(portrait)
+    .resize(LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT, { fit: "cover", position: "centre" })
+    .blur(PORTRAIT_FALLBACK_BLUR_SIGMA)
+    .linear(PORTRAIT_FALLBACK_DIM, 0)
+    .toBuffer();
+  const foreground = await sharp(portrait).resize({ height: LANDSCAPE_HEIGHT }).toBuffer();
+  const meta = await sharp(foreground).metadata();
+  const left = Math.max(0, Math.round((LANDSCAPE_WIDTH - (meta.width ?? 0)) / 2));
+  return sharp(background).composite([{ input: foreground, top: 0, left }]).toBuffer();
 }

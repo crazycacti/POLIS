@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import sharp from "sharp";
 
-import { LANDSCAPE_HEIGHT, LANDSCAPE_WIDTH, pickLandscapeBackdrop } from "@/lib/landscape-artwork";
+import {
+  LANDSCAPE_HEIGHT,
+  LANDSCAPE_WIDTH,
+  landscapeFromPortrait,
+  pickLandscapeBackdrop,
+  rankLandscapeBackdrops,
+} from "@/lib/landscape-artwork";
 import { parsePosterOverlayQuery } from "@/lib/poster-query";
 import { LANDSCAPE_BYTE_BUDGET, renderLandscapeSoft } from "@/lib/render-landscape-soft";
 
@@ -86,5 +92,37 @@ describe("pickLandscapeBackdrop", () => {
     expect(
       pickLandscapeBackdrop([{ file_path: "/../evil.jpg", iso_639_1: null }], "//host/x.jpg"),
     ).toBeNull();
+  });
+});
+
+describe("landscape fallbacks", () => {
+  test("ranks textless backdrops by votes and keeps the default backdrop as a last try", () => {
+    const ranked = rankLandscapeBackdrops(
+      [
+        { file_path: "/low.jpg", iso_639_1: null, vote_average: 2 },
+        { file_path: "/titled.jpg", iso_639_1: "en", vote_average: 9 },
+        { file_path: "/high.jpg", iso_639_1: null, vote_average: 8 },
+      ],
+      "/titled.jpg",
+    );
+    expect(ranked).toEqual([
+      { path: "/high.jpg", textless: true },
+      { path: "/low.jpg", textless: true },
+      { path: "/titled.jpg", textless: false },
+    ]);
+  });
+
+  test("returns no candidates when nothing is a safe image path", () => {
+    expect(rankLandscapeBackdrops([{ file_path: "/../x.jpg", iso_639_1: null }], "https://evil/x.jpg")).toEqual([]);
+  });
+
+  test("puts portrait art on a 16:9 canvas when no backdrop works", async () => {
+    const portrait = await sharp({
+      create: { width: 500, height: 750, channels: 3, background: "#336699" },
+    })
+      .jpeg()
+      .toBuffer();
+    const meta = await sharp(await landscapeFromPortrait(portrait)).metadata();
+    expect([meta.width, meta.height]).toEqual([LANDSCAPE_WIDTH, LANDSCAPE_HEIGHT]);
   });
 });

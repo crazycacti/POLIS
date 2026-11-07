@@ -117,7 +117,7 @@ export async function renderPosterForImdb(params: {
     ? (resolved.logoPaths ?? []).filter((p) => p !== logoPath).slice(0, MAX_LOGO_ALTERNATES)
     : [];
 
-  if (params.overlay.posterShape === "landscape") {
+  if (params.overlay.posterShape === "landscape" && softFontAvailable()) {
     return renderLandscapeSoft({
       imageBuffer: base.buffer,
       artTextless: base.textless,

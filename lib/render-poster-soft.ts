@@ -348,7 +348,7 @@ async function ratingCapsuleSvg(base: Buffer, capsule: RatingCapsule, color: str
   }
   const baseline = y + ch / 2 + softCapHeight(fs, 600) / 2;
   const placed = softTextPath(text, textX, baseline, fs, 600);
-  if (placed) parts.push(`<path d="${placed.d}" fill="${TEXT_PRIMARY}"/>`);
+  if (placed) parts.push(`<path d="${placed.d}" fill="${capsule.star ? TEXT_PRIMARY : color}"/>`);
   return parts;
 }
 

@@ -141,7 +141,7 @@ export function SetupOverlayPanel(props: {
           onCheckedChange={(logoOnPoster) => setOverlay((o) => ({ ...o, logoOnPoster }))}
           customize={
             <>
-              {classic ? null : (
+              {landscape ? null : (
                 <SetupLogoPosition
                   onChange={(gridCell: GridCell) => setOverlay((o) => ({ ...o, gridCell }))}
                   value={overlay.gridCell}
@@ -165,7 +165,7 @@ export function SetupOverlayPanel(props: {
         />
       </SetupSection>
 
-      <SetupSection title="Top of poster">
+      <SetupSection title={landscape ? "Tags and badges" : "Top of poster"}>
         <SetupOverlayOption
           checked={overlay.trendTags}
           label="Trend tag"
@@ -213,7 +213,7 @@ export function SetupOverlayPanel(props: {
         </div>
       </SetupSection>
 
-      <SetupSection title="Bottom of poster">
+      <SetupSection title={landscape ? "Rating" : "Bottom of poster"}>
         <SetupOverlayOption
           checked={overlay.rating}
           label="Rating"

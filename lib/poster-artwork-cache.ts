@@ -1,6 +1,6 @@
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import { fetchArtworkBytes } from "@/lib/artwork-url-allow";
-import { fetchLandscapeBase } from "@/lib/landscape-artwork";
+import { fetchLandscapeBase, landscapeFromPortrait } from "@/lib/landscape-artwork";
 import sharp from "sharp";
 
 import {
@@ -133,11 +133,17 @@ async function fetchPosterBaseBuffer(params: {
   ensurePolisSharpConfigured();
 
   if (params.overlay.posterShape === "landscape") {
-    return fetchLandscapeBase({
+    const landscape = await fetchLandscapeBase({
       imdbId: params.imdbId,
       resolved: params.resolved,
       credential: params.credential,
     });
+    if (landscape) return landscape;
+    const portrait = await fetchPosterBaseBuffer({
+      ...params,
+      overlay: { ...params.overlay, posterShape: "poster" },
+    });
+    return portrait ? { buffer: await landscapeFromPortrait(portrait.buffer), textless: false } : null;
   }
 
   const tmdbPosters =

@@ -98,7 +98,7 @@ export function SetupPreviewSidebar(props: {
           >
             <img
               alt=""
-              className="aspect-2/3 w-full object-cover"
+              className={`${props.landscape ? "aspect-video" : "aspect-2/3"} w-full object-cover`}
               decoding="async"
               loading="lazy"
               src={demoSrc(demo.id)}
