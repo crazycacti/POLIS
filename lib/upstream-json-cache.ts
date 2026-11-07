@@ -60,16 +60,20 @@ export async function cachedUpstreamJson<T>(params: {
 }): Promise<UpstreamJsonResult<T>> {
   const guard = params.guard ?? upstreamGuard;
   const namespace = `api/${params.provider}`;
-  const raw = await readPolisDiskJson<unknown>(namespace, UPSTREAM_CACHE_SCOPE, params.cacheKey);
-  const cached = isEnvelope<T>(raw) ? raw : null;
-  const now = Date.now();
+  const readCached = async (): Promise<Envelope<T> | null> => {
+    const raw = await readPolisDiskJson<unknown>(namespace, UPSTREAM_CACHE_SCOPE, params.cacheKey);
+    return isEnvelope<T>(raw) ? raw : null;
+  };
+  const freshFrom = (envelope: Envelope<T> | null): UpstreamJsonResult<T> | null => {
+    if (!envelope) return null;
+    const age = Date.now() - envelope.at;
+    if ("value" in envelope) return age <= params.ttlMs ? { value: envelope.value, outcome: "fresh" } : null;
+    return age <= params.negativeTtlMs ? { value: null, outcome: "missing" } : null;
+  };
 
-  if (cached && "value" in cached && now - cached.at <= params.ttlMs) {
-    return { value: cached.value, outcome: "fresh" };
-  }
-  if (cached && !("value" in cached) && now - cached.at <= params.negativeTtlMs) {
-    return { value: null, outcome: "missing" };
-  }
+  const cached = await readCached();
+  const fresh = freshFrom(cached);
+  if (fresh) return fresh;
 
   const scope: UpstreamCallScope = {
     provider: params.provider,
@@ -80,13 +84,19 @@ export async function cachedUpstreamJson<T>(params: {
   };
   if (guard.backgroundSkipReason(scope)) return fallbackFrom(cached);
 
-  const store = (envelope: Envelope<T>) => {
-    void writePolisDiskJson(namespace, UPSTREAM_CACHE_SCOPE, params.cacheKey, envelope).catch((error) =>
-      guard.warnOnce(`${params.provider}:write`, `${params.provider} cache write failed for ${params.label}`, error),
-    );
+  // The flight stays open until the write lands so callers arriving right after it read the new copy.
+  const store = async (envelope: Envelope<T>) => {
+    try {
+      await writePolisDiskJson(namespace, UPSTREAM_CACHE_SCOPE, params.cacheKey, envelope);
+    } catch (error) {
+      guard.warnOnce(`${params.provider}:write`, `${params.provider} cache write failed for ${params.label}`, error);
+    }
   };
 
   return polisSingleflight(`upstream:${params.provider}:${params.cacheKey}`, async () => {
+    const raced = freshFrom(await readCached());
+    if (raced) return raced;
+
     let result;
     try {
       result = await guard.request<ReadOutcome<T>>(scope, params.request, async (response) => {
@@ -112,11 +122,11 @@ export async function cachedUpstreamJson<T>(params: {
     if (!result.ok) return fallbackFrom(cached);
     const outcome = result.value;
     if (outcome.kind === "value") {
-      store({ at: Date.now(), value: outcome.value });
+      await store({ at: Date.now(), value: outcome.value });
       return { value: outcome.value, outcome: "fetched" };
     }
     if (outcome.kind === "missing") {
-      store({ at: Date.now(), missing: true });
+      await store({ at: Date.now(), missing: true });
       return { value: null, outcome: "missing" };
     }
     if (outcome.kind === "invalid") {

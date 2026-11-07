@@ -214,7 +214,7 @@ describe("mdblist catalog rate limits", () => {
     const realWarn = console.warn;
     let calls = 0;
     console.warn = () => {};
-    globalThis.fetch = (async () => {
+    globalThis.fetch = (async (_input: RequestInfo | URL): Promise<Response> => {
       calls += 1;
       return new Response("{}", { status: 429, headers: { "retry-after": "600" } });
     }) as typeof fetch;
