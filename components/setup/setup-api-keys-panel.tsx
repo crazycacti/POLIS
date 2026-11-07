@@ -1,309 +1,325 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
-import type { ApiKeyProvider } from "@/lib/api-key-validate";
+import type { ApiKeyProvider, ApiKeyValidateResult } from "@/lib/api-key-validate";
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
+import { parseTvdbCredentials } from "@/lib/tvdb-credentials";
 
-export type ApiKeyCardDef = {
+type ApiKeyRowDef = {
   id: ApiKeyProvider;
   label: string;
   href: string;
-  hrefLabel: string;
   placeholder: string;
-  envVar: string;
-  required: boolean;
-  requiredNote?: string;
 };
 
-export const API_KEY_CARDS: ApiKeyCardDef[] = [
+const REQUIRED_KEYS: ApiKeyRowDef[] = [
   {
     id: "tmdb",
     label: "TMDB",
     href: "https://www.themoviedb.org/settings/api",
-    hrefLabel: "themoviedb.org/settings/api",
     placeholder: "v3 API key or read access token",
-    envVar: "TMDB_ACCESS_TOKEN or TMDB_API_KEY",
-    required: true,
-    requiredNote: "Posters, genres, and IMDb to TMDB mapping",
   },
   {
     id: "mdblist",
     label: "MDBList",
     href: "https://mdblist.com/preferences/",
-    hrefLabel: "mdblist.com/preferences",
     placeholder: "MDBList API key",
-    envVar: "MDBLIST_API_KEY",
-    required: true,
-    requiredNote:
-      "RT, Metacritic, Letterboxd, trend tags, 4K/Dolby/HDR marks, and age (not available from TMDB)",
   },
+];
+
+const OPTIONAL_KEYS: ApiKeyRowDef[] = [
   {
     id: "fanart",
     label: "Fanart.tv",
     href: "https://fanart.tv/get-an-api-key/",
-    hrefLabel: "fanart.tv/get-an-api-key",
     placeholder: "Fanart.tv API key",
-    envVar: "FANART_API_KEY",
-    required: false,
   },
   {
     id: "tvdb",
     label: "TheTVDB",
     href: "https://thetvdb.com/api-information",
-    hrefLabel: "thetvdb.com/api-information",
-    placeholder: "TheTVDB API key",
-    envVar: "TVDB_API_KEY",
-    required: false,
+    placeholder: "API key or key:pin",
   },
 ];
 
-type KeyStatus = "idle" | "checking" | "valid" | "invalid";
+const MASK_VISIBLE_CHARS = 4;
+const MASK_MIN_LENGTH = MASK_VISIBLE_CHARS * 2;
+const MASK_DOTS = "••••";
 
-type StatusMap = Partial<Record<ApiKeyProvider, { state: KeyStatus; message: string }>>;
+export type ApiKeyRowSource = {
+  browserValue: string;
+  hasServer: boolean;
+  hasProfile: boolean;
+};
+
+type Validation =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "rejected"; message: string };
+
+function maskedKey(id: ApiKeyProvider, value: string): string {
+  const visible = id === "tvdb" ? (parseTvdbCredentials(value)?.apiKey ?? value) : value;
+  if (visible.length < MASK_MIN_LENGTH) return "Saved";
+  return `Saved ${MASK_DOTS}${visible.slice(-MASK_VISIBLE_CHARS)}`;
+}
 
 function ApiKeyInput(props: {
-  disabled: boolean;
   id: ApiKeyProvider;
-  onChange: (value: string) => void;
+  label: string;
   placeholder: string;
   value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
 }) {
   const [visible, setVisible] = useState(false);
+  const inputId = `polis-api-key-${props.id}`;
 
   return (
-    <div className="relative mb-2">
+    <div className="relative min-w-0 flex-1">
       <input
+        aria-label={`${props.label} key`}
         autoComplete="off"
-        className="polis-input pr-10 font-mono disabled:cursor-not-allowed disabled:opacity-50"
+        autoFocus
+        className="polis-input w-full pr-12 font-mono"
         disabled={props.disabled}
-        id={`polis-api-key-${props.id}`}
+        id={inputId}
         onChange={(e) => props.onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") props.onSubmit();
+          if (e.key === "Escape") props.onCancel();
+        }}
         placeholder={props.placeholder}
         spellCheck={false}
         type={visible ? "text" : "password"}
         value={props.value}
       />
       <button
-        aria-controls={`polis-api-key-${props.id}`}
+        aria-controls={inputId}
         aria-label={visible ? "Hide API key" : "Show API key"}
         aria-pressed={visible}
-        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-zinc-400 transition-colors hover:text-zinc-200 polis-focus disabled:pointer-events-none disabled:opacity-40"
-        disabled={props.disabled}
+        className="polis-icon-btn absolute right-0.5 top-1/2 h-10 w-10 -translate-y-1/2"
         onClick={() => setVisible((v) => !v)}
         type="button"
       >
-        {visible ? (
-          <EyeOff aria-hidden className="h-4 w-4" />
-        ) : (
-          <Eye aria-hidden className="h-4 w-4" />
-        )}
+        {visible ? <EyeOff aria-hidden className="h-4 w-4" /> : <Eye aria-hidden className="h-4 w-4" />}
       </button>
     </div>
   );
 }
 
-export function SetupApiKeysPanel(props: {
-  hasServerTmdb: boolean;
-  hasServerMdblist: boolean;
-  hasServerFanart: boolean;
-  hasServerTvdb: boolean;
-  tmdbValue: string;
-  mdblistValue: string;
-  fanartValue: string;
-  tvdbValue: string;
-  onTmdbChange: (value: string) => void;
-  onMdblistChange: (value: string) => void;
-  onFanartChange: (value: string) => void;
-  onTvdbChange: (value: string) => void;
-  onTmdbSave: () => void;
-  onMdblistSave: () => void;
-  onFanartSave: () => void;
-  onTvdbSave: () => void;
-  onTmdbClear: () => void;
-  onMdblistClear: () => void;
-  onFanartClear: () => void;
-  onTvdbClear: () => void;
+function ApiKeyRow(props: {
+  def: ApiKeyRowDef;
+  source: ApiKeyRowSource;
+  onSave: (id: ApiKeyProvider, value: string) => void;
+  onRemove: (id: ApiKeyProvider) => void;
 }) {
-  const [status, setStatus] = useState<StatusMap>({});
+  const { def, source } = props;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [validation, setValidation] = useState<Validation>({ state: "idle" });
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const envConfigured = useCallback(
-    (id: ApiKeyProvider): boolean => {
-      if (id === "tmdb") return props.hasServerTmdb;
-      if (id === "mdblist") return props.hasServerMdblist;
-      if (id === "fanart") return props.hasServerFanart;
-      return props.hasServerTvdb;
-    },
-    [props.hasServerFanart, props.hasServerMdblist, props.hasServerTmdb, props.hasServerTvdb],
-  );
+  const browserValue = source.browserValue.trim();
+  const serverOnly = source.hasServer && def.id !== "mdblist";
+  const trimmedDraft = draft.trim();
+  const checking = validation.state === "checking";
+  const draftSaved = trimmedDraft !== "" && trimmedDraft === browserValue;
+  const canSave = trimmedDraft !== "" && !draftSaved && !checking;
+  const canRemove = browserValue !== "" || (source.hasProfile && !serverOnly);
 
-  const valueFor = (id: ApiKeyProvider): string => {
-    if (id === "tmdb") return props.tmdbValue;
-    if (id === "mdblist") return props.mdblistValue;
-    if (id === "fanart") return props.fanartValue;
-    return props.tvdbValue;
-  };
+  const statusLabel = checking
+    ? "Checking"
+    : validation.state === "rejected"
+      ? "Rejected"
+      : serverOnly
+        ? "Using the server key"
+        : browserValue
+          ? maskedKey(def.id, browserValue)
+          : source.hasProfile
+            ? "Saved to profile"
+            : source.hasServer
+              ? "Using the server key"
+              : "Not set";
+  const statusTone =
+    validation.state === "rejected"
+      ? "text-amber-200/95"
+      : browserValue || source.hasProfile || source.hasServer
+        ? "text-zinc-300"
+        : "text-zinc-500";
 
-  const onChangeFor = (id: ApiKeyProvider) => (value: string) => {
-    if (id === "tmdb") props.onTmdbChange(value);
-    else if (id === "mdblist") props.onMdblistChange(value);
-    else if (id === "fanart") props.onFanartChange(value);
-    else props.onTvdbChange(value);
-    setStatus((s) => {
-      const next = { ...s };
-      delete next[id];
-      return next;
-    });
-  };
+  function openEditor() {
+    setDraft("");
+    setValidation({ state: "idle" });
+    setNotice(null);
+    setEditing(true);
+  }
 
-  const clearFor = (id: ApiKeyProvider) => {
-    if (id === "tmdb") props.onTmdbClear();
-    else if (id === "mdblist") props.onMdblistClear();
-    else if (id === "fanart") props.onFanartClear();
-    else props.onTvdbClear();
-    setStatus((s) => {
-      const next = { ...s };
-      delete next[id];
-      return next;
-    });
-  };
+  function closeEditor() {
+    setDraft("");
+    setValidation({ state: "idle" });
+    setEditing(false);
+  }
 
-  const saveFor = (id: ApiKeyProvider) => {
-    if (id === "tmdb") props.onTmdbSave();
-    else if (id === "mdblist") props.onMdblistSave();
-    else if (id === "fanart") props.onFanartSave();
-    else props.onTvdbSave();
-  };
-
-  const validateKey = async (id: ApiKeyProvider) => {
-    const raw = valueFor(id).trim();
-    if (id === "tmdb") {
-      const inferred = inferTmdbCredentialParams(raw);
+  async function save() {
+    if (!canSave) return;
+    if (def.id === "tmdb") {
+      const inferred = inferTmdbCredentialParams(trimmedDraft);
       if (inferred.error) {
-        setStatus({ [id]: { state: "invalid", message: inferred.error } });
+        setValidation({ state: "rejected", message: inferred.error });
         return;
       }
     }
-    if (!raw) {
-      setStatus({ [id]: { state: "invalid", message: "Enter a key first." } });
-      return;
-    }
-
-    setStatus({ [id]: { state: "checking", message: "Checking key…" } });
+    setValidation({ state: "checking" });
     try {
       const res = await fetch("/api/keys/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: id, key: raw }),
+        body: JSON.stringify({ provider: def.id, key: trimmedDraft }),
       });
-      const data = (await res.json()) as { ok?: boolean; message?: string };
-      setStatus({
-        [id]: {
-          state: data.ok ? "valid" : "invalid",
-          message: data.message ?? (data.ok ? "Valid." : "Invalid."),
-        },
-      });
-      if (data.ok) saveFor(id);
+      const data = (await res.json()) as Partial<ApiKeyValidateResult>;
+      if (!data.ok) {
+        setValidation({ state: "rejected", message: data.message ?? "This key was not accepted." });
+        return;
+      }
+      props.onSave(def.id, trimmedDraft);
+      setNotice(data.limited && data.message ? data.message : null);
+      closeEditor();
     } catch {
-      setStatus({ [id]: { state: "invalid", message: "Validation request failed." } });
+      setValidation({ state: "rejected", message: "Could not check the key. Try again." });
     }
-  };
+  }
+
+  function remove() {
+    setNotice(null);
+    closeEditor();
+    props.onRemove(def.id);
+  }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {API_KEY_CARDS.map((card) => {
-        const server = envConfigured(card.id);
-        const value = valueFor(card.id);
-        const st = status[card.id];
-        const inputDisabled = server && card.id !== "mdblist";
-
-        return (
-          <div
-            className="rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4"
-            key={card.id}
+    <li className="py-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-zinc-100">{def.label}</p>
+          <p className={`text-sm ${statusTone}`} role="status">
+            {statusLabel}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            className="inline-flex min-h-10 items-center rounded-full px-3 text-xs text-cyan-400/90 underline-offset-2 hover:text-cyan-300 hover:underline polis-focus"
+            href={def.href}
+            rel="noopener noreferrer"
+            target="_blank"
           >
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-medium text-zinc-200">{card.label}</span>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {card.required ? (
-                  <span className="rounded-full border border-amber-500/35 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-200/95">
-                    Required
-                  </span>
-                ) : null}
-                {server ? (
-                  <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-medium text-cyan-300/95">
-                    Configured on server
-                  </span>
-                ) : null}
-              </div>
-            </div>
+            Get a key
+          </a>
+          {!editing && !serverOnly ? (
+            <button className="polis-btn-secondary" onClick={openEditor} type="button">
+              {browserValue || source.hasProfile ? "Replace" : "Add key"}
+            </button>
+          ) : null}
+          {!editing && canRemove ? (
+            <button className="polis-btn-secondary" onClick={remove} type="button">
+              Remove
+            </button>
+          ) : null}
+        </div>
+      </div>
 
-            {card.requiredNote ? (
-              <p className="mb-2 text-sm text-zinc-400">{card.requiredNote}</p>
-            ) : null}
+      {editing ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <ApiKeyInput
+            disabled={checking}
+            id={def.id}
+            label={def.label}
+            onCancel={closeEditor}
+            onChange={(value) => {
+              setDraft(value);
+              if (validation.state === "rejected") setValidation({ state: "idle" });
+            }}
+            onSubmit={() => void save()}
+            placeholder={def.placeholder}
+            value={draft}
+          />
+          <button className="polis-btn-secondary" disabled={!canSave} onClick={() => void save()} type="button">
+            {checking ? "Checking" : draftSaved ? "Saved" : "Save"}
+          </button>
+          <button className="polis-btn-secondary" disabled={checking} onClick={closeEditor} type="button">
+            Cancel
+          </button>
+        </div>
+      ) : null}
 
-            <ApiKeyInput
-              disabled={inputDisabled}
-              id={card.id}
-              onChange={onChangeFor(card.id)}
-              placeholder={card.placeholder}
-              value={inputDisabled ? "" : value}
-            />
+      {validation.state === "rejected" ? (
+        <p className="mt-2 text-sm text-amber-200/95" role="alert">
+          {validation.message}
+        </p>
+      ) : null}
+      {notice && !editing ? (
+        <p className="mt-2 text-sm text-zinc-400" role="status">
+          {notice}
+        </p>
+      ) : null}
+    </li>
+  );
+}
 
-            {!inputDisabled ? (
-              <div className="mb-2 flex flex-wrap gap-2">
-                <button
-                  className="polis-btn-secondary"
-                  disabled={st?.state === "checking"}
-                  onClick={() => validateKey(card.id)}
-                  type="button"
-                >
-                  {st?.state === "checking" ? "Checking…" : "Save and validate"}
-                </button>
-                {value.trim() ? (
-                  <button
-                    className="polis-btn-secondary"
-                    onClick={() => clearFor(card.id)}
-                    type="button"
-                  >
-                    Clear
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <p className="mb-2 text-sm text-zinc-400">
-                Or set <code className="text-zinc-400">{card.envVar}</code> on the server.
-              </p>
-            )}
+function ApiKeyGroup(props: {
+  title: string;
+  rows: ApiKeyRowDef[];
+  keys: Record<ApiKeyProvider, ApiKeyRowSource>;
+  onSave: (id: ApiKeyProvider, value: string) => void;
+  onRemove: (id: ApiKeyProvider) => void;
+}) {
+  const headingId = `api-keys-${props.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  return (
+    <section aria-labelledby={headingId} className="mb-8">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400" id={headingId}>
+        {props.title}
+      </h3>
+      <ul className="divide-y divide-white/5">
+        {props.rows.map((def) => (
+          <ApiKeyRow
+            def={def}
+            key={def.id}
+            onRemove={props.onRemove}
+            onSave={props.onSave}
+            source={props.keys[def.id]}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
 
-            {st && st.state !== "idle" ? (
-              <p
-                className={
-                  st.state === "valid"
-                    ? "mb-2 text-sm text-emerald-400/95"
-                    : st.state === "checking"
-                      ? "mb-2 text-sm text-zinc-400"
-                      : "mb-2 text-sm text-amber-200/95"
-                }
-              >
-                {st.message}
-              </p>
-            ) : null}
-
-            <p className="text-xs text-zinc-400">
-              <a
-                className="text-cyan-500/90 underline underline-offset-2 hover:text-cyan-400"
-                href={card.href}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                {card.hrefLabel}
-              </a>
-            </p>
-          </div>
-        );
-      })}
-    </div>
+export function SetupApiKeysPanel(props: {
+  keys: Record<ApiKeyProvider, ApiKeyRowSource>;
+  onSave: (id: ApiKeyProvider, value: string) => void;
+  onRemove: (id: ApiKeyProvider) => void;
+}) {
+  return (
+    <section aria-labelledby="api-keys-heading" className="mb-10">
+      <h2 className="mb-4 text-lg font-semibold text-white" id="api-keys-heading">
+        API keys
+      </h2>
+      <ApiKeyGroup
+        keys={props.keys}
+        onRemove={props.onRemove}
+        onSave={props.onSave}
+        rows={REQUIRED_KEYS}
+        title="Required"
+      />
+      <ApiKeyGroup
+        keys={props.keys}
+        onRemove={props.onRemove}
+        onSave={props.onSave}
+        rows={OPTIONAL_KEYS}
+        title="Optional art sources"
+      />
+    </section>
   );
 }

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "
 
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
-import { SetupPanel } from "@/components/setup/setup-ui";
 import { SetupLooks } from "@/components/setup/setup-looks";
 import { SetupPreviewSidebar } from "@/components/setup/setup-preview-sidebar";
 import { useDebouncedValue } from "@/components/setup/use-preloaded-poster-src";
@@ -54,11 +53,14 @@ import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
 import {
   hasUnsavedSetupChanges,
   NO_KEY_CHANGES,
+  setupIntegratorPatch,
   setupKeyChanges,
   setupSnapshot,
+  type SetupKeyChanges,
   type SetupKeyInputs,
 } from "@/lib/setup-dirty-state";
 import { isImdbId } from "@/lib/stremio-imdb-id";
+import type { ApiKeyProvider } from "@/lib/api-key-validate";
 import { parsePreviewTitles, type PreviewTitle } from "@/lib/preview-title-list";
 
 const LS_SECRET = "polis_user_tmdb_secret";
@@ -66,6 +68,12 @@ const LS_MDBLIST = "polis_user_mdblist_key";
 const LS_FANART = "polis_user_fanart_key";
 const LS_TVDB = "polis_user_tvdb_key";
 const LS_CONFIG_ID = "polis_config_id";
+const BROWSER_KEY_STORAGE: Record<ApiKeyProvider, string> = {
+  tmdb: LS_SECRET,
+  mdblist: LS_MDBLIST,
+  fanart: LS_FANART,
+  tvdb: LS_TVDB,
+};
 const NEW_PROFILE_USERNAME = "POLIS profile";
 const LS_CATALOGS = "polis_user_catalogs";
 const LS_CATALOGS_CUSTOMIZED = "polis_catalogs_customized";
@@ -129,6 +137,7 @@ export function SetupWorkspace(props: {
   const [baselineSource, setBaselineSource] = useState<BaselineSource | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [sentKeyInputs, setSentKeyInputs] = useState<SetupKeyInputs>({ tmdb: "", mdblist: "" });
+  const [profileKeyRemovals, setProfileKeyRemovals] = useState<SetupKeyChanges>(NO_KEY_CHANGES);
   const [lookTouched, setLookTouched] = useState(false);
   const [artworkResetFrom, setArtworkResetFrom] = useState<ArtworkSourceKey>(null);
   const origin = props.initialOrigin.trim();
@@ -330,8 +339,8 @@ export function SetupWorkspace(props: {
     browserArtworkKeys.mdblistApiKey,
   );
   const hasCatalogMdblist = hasMdblist;
-  const hasProfileTmdb = configExists && configHasTmdbKey;
-  const hasProfileMdblist = configExists && configHasMdblistKey;
+  const hasProfileTmdb = configExists && configHasTmdbKey && !profileKeyRemovals.tmdb;
+  const hasProfileMdblist = configExists && configHasMdblistKey && !profileKeyRemovals.mdblist;
   const configHasIntegrator = configHasTmdbKey || configHasMdblistKey;
   const hasRequiredKeys = useMemo(
     () =>
@@ -513,8 +522,9 @@ export function SetupWorkspace(props: {
   const patterns = origin ? aiometadataArtPatterns(origin, queryString) : null;
 
   const keyChanges = useMemo(
-    () => setupKeyChanges({ tmdb: secretInput, mdblist: mdblistInput }, sentKeyInputs),
-    [mdblistInput, secretInput, sentKeyInputs],
+    () =>
+      setupKeyChanges({ tmdb: secretInput, mdblist: mdblistInput }, sentKeyInputs, profileKeyRemovals),
+    [mdblistInput, profileKeyRemovals, secretInput, sentKeyInputs],
   );
   const currentSnapshot = useMemo(
     () => setupSnapshot(queryString, selectedCatalogs, keyChanges),
@@ -592,9 +602,10 @@ export function SetupWorkspace(props: {
     const sentSnapshot = setupSnapshot(queryString, selectedCatalogs, NO_KEY_CHANGES);
     const sentKeys: SetupKeyInputs = { tmdb: secretInput.trim(), mdblist: mdblistInput.trim() };
     try {
-      const integrator: { tmdbSecret?: string | null; mdblistApiKey?: string | null } = {};
-      if (secretInput.trim()) integrator.tmdbSecret = secretInput.trim();
-      if (mdblistInput.trim()) integrator.mdblistApiKey = mdblistInput.trim();
+      const integrator = setupIntegratorPatch(
+        { tmdb: secretInput, mdblist: mdblistInput },
+        configExists ? profileKeyRemovals : NO_KEY_CHANGES,
+      );
 
       const existingConfigId =
         !forceCreate && configExists && configId?.trim() ? configId.trim() : undefined;
@@ -651,13 +662,16 @@ export function SetupWorkspace(props: {
       setConfigExists(true);
       setConfigHasPassword(Boolean(data.hasPassword ?? true));
       localStorage.setItem(LS_CONFIG_ID, data.configId);
-      if (integrator.tmdbSecret) setConfigHasTmdbKey(true);
-      if (integrator.mdblistApiKey) setConfigHasMdblistKey(true);
+      if (integrator.tmdbSecret !== undefined) setConfigHasTmdbKey(integrator.tmdbSecret !== null);
+      if (integrator.mdblistApiKey !== undefined) {
+        setConfigHasMdblistKey(integrator.mdblistApiKey !== null);
+      }
+      setProfileKeyRemovals(NO_KEY_CHANGES);
       setInstallUrl(stremioUserInstallUrl(origin, data.configId));
       setSavedSnapshot(sentSnapshot);
       setSentKeyInputs((prev) => ({
-        tmdb: sentKeys.tmdb || prev.tmdb,
-        mdblist: sentKeys.mdblist || prev.mdblist,
+        tmdb: integrator.tmdbSecret === null ? "" : sentKeys.tmdb || prev.tmdb,
+        mdblist: integrator.mdblistApiKey === null ? "" : sentKeys.mdblist || prev.mdblist,
       }));
     } catch {
       const message = "Network error saving config.";
@@ -671,60 +685,34 @@ export function SetupWorkspace(props: {
     }
   }
 
-  function saveTmdbToBrowser() {
+  const BROWSER_KEY_SETTERS: Record<ApiKeyProvider, (value: string) => void> = {
+    tmdb: setSecretInput,
+    mdblist: setMdblistInput,
+    fanart: setFanartInput,
+    tvdb: setTvdbInput,
+  };
+
+  function storeBrowserKey(id: ApiKeyProvider, value: string) {
+    const trimmed = value.trim();
+    BROWSER_KEY_SETTERS[id](trimmed);
     try {
-      if (secretInput.trim()) localStorage.setItem(LS_SECRET, secretInput.trim());
-      else localStorage.removeItem(LS_SECRET);
+      if (trimmed) localStorage.setItem(BROWSER_KEY_STORAGE[id], trimmed);
+      else localStorage.removeItem(BROWSER_KEY_STORAGE[id]);
     } catch {}
   }
 
-  function clearTmdbBrowser() {
-    setSecretInput("");
-    try {
-      localStorage.removeItem(LS_SECRET);
-    } catch {}
+  function saveBrowserKey(id: ApiKeyProvider, value: string) {
+    storeBrowserKey(id, value);
+    if (id === "tmdb" || id === "mdblist") {
+      setProfileKeyRemovals((prev) => ({ ...prev, [id]: false }));
+    }
   }
 
-  function saveMdblistToBrowser() {
-    try {
-      if (mdblistInput.trim()) localStorage.setItem(LS_MDBLIST, mdblistInput.trim());
-      else localStorage.removeItem(LS_MDBLIST);
-    } catch {}
-  }
-
-  function clearMdblistBrowser() {
-    setMdblistInput("");
-    try {
-      localStorage.removeItem(LS_MDBLIST);
-    } catch {}
-  }
-
-  function saveFanartToBrowser() {
-    try {
-      if (fanartInput.trim()) localStorage.setItem(LS_FANART, fanartInput.trim());
-      else localStorage.removeItem(LS_FANART);
-    } catch {}
-  }
-
-  function clearFanartBrowser() {
-    setFanartInput("");
-    try {
-      localStorage.removeItem(LS_FANART);
-    } catch {}
-  }
-
-  function saveTvdbToBrowser() {
-    try {
-      if (tvdbInput.trim()) localStorage.setItem(LS_TVDB, tvdbInput.trim());
-      else localStorage.removeItem(LS_TVDB);
-    } catch {}
-  }
-
-  function clearTvdbBrowser() {
-    setTvdbInput("");
-    try {
-      localStorage.removeItem(LS_TVDB);
-    } catch {}
+  function removeKey(id: ApiKeyProvider) {
+    storeBrowserKey(id, "");
+    if ((id === "tmdb" && configHasTmdbKey) || (id === "mdblist" && configHasMdblistKey)) {
+      setProfileKeyRemovals((prev) => ({ ...prev, [id]: true }));
+    }
   }
 
   return (
@@ -892,30 +880,24 @@ export function SetupWorkspace(props: {
       ) : null}
 
       {tab === "keys" ? (
-        <SetupPanel title="API keys">
-          <SetupApiKeysPanel
-            fanartValue={fanartInput}
-            hasServerFanart={props.hasServerFanart}
-            hasServerMdblist={props.hasServerMdblist}
-            hasServerTmdb={props.hasServerTmdb}
-            hasServerTvdb={props.hasServerTvdb}
-            mdblistValue={mdblistInput}
-            onFanartChange={setFanartInput}
-            onFanartClear={clearFanartBrowser}
-            onFanartSave={saveFanartToBrowser}
-            onMdblistChange={setMdblistInput}
-            onMdblistClear={clearMdblistBrowser}
-            onMdblistSave={saveMdblistToBrowser}
-            onTmdbChange={setSecretInput}
-            onTmdbClear={clearTmdbBrowser}
-            onTmdbSave={saveTmdbToBrowser}
-            onTvdbChange={setTvdbInput}
-            onTvdbClear={clearTvdbBrowser}
-            onTvdbSave={saveTvdbToBrowser}
-            tmdbValue={secretInput}
-            tvdbValue={tvdbInput}
-          />
-        </SetupPanel>
+        <SetupApiKeysPanel
+          keys={{
+            tmdb: {
+              browserValue: secretInput,
+              hasServer: props.hasServerTmdb,
+              hasProfile: hasProfileTmdb,
+            },
+            mdblist: {
+              browserValue: mdblistInput,
+              hasServer: props.hasServerMdblist,
+              hasProfile: hasProfileMdblist,
+            },
+            fanart: { browserValue: fanartInput, hasServer: props.hasServerFanart, hasProfile: false },
+            tvdb: { browserValue: tvdbInput, hasServer: props.hasServerTvdb, hasProfile: false },
+          }}
+          onRemove={removeKey}
+          onSave={saveBrowserKey}
+        />
       ) : null}
 
       {tab === "catalogs" ? (
