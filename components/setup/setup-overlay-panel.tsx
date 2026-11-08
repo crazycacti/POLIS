@@ -33,7 +33,13 @@ import type {
   ShadeLevel,
 } from "@/lib/poster-query";
 import { LOGO_SOURCES_AUTO, PILL_ALPHA_MAX, PILL_ALPHA_MIN } from "@/lib/poster-query";
-import { MAX_RATING_BADGES, parseRatingBadgeSources, type RatingBadgeSource, type RatingSource } from "@/lib/ratings";
+import {
+  MAX_RATING_BADGES,
+  parseRatingBadgeSources,
+  type RatingBadgeSource,
+  type RatingBadgeStyle,
+  type RatingSource,
+} from "@/lib/ratings";
 
 const LOGO_SOURCE_ORDERS: { value: string; label: string }[] = [
   { value: LOGO_SOURCES_AUTO, label: "Match the art" },
@@ -480,6 +486,18 @@ export function SetupOverlayPanel(props: {
             })}
           </div>
         </div>
+        {badgeMode ? (
+          <SetupOverlayField label="Badge style">
+            <select
+              className="polis-select w-full"
+              onChange={(e) => setOverlay((o) => ({ ...o, ratingBadgeStyle: e.target.value as RatingBadgeStyle }))}
+              value={overlay.ratingBadgeStyle}
+            >
+              <option value="text">Text</option>
+              <option value="logo">Logo</option>
+            </select>
+          </SetupOverlayField>
+        ) : null}
         {landscape || badgeMode ? null : (
           <ScoreStylePicker
             onChange={(look) => setOverlay((o) => ({ ...o, look }))}

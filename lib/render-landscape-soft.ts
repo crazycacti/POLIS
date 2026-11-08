@@ -8,7 +8,7 @@ import { preparePosterLogoRaster, type PrefetchedPosterLogo } from "@/lib/poster
 import { normalizeQualityMarkIds, type QualityMarkId } from "@/lib/poster-quality-marks";
 import type { LogoSize, PosterOverlayQuery } from "@/lib/poster-query";
 import { labelTextPx, scoreTextPx, textSizeFactor } from "@/lib/poster-type-scale";
-import type { RatingSource } from "@/lib/ratings";
+import type { RatingBadge, RatingSource } from "@/lib/ratings";
 import {
   buildTopItems,
   CAPSULE_HEIGHT,
@@ -22,6 +22,7 @@ import {
   logoScrimAlpha,
   logoShadow,
   marksCapsuleSvg,
+  buildBadgeBoxes,
   pillOpacity,
   RATING_BADGE_SCALE,
   RING_DIAMETER,
@@ -91,7 +92,7 @@ export async function renderLandscapeSoft(params: {
   overlay: PosterOverlayQuery;
   ratingValueTen: number | null;
   ratingColorSource: RatingSource | null;
-  ratingBadges?: string[];
+  ratingBadges?: RatingBadge[];
   trendBadges: PosterPillBadge[];
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
@@ -141,11 +142,20 @@ export async function renderLandscapeSoft(params: {
   const glyphLayers: OverlayOptions[] = [];
   let cursor = padX;
 
-  for (const text of badgeTexts) {
-    const badge = capsuleAt(text, badgeFs, cursor, rowCenterY, rowMaxRight - cursor);
-    if (!badge || badge.rect.left + badge.rect.width > rowMaxRight) break;
-    svgParts.push(...(await capsuleSvg(baseBuf, badge, pillOpacity(overlay))));
-    cursor = badge.rect.left + badge.rect.width + gap;
+  const badgeBoxes = await buildBadgeBoxes({
+    base: baseBuf,
+    badges: badgeTexts,
+    style: overlay.ratingBadgeStyle,
+    fs: badgeFs,
+    alpha: pillOpacity(overlay),
+    maxWidth: rowMaxRight - cursor,
+  });
+  for (const box of badgeBoxes) {
+    if (cursor + box.width > rowMaxRight) break;
+    const drawn = await box.draw(cursor, rowCenterY);
+    svgParts.push(...drawn.parts);
+    glyphLayers.push(...drawn.glyphs);
+    cursor += box.width + gap;
   }
 
   if (showRing && valueTen != null) {

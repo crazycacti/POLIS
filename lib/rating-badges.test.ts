@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { fitBadgeRow, type Capsule } from "@/lib/render-poster-soft";
+import { fitBadgeRow } from "@/lib/render-poster-soft";
 import { parsePosterOverlayQuery, POSTER_OVERLAY_DEFAULTS, serializePosterQuery } from "@/lib/poster-query";
 import { buildRatingBadges, parseRatingBadgeSources, ratingBadgeText } from "@/lib/ratings";
 
@@ -18,7 +18,16 @@ describe("rating badges", () => {
   });
 
   it("skips sources with no score", () => {
-    expect(buildRatingBadges(["imdb", "tomatoes"], { tomatoes: 9 })).toEqual(["RT 90%"]);
+    expect(buildRatingBadges(["imdb", "tomatoes"], { tomatoes: 9 })).toEqual([
+      { source: "tomatoes", text: "RT 90%", value: "90%" },
+    ]);
+    expect(buildRatingBadges(["tomatoesaudience"], { tomatoesaudience: 8.1 })[0]?.value).toBe("81%");
+  });
+
+  it("keeps the logo style only when badges are on", () => {
+    const withLogos = serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, ratingBadges: "imdb", ratingBadgeStyle: "logo" });
+    expect(parsePosterOverlayQuery(new URLSearchParams(withLogos)).ratingBadgeStyle).toBe("logo");
+    expect(serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, ratingBadgeStyle: "logo" })).not.toContain("rating_badge_style");
   });
 
   it("stays out of the default poster query and round-trips when set", () => {
@@ -28,7 +37,7 @@ describe("rating badges", () => {
   });
 
   it("drops badges from the end when the row is too wide", () => {
-    const capsule = (text: string, width: number): Capsule => ({ text, fs: 20, tab: false, rect: { left: 0, top: 0, width, height: 30 } });
+    const capsule = (text: string, width: number) => ({ text, width });
     expect(fitBadgeRow([capsule("a", 100), capsule("b", 100), capsule("c", 100)], 10, 215).map((c) => c.text)).toEqual(["a", "b"]);
     expect(fitBadgeRow([capsule("a", 500)], 10, 100).map((c) => c.text)).toEqual(["a"]);
   });

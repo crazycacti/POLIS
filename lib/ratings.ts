@@ -246,12 +246,21 @@ export function ratingBadgeText(source: RatingBadgeSource, valueTen: number): st
   return `${prefix} ${value.toFixed(1)}`;
 }
 
-export function buildRatingBadges(sources: RatingBadgeSource[], scores: RatingScores): string[] {
-  const out: string[] = [];
+export type RatingBadge = { source: RatingBadgeSource; text: string; value: string };
+
+export type RatingBadgeStyle = "text" | "logo";
+
+export function parseRatingBadgeStyle(raw: string | null | undefined): RatingBadgeStyle {
+  return raw?.trim().toLowerCase() === "logo" ? "logo" : "text";
+}
+
+export function buildRatingBadges(sources: RatingBadgeSource[], scores: RatingScores): RatingBadge[] {
+  const out: RatingBadge[] = [];
   for (const source of sources) {
     const value = scores[source];
     if (value == null || !Number.isFinite(value)) continue;
-    out.push(ratingBadgeText(source, value));
+    const text = ratingBadgeText(source, value);
+    out.push({ source, text, value: text.slice(RATING_BADGE_PREFIX[source].length + 1) });
   }
   return out;
 }

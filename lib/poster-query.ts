@@ -1,5 +1,10 @@
 import type { RatingSource } from "@/lib/ratings";
-import { parseRatingBadgeSources, parseRatingSource } from "@/lib/ratings";
+import {
+  parseRatingBadgeSources,
+  parseRatingBadgeStyle,
+  parseRatingSource,
+  type RatingBadgeStyle,
+} from "@/lib/ratings";
 
 export type PosterArtworkSource =
   | "auto"
@@ -75,6 +80,7 @@ export type PosterOverlayQuery = {
   shade: ShadeLevel;
   pillAlpha: number;
   ratingBadges: string;
+  ratingBadgeStyle: RatingBadgeStyle;
   trendRank: number | null;
 };
 
@@ -114,6 +120,7 @@ export const POSTER_OVERLAY_DEFAULTS: PosterOverlayQuery = {
   shade: "auto",
   pillAlpha: 86,
   ratingBadges: "",
+  ratingBadgeStyle: "text",
   trendRank: null,
 };
 
@@ -146,6 +153,7 @@ const OVERLAY_STYLE_DEFAULT_KEYS = [
   "shade",
   "pillAlpha",
   "ratingBadges",
+  "ratingBadgeStyle",
 ] as const satisfies readonly (keyof PosterOverlayQuery)[];
 
 function clamp(n: number, min: number, max: number): number {
@@ -391,6 +399,7 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     shade: parseShade(searchParams.get("shade")),
     pillAlpha: pillAlpha ?? d.pillAlpha,
     ratingBadges: parseRatingBadgeSources(searchParams.get("rating_badges")).join(","),
+    ratingBadgeStyle: parseRatingBadgeStyle(searchParams.get("rating_badge_style")),
     trendRank,
   };
   return syncFooterPadsWhenBothEnabled(parsed);
@@ -457,6 +466,9 @@ export function serializePosterQuery(opts: PosterOverlayQuery): string {
   const ratingBadges = parseRatingBadgeSources(synced.ratingBadges).join(",");
   if (ratingBadges) {
     p.set("rating_badges", ratingBadges);
+    if (synced.ratingBadgeStyle !== POSTER_OVERLAY_DEFAULTS.ratingBadgeStyle) {
+      p.set("rating_badge_style", synced.ratingBadgeStyle);
+    }
   }
   if (synced.trendRank != null) {
     p.set("trend_rank", String(synced.trendRank));

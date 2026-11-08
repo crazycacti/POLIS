@@ -12,6 +12,7 @@ import {
   type QualityMarkId,
 } from "@/lib/poster-quality-marks";
 import type { PosterOverlayQuery, ShadeLevel } from "@/lib/poster-query";
+import { loadRatingLogo } from "@/lib/rating-logos";
 import {
   fitSoftText,
   measureSoftText,
@@ -20,7 +21,7 @@ import {
 } from "@/lib/poster-soft-font";
 import { LOGO_GAP_SHARE, labelTextPx, logoMaxBox, scoreTextPx, textSizeFactor } from "@/lib/poster-type-scale";
 import { ratingDisplayColor } from "@/lib/rating-colors";
-import type { RatingSource } from "@/lib/ratings";
+import type { RatingBadge, RatingBadgeStyle, RatingSource } from "@/lib/ratings";
 import { escapeXml } from "@/lib/xml-escape";
 
 const POSTER_WIDTH = 500;
@@ -73,6 +74,54 @@ const TEXT_PRIMARY = "#ffffff";
 export const RATING_BADGE_SCALE = 0.72;
 const RATING_BADGE_GAP = 0.02;
 const RATING_BADGE_ROW_SHARE_WITH_GENRE = 0.72;
+const RATING_LOGO_HEIGHT = 0.95;
+
+export type BadgeBox = {
+  width: number;
+  height: number;
+  draw: (left: number, centerY: number) => Promise<{ parts: string[]; glyphs: OverlayOptions[] }>;
+};
+
+export async function buildBadgeBoxes(params: {
+  base: Buffer;
+  badges: RatingBadge[];
+  style: RatingBadgeStyle;
+  fs: number;
+  alpha: number;
+  maxWidth: number;
+}): Promise<BadgeBox[]> {
+  const { base, fs, alpha } = params;
+  const height = Math.round(fs * CAPSULE_HEIGHT);
+  const boxes: BadgeBox[] = [];
+  for (const badge of params.badges) {
+    const logo = params.style === "logo" ? await loadRatingLogo(badge.source, fs * RATING_LOGO_HEIGHT) : null;
+    if (logo) {
+      const items: TopItem[] = [
+        { kind: "glyph", buf: logo.buf, width: logo.width, height: logo.height },
+        { kind: "text", text: badge.value, width: measureSoftText(badge.value, fs, 600) },
+      ];
+      const width = itemsCapsuleWidth(items, 1, fs);
+      boxes.push({
+        width,
+        height,
+        draw: (left, centerY) =>
+          marksCapsuleSvg(base, { rect: { left, top: Math.round(centerY - height / 2), width, height }, items, fs }, alpha),
+      });
+      continue;
+    }
+    const capsule = capsuleAt(badge.text, fs, 0, 0, params.maxWidth);
+    if (!capsule) continue;
+    boxes.push({
+      width: capsule.rect.width,
+      height: capsule.rect.height,
+      draw: async (left, centerY) => {
+        const placed = { ...capsule, rect: { ...capsule.rect, left, top: Math.round(centerY - capsule.rect.height / 2) } };
+        return { parts: await capsuleSvg(base, placed, alpha), glyphs: [] };
+      },
+    });
+  }
+  return boxes;
+}
 
 export type Rect = { left: number; top: number; width: number; height: number };
 
@@ -277,9 +326,9 @@ async function capsuleFill(base: Buffer, rect: Rect, alpha: number): Promise<str
 
 export type Capsule = { text: string; rect: Rect; fs: number; tab: boolean };
 
-export function fitBadgeRow(badges: Capsule[], gap: number, maxWidth: number): Capsule[] {
+export function fitBadgeRow<T extends { width: number }>(badges: T[], gap: number, maxWidth: number): T[] {
   const kept = [...badges];
-  const width = () => kept.reduce((sum, c) => sum + c.rect.width, 0) + gap * Math.max(0, kept.length - 1);
+  const width = () => kept.reduce((sum, c) => sum + c.width, 0) + gap * Math.max(0, kept.length - 1);
   while (kept.length > 1 && width() > maxWidth) kept.pop();
   return kept;
 }
@@ -524,7 +573,7 @@ export async function renderSoftPoster(params: {
   genreNames: string[];
   ratingValueTen: number | null;
   ratingColorSource: RatingSource | null;
-  ratingBadges?: string[];
+  ratingBadges?: RatingBadge[];
   trendBadges: PosterPillBadge[];
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
@@ -680,23 +729,31 @@ export async function renderSoftPoster(params: {
   const svgParts: string[] = [];
   let genreRight = w - padX;
   const ratingColorValue = valueTen != null ? ringColor(overlay, valueTen, params.ratingColorSource) : TEXT_PRIMARY;
+  const badgeGlyphs: OverlayOptions[] = [];
   if (showBadges) {
     const gap = Math.round(w * RATING_BADGE_GAP);
     const rowMax = Math.round((w - padX * 2) * (genreRaw ? RATING_BADGE_ROW_SHARE_WITH_GENRE : 1));
-    const badges = fitBadgeRow(
-      badgeTexts.map((text) => capsuleAt(text, badgeFs, 0, footerCenterY, rowMax)).filter((c): c is Capsule => c != null),
+    const boxes = fitBadgeRow(
+      await buildBadgeBoxes({
+        base: baseBuf,
+        badges: badgeTexts,
+        style: overlay.ratingBadgeStyle,
+        fs: badgeFs,
+        alpha: pillOpacity(overlay),
+        maxWidth: rowMax,
+      }),
       gap,
       rowMax,
     );
     let right = w - padX;
-    for (const badge of [...badges].reverse()) {
-      badge.rect.left = right - badge.rect.width;
-      right = badge.rect.left - gap;
+    for (const box of [...boxes].reverse()) {
+      const left = right - box.width;
+      const drawn = await box.draw(left, footerCenterY);
+      svgParts.push(...drawn.parts);
+      badgeGlyphs.push(...drawn.glyphs);
+      right = left - gap;
     }
-    for (const parts of await Promise.all(badges.map((c) => capsuleSvg(baseBuf, c, pillOpacity(overlay))))) {
-      svgParts.push(...parts);
-    }
-    if (badges.length > 0) genreRight = right + gap - Math.round(w * FOOTER_GAP);
+    if (boxes.length > 0) genreRight = right + gap - Math.round(w * FOOTER_GAP);
   } else if (showRing && valueTen != null && textRating) {
     const capsule = ratingCapsuleAt({
       valueTen,
@@ -746,6 +803,6 @@ export async function renderSoftPoster(params: {
     });
   }
 
-  layers.push(...glyphLayers);
+  layers.push(...glyphLayers, ...badgeGlyphs);
   return encodePosterImage(layers.length > 0 ? sharp(baseBuf).composite(layers) : baseBuf);
 }
