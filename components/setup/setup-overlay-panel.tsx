@@ -30,8 +30,9 @@ import type {
   PosterLook,
   PosterOverlayQuery,
   RatingStyle,
+  ShadeLevel,
 } from "@/lib/poster-query";
-import { LOGO_SOURCES_AUTO } from "@/lib/poster-query";
+import { LOGO_SOURCES_AUTO, PILL_ALPHA_MAX, PILL_ALPHA_MIN } from "@/lib/poster-query";
 import type { RatingSource } from "@/lib/ratings";
 
 const LOGO_SOURCE_ORDERS: { value: string; label: string }[] = [
@@ -70,6 +71,13 @@ const SCORE_SAMPLE = "8.4";
 const GENRE_MODES: { value: GenreMode; label: string }[] = [
   { value: "first", label: "Main genre" },
   { value: "top3", label: "Up to three" },
+];
+
+const SHADES: { value: ShadeLevel; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "light", label: "Light" },
+  { value: "strong", label: "Strong" },
+  { value: "off", label: "Off" },
 ];
 
 const QUALITY_BADGE_LABEL = "4K, HDR and Dolby";
@@ -132,6 +140,11 @@ function ratingSummary(overlay: PosterOverlayQuery, classic: boolean): string {
 function genreSummary(overlay: PosterOverlayQuery): string {
   if (!overlay.genre) return OFF_SUMMARY;
   return GENRE_MODES.find((option) => option.value === overlay.genreMode)?.label ?? overlay.genreMode;
+}
+
+function shadeSummary(overlay: PosterOverlayQuery): string {
+  const shade = SHADES.find((option) => option.value === overlay.shade)?.label ?? overlay.shade;
+  return `${shade}, labels ${overlay.pillAlpha}%`;
 }
 
 function ChipToggle(props: { label: string; pressed: boolean; onChange: (pressed: boolean) => void }) {
@@ -520,6 +533,36 @@ export function SetupOverlayPanel(props: {
           />
         </PosterPartRow>
       )}
+
+      <PosterPartRow
+        name="Shade and labels"
+        onToggle={toggle("shade")}
+        open={openPart === "shade"}
+        part="shade"
+        summary={shadeSummary(overlay)}
+      >
+        <SetupOverlayField label="Shade">
+          <select
+            className="polis-select w-full"
+            onChange={(e) => setOverlay((o) => ({ ...o, shade: e.target.value as ShadeLevel }))}
+            value={overlay.shade}
+          >
+            {SHADES.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </SetupOverlayField>
+        <SetupOverlayRange
+          label="Label background"
+          max={PILL_ALPHA_MAX}
+          min={PILL_ALPHA_MIN}
+          onChange={(pillAlpha) => setOverlay((o) => ({ ...o, pillAlpha }))}
+          unit="%"
+          value={overlay.pillAlpha}
+        />
+      </PosterPartRow>
     </ul>
   );
 }

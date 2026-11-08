@@ -1,4 +1,4 @@
-export type PosterPart = "artwork" | "logo" | "trend" | "badges" | "rating" | "genre";
+export type PosterPart = "artwork" | "logo" | "trend" | "badges" | "rating" | "genre" | "shade";
 
 export function posterPartHeaderId(part: PosterPart): string {
   return `poster-part-${part}`;

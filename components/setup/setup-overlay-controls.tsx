@@ -20,15 +20,22 @@ export function SetupOverlayRange(props: {
   onChange: (value: number) => void;
   value: number;
   className?: string;
+  unit?: string;
 }) {
   return (
     <SetupOverlayField className={props.className} label={props.label}>
-      <span className="mb-1 flex justify-end font-mono text-xs text-zinc-400">{props.value}px</span>
+      <span className="mb-1 flex justify-end font-mono text-xs text-zinc-400">
+        {props.value}
+        {props.unit ?? "px"}
+      </span>
       <input
         className="w-full accent-cyan-500"
         max={props.max}
         min={props.min}
-        onChange={(e) => props.onChange(Number(e.target.value) || props.value)}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          props.onChange(Number.isFinite(next) ? next : props.value);
+        }}
         type="range"
         value={props.value}
       />

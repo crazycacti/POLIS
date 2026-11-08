@@ -11,7 +11,7 @@ import {
   normalizeQualityMarkIds,
   type QualityMarkId,
 } from "@/lib/poster-quality-marks";
-import type { PosterOverlayQuery } from "@/lib/poster-query";
+import type { PosterOverlayQuery, ShadeLevel } from "@/lib/poster-query";
 import {
   fitSoftText,
   measureSoftText,
@@ -63,7 +63,8 @@ const RING_TRACK = "rgba(255,255,255,0.22)";
 const RING_DISC = "rgba(0,0,0,0.38)";
 export const CAPSULE_HEIGHT = 1.85;
 export const CAPSULE_PAD_X = 0.62;
-const CAPSULE_ALPHA = 0.86;
+const SHADE_STRENGTH: Record<ShadeLevel, number> = { auto: 1, off: 0, light: 0.5, strong: 1.4 };
+const MAX_SCRIM_ALPHA = 0.95;
 const TAB_HEIGHT = 1.95;
 const TAB_RADIUS = 0.34;
 const CAPSULE_MAX_LUMINANCE = 0.12;
@@ -111,9 +112,21 @@ export function ratingRingSvg(params: {
   return parts;
 }
 
+export function shadeStrength(shade: ShadeLevel): number {
+  return SHADE_STRENGTH[shade];
+}
+
+export function scrimAlpha(alpha: number): number {
+  return Math.min(MAX_SCRIM_ALPHA, Math.max(0, alpha));
+}
+
+export function pillOpacity(overlay: Pick<PosterOverlayQuery, "pillAlpha">): number {
+  return overlay.pillAlpha / 100;
+}
+
 function gradientSvg(w: number, h: number, stops: [number, number][]): Buffer {
   const stopTags = stops
-    .map(([offset, alpha]) => `<stop offset="${offset}" stop-color="#000" stop-opacity="${alpha}"/>`)
+    .map(([offset, alpha]) => `<stop offset="${offset}" stop-color="#000" stop-opacity="${scrimAlpha(alpha)}"/>`)
     .join("");
   return Buffer.from(
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="g" x1="0" y1="1" x2="0" y2="0">${stopTags}</linearGradient></defs><rect width="${w}" height="${h}" fill="url(#g)"/></svg>`,
@@ -251,12 +264,12 @@ export function logoScrim(
   };
 }
 
-async function capsuleFill(base: Buffer, rect: Rect): Promise<string> {
+async function capsuleFill(base: Buffer, rect: Rect, alpha: number): Promise<string> {
   const { r, g, b } = await regionBadgeBackground(base, rect);
   const lum = pixelLuminance(r, g, b);
   const target = Math.min(CAPSULE_MAX_LUMINANCE, lum * CAPSULE_DARKEN);
   const k = lum > 0 ? (target / lum) ** (1 / 2.4) : 1;
-  return `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${CAPSULE_ALPHA})`;
+  return `rgba(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)},${alpha})`;
 }
 
 export type Capsule = { text: string; rect: Rect; fs: number; tab: boolean };
@@ -279,9 +292,9 @@ function topTabAt(text: string, fs: number, w: number, maxW: number): Capsule | 
   return { text: fitted, fs, tab: true, rect: { left: Math.round((w - width) / 2), top: 0, width, height } };
 }
 
-export async function capsuleSvg(base: Buffer, capsule: Capsule): Promise<string[]> {
+export async function capsuleSvg(base: Buffer, capsule: Capsule, alpha: number): Promise<string[]> {
   const { rect, fs, text } = capsule;
-  const fill = await capsuleFill(base, rect);
+  const fill = await capsuleFill(base, rect, alpha);
   const { left: x, top: y, width: cw, height: ch } = rect;
   const r = Math.round(ch * TAB_RADIUS);
   const shape = capsule.tab
@@ -337,9 +350,14 @@ export function ratingCapsuleAt(params: {
   };
 }
 
-async function ratingCapsuleSvg(base: Buffer, capsule: RatingCapsule, color: string): Promise<string[]> {
+async function ratingCapsuleSvg(
+  base: Buffer,
+  capsule: RatingCapsule,
+  color: string,
+  alpha: number,
+): Promise<string[]> {
   const { rect, fs, text } = capsule;
-  const fill = await capsuleFill(base, rect);
+  const fill = await capsuleFill(base, rect, alpha);
   const { left: x, top: y, width: cw, height: ch } = rect;
   const parts = [`<rect x="${x}" y="${y}" width="${cw}" height="${ch}" rx="${(ch / 2).toFixed(2)}" fill="${fill}"/>`];
   let textX = x + capsule.padX;
@@ -431,9 +449,10 @@ function scaleTopItem(item: TopItem, scale: number): TopItem {
 export async function marksCapsuleSvg(
   base: Buffer,
   capsule: { rect: Rect; items: TopItem[]; fs: number },
+  alpha: number,
 ): Promise<{ parts: string[]; glyphs: OverlayOptions[] }> {
   const { rect, items, fs } = capsule;
-  const fill = await capsuleFill(base, rect);
+  const fill = await capsuleFill(base, rect, alpha);
   const parts = [
     `<rect x="${rect.left}" y="${rect.top}" width="${rect.width}" height="${rect.height}" rx="${(rect.height / 2).toFixed(2)}" fill="${fill}"/>`,
   ];
@@ -544,8 +563,9 @@ export async function renderSoftPoster(params: {
   if (drawLogo) {
     if (params.artTextless) layers.push(await softBlurBand(baseBuf, w, h));
   }
-  if (hasFooter || drawLogo) {
-    const strength = drawLogo ? 1 : 0.55;
+  const shade = shadeStrength(overlay.shade);
+  if ((hasFooter || drawLogo) && shade > 0) {
+    const strength = (drawLogo ? 1 : 0.55) * shade;
     const scrimH = Math.round(h * SCRIM_BAND);
     layers.push({
       input: gradientSvg(w, scrimH, [[0, 0.66 * strength], [0.45, 0.28 * strength], [1, 0]]),
@@ -642,7 +662,7 @@ export async function renderSoftPoster(params: {
       centerY: footerCenterY,
       star: overlay.ratingStyle === "min",
     });
-    svgParts.push(...(await ratingCapsuleSvg(baseBuf, capsule, ratingColorValue)));
+    svgParts.push(...(await ratingCapsuleSvg(baseBuf, capsule, ratingColorValue, pillOpacity(overlay))));
     genreRight = capsule.rect.left - Math.round(w * FOOTER_GAP);
   } else if (showRing && valueTen != null) {
     const cx = w - padX - ringD / 2;
@@ -662,14 +682,14 @@ export async function renderSoftPoster(params: {
 
   const glyphLayers: OverlayOptions[] = [];
   if (marksCapsule) {
-    const drawn = await marksCapsuleSvg(baseBuf, marksCapsule);
+    const drawn = await marksCapsuleSvg(baseBuf, marksCapsule, pillOpacity(overlay));
     svgParts.push(...drawn.parts);
     glyphLayers.push(...drawn.glyphs);
   }
 
   const genreCapsule = genreRaw ? capsuleAt(genreRaw, genreFs, padX, footerCenterY, genreRight - padX) : null;
   const capsules = [genreCapsule, trendCapsule].filter((c): c is Capsule => c != null);
-  for (const parts of await Promise.all(capsules.map((c) => capsuleSvg(baseBuf, c)))) {
+  for (const parts of await Promise.all(capsules.map((c) => capsuleSvg(baseBuf, c, pillOpacity(overlay))))) {
     svgParts.push(...parts);
   }
 

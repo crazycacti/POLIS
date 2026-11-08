@@ -22,11 +22,14 @@ import {
   logoScrimAlpha,
   logoShadow,
   marksCapsuleSvg,
+  pillOpacity,
   RING_DIAMETER,
   RING_STROKE,
   ratingRingSvg,
   ringColor,
   sampleLogo,
+  scrimAlpha,
+  shadeStrength,
   type Rect,
 } from "@/lib/render-poster-soft";
 
@@ -47,7 +50,7 @@ export const LANDSCAPE_BYTE_BUDGET = 80 * 1024;
 
 function linearScrim(w: number, h: number, horizontal: boolean, stops: [number, number][], strength: number): Buffer {
   const stopTags = stops
-    .map(([offset, alpha]) => `<stop offset="${offset}" stop-color="#000" stop-opacity="${(alpha * strength).toFixed(3)}"/>`)
+    .map(([offset, alpha]) => `<stop offset="${offset}" stop-color="#000" stop-opacity="${scrimAlpha(alpha * strength).toFixed(3)}"/>`)
     .join("");
   const axis = horizontal ? `x1="0" y1="0" x2="1" y2="0"` : `x1="0" y1="1" x2="0" y2="0"`;
   return Buffer.from(
@@ -145,7 +148,7 @@ export async function renderLandscapeSoft(params: {
 
   const trendCapsule = trendText ? capsuleAt(trendText, trendFs, cursor, rowCenterY, rowMaxRight - cursor) : null;
   if (trendCapsule) {
-    svgParts.push(...(await capsuleSvg(baseBuf, trendCapsule)));
+    svgParts.push(...(await capsuleSvg(baseBuf, trendCapsule, pillOpacity(overlay))));
     cursor = trendCapsule.rect.left + trendCapsule.rect.width + gap;
   }
 
@@ -163,7 +166,7 @@ export async function renderLandscapeSoft(params: {
       },
       items,
       fs: trendFs,
-    });
+    }, pillOpacity(overlay));
     svgParts.push(...drawn.parts);
     glyphLayers.push(...drawn.glyphs);
   }
@@ -203,8 +206,9 @@ export async function renderLandscapeSoft(params: {
   }
 
   const layers: OverlayOptions[] = [];
-  if (logoLayers.length > 0 || hasRow) {
-    const strength = logoLayers.length > 0 ? 1 : ROW_ONLY_SCRIM_STRENGTH;
+  const shade = shadeStrength(overlay.shade);
+  if ((logoLayers.length > 0 || hasRow) && shade > 0) {
+    const strength = (logoLayers.length > 0 ? 1 : ROW_ONLY_SCRIM_STRENGTH) * shade;
     const sideW = Math.round(w * SIDE_SCRIM_WIDTH);
     const bottomH = Math.round(h * BOTTOM_SCRIM_HEIGHT);
     layers.push(

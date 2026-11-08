@@ -35,6 +35,13 @@ export type PosterShape = "poster" | "landscape";
 
 export type GridCell = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
+export type ShadeLevel = "auto" | "off" | "light" | "strong";
+
+export const SHADE_LEVELS: readonly ShadeLevel[] = ["auto", "off", "light", "strong"];
+
+export const PILL_ALPHA_MIN = 0;
+export const PILL_ALPHA_MAX = 100;
+
 export type PosterOverlayQuery = {
   genre: boolean;
   rating: boolean;
@@ -65,6 +72,8 @@ export type PosterOverlayQuery = {
   padY: number;
   ratingPadY: number;
   lineGap: number;
+  shade: ShadeLevel;
+  pillAlpha: number;
   trendRank: number | null;
 };
 
@@ -101,6 +110,8 @@ export const POSTER_OVERLAY_DEFAULTS: PosterOverlayQuery = {
   padY: 16,
   ratingPadY: 16,
   lineGap: 14,
+  shade: "auto",
+  pillAlpha: 86,
   trendRank: null,
 };
 
@@ -130,6 +141,8 @@ const OVERLAY_STYLE_DEFAULT_KEYS = [
   "padY",
   "ratingPadY",
   "lineGap",
+  "shade",
+  "pillAlpha",
 ] as const satisfies readonly (keyof PosterOverlayQuery)[];
 
 function clamp(n: number, min: number, max: number): number {
@@ -241,6 +254,11 @@ function parseLayout(raw: string | null): OverlayLayout {
   return raw === "row" || raw === "stack" ? raw : POSTER_OVERLAY_DEFAULTS.layout;
 }
 
+function parseShade(raw: string | null): ShadeLevel {
+  const s = raw?.trim().toLowerCase();
+  return SHADE_LEVELS.find((level) => level === s) ?? POSTER_OVERLAY_DEFAULTS.shade;
+}
+
 function parseLook(raw: string | null): PosterLook {
   return raw === "classic" ? "classic" : "soft";
 }
@@ -329,6 +347,7 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
   const ratingPadY = parseIntParam(searchParams, "rating_pad_y", FOOTER_PAD_Y_MIN, FOOTER_PAD_Y_MAX);
   const lineGap = parseIntParam(searchParams, "line_gap", 4, 36);
   const trendRank = parseIntParam(searchParams, "trend_rank", 1, 10);
+  const pillAlpha = parseIntParam(searchParams, "pill_alpha", PILL_ALPHA_MIN, PILL_ALPHA_MAX);
 
   const parsed: PosterOverlayQuery = {
     genre: searchParams.has("genre") ? searchParams.get("genre") !== "0" : d.genre,
@@ -366,6 +385,8 @@ export function parsePosterOverlayQuery(searchParams: URLSearchParams): PosterOv
     padY: padY ?? d.padY,
     ratingPadY: ratingPadY ?? d.ratingPadY,
     lineGap: lineGap ?? d.lineGap,
+    shade: parseShade(searchParams.get("shade")),
+    pillAlpha: pillAlpha ?? d.pillAlpha,
     trendRank,
   };
   return syncFooterPadsWhenBothEnabled(parsed);
@@ -423,6 +444,12 @@ export function serializePosterQuery(opts: PosterOverlayQuery): string {
   p.set("pad_y", String(synced.padY));
   p.set("rating_pad_y", String(synced.ratingPadY));
   p.set("line_gap", String(synced.lineGap));
+  if (synced.shade !== POSTER_OVERLAY_DEFAULTS.shade) {
+    p.set("shade", synced.shade);
+  }
+  if (synced.pillAlpha !== POSTER_OVERLAY_DEFAULTS.pillAlpha) {
+    p.set("pill_alpha", String(synced.pillAlpha));
+  }
   if (synced.trendRank != null) {
     p.set("trend_rank", String(synced.trendRank));
   }

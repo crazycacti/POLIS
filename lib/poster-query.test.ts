@@ -222,3 +222,25 @@ describe("title logo sources", () => {
     expect(reset.logoSources).toBe("auto");
   });
 });
+
+describe("shade and label background", () => {
+  test("leaves both out of the default poster query", () => {
+    const query = serializePosterQuery(POSTER_OVERLAY_DEFAULTS);
+    expect(query).not.toContain("shade=");
+    expect(query).not.toContain("pill_alpha=");
+  });
+
+  test("round-trips non-default values", () => {
+    const query = serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, shade: "strong", pillAlpha: 40 });
+    const parsed = parsePosterOverlayQuery(new URLSearchParams(query));
+    expect(parsed.shade).toBe("strong");
+    expect(parsed.pillAlpha).toBe(40);
+  });
+
+  test("falls back on unknown shades and clamps the label background", () => {
+    const parsed = parsePosterOverlayQuery(new URLSearchParams("shade=blinding&pill_alpha=400"));
+    expect(parsed.shade).toBe("auto");
+    expect(parsed.pillAlpha).toBe(100);
+    expect(parsePosterOverlayQuery(new URLSearchParams("pill_alpha=-5")).pillAlpha).toBe(0);
+  });
+});
