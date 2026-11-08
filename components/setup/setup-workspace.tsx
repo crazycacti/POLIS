@@ -399,13 +399,13 @@ export function SetupWorkspace(props: {
   }, [hasRequiredKeys]);
 
   useEffect(() => {
-    if (!catalogsHydrated) return;
+    if (!catalogsHydrated || !overlaySettled) return;
 
     if (!setupHydrated) {
       setSetupHydrated(true);
       if (!hasRequiredKeys) setTab("keys");
     }
-  }, [catalogsHydrated, setupHydrated, hasRequiredKeys]);
+  }, [catalogsHydrated, overlaySettled, setupHydrated, hasRequiredKeys]);
 
   const artworkKeys: ArtworkKeyAvailability = useMemo(
     () => ({
@@ -620,9 +620,12 @@ export function SetupWorkspace(props: {
       : null;
   const catalogsMissingReason =
     overlaySettled && selectedCatalogs.length === 0 ? "Add at least one catalog" : null;
+  const profileLoading = Boolean(configId?.trim()) && !overlaySettled && !configLoadFailed;
   const lockReason = configLoadFailed
     ? "Could not load this profile."
-    : (keysMissingReason ?? catalogsMissingReason);
+    : profileLoading
+      ? "Loading profile"
+      : (keysMissingReason ?? catalogsMissingReason);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
