@@ -352,9 +352,10 @@ export function SetupWorkspace(props: {
     props.hasServerMdblist,
     browserArtworkKeys.mdblistApiKey,
   );
-  const hasCatalogMdblist = hasMdblist;
   const hasProfileTmdb = configExists && configHasTmdbKey && !profileKeyRemovals.tmdb;
   const hasProfileMdblist = configExists && configHasMdblistKey && !profileKeyRemovals.mdblist;
+  // Watchlist and list catalogs never fall back to the server key (see resolvePolisIntegratorAuth).
+  const hasCatalogMdblist = Boolean(browserArtworkKeys.mdblistApiKey) || hasProfileMdblist;
   const hasRequiredKeys = useMemo(
     () =>
       hasRequiredSetupKeys({

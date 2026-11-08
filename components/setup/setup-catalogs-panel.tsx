@@ -82,9 +82,9 @@ export function SetupCatalogsPanel(props: {
   const sources = useMemo(() => {
     const out: CatalogSource[] = [];
     if (props.hasTmdb) out.push("tmdb");
-    if (props.hasMdblist) out.push("watchlist", "lists");
+    out.push("watchlist", "lists");
     return out;
-  }, [props.hasMdblist, props.hasTmdb]);
+  }, [props.hasTmdb]);
   const [sourceChoice, setSourceChoice] = useState<CatalogSource | null>(null);
   const source = sourceChoice && sources.includes(sourceChoice) ? sourceChoice : sources[0];
   const [username, setUsername] = useState("");
@@ -278,9 +278,15 @@ export function SetupCatalogsPanel(props: {
                   </span>
                   <span className="min-w-0 flex-1 pl-1">
                     <span className="block truncate text-sm text-zinc-200">{name}</span>
-                    <span className="block truncate text-xs text-zinc-400">
-                      {`${providerLabel(c)}, ${typeLabel(c.type)}`}
-                    </span>
+                    {c.provider.kind === "mdblist" && !props.hasMdblist ? (
+                      <span className="block truncate text-xs text-amber-200/95">
+                        Needs your MDBList key
+                      </span>
+                    ) : (
+                      <span className="block truncate text-xs text-zinc-400">
+                        {`${providerLabel(c)}, ${typeLabel(c.type)}`}
+                      </span>
+                    )}
                   </span>
                   <span className="flex shrink-0 items-center">
                     <button
@@ -360,13 +366,22 @@ export function SetupCatalogsPanel(props: {
           <ul className="space-y-1">{presetRows(TMDB_CATALOG_PRESETS, (def) => def.name)}</ul>
         ) : null}
 
-        {source === "watchlist" ? (
+        {source !== "tmdb" && !props.hasMdblist ? (
+          <div className="flex flex-wrap items-center gap-3 py-2">
+            <p className="text-sm text-zinc-400">Add your MDBList key to use lists.</p>
+            <button className="polis-btn-secondary" onClick={props.onGoToKeys} type="button">
+              Go to API keys
+            </button>
+          </div>
+        ) : null}
+
+        {source === "watchlist" && props.hasMdblist ? (
           <ul className="space-y-1">
             {presetRows(MDBLIST_WATCHLIST_PRESETS, (def) => `Watchlist (${typeLabel(def.type)})`)}
           </ul>
         ) : null}
 
-        {source === "lists" ? (
+        {source === "lists" && props.hasMdblist ? (
           <div className="polis-catalog-custom-lists space-y-3">
             <form className="flex gap-2" onSubmit={submitSearch} role="search">
               <label className="sr-only" htmlFor="catalogs-list-search">
