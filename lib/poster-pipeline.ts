@@ -148,7 +148,10 @@ export async function renderPosterForImdb(params: {
 
   const primaryLogo =
     logoPath == null ? null : prefetchedLogo?.path === logoPath ? prefetchedLogo : prefetchPosterLogo(logoPath);
-  if (primaryLogo) await primaryLogo.png.catch(() => null);
+  const alternateLogos = logoAlternates.map((path) => prefetchPosterLogo(path));
+  await Promise.all(
+    [primaryLogo, ...alternateLogos].map((logo) => (logo ? logo.png.catch(() => null) : null)),
+  );
 
   if (params.overlay.posterShape === "landscape" && softFontAvailable()) {
     return withPolisRenderLimit(() =>
@@ -164,6 +167,7 @@ export async function renderPosterForImdb(params: {
         logoPath,
         logoAlternates,
         prefetchedLogo: primaryLogo,
+        prefetchedAlternates: alternateLogos,
         onLogoFailed: () => params.onDegraded?.(),
       }),
     );
@@ -184,6 +188,7 @@ export async function renderPosterForImdb(params: {
         logoPath,
         logoAlternates,
         prefetchedLogo: primaryLogo,
+        prefetchedAlternates: alternateLogos,
         onLogoFailed: () => params.onDegraded?.(),
       }),
     );

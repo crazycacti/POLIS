@@ -520,6 +520,7 @@ export async function renderSoftPoster(params: {
   logoPath: string | null;
   logoAlternates?: string[];
   prefetchedLogo?: PrefetchedPosterLogo | null;
+  prefetchedAlternates?: PrefetchedPosterLogo[];
   onLogoFailed?: () => void;
 }): Promise<Buffer | null> {
   ensurePolisSharpConfigured();
@@ -560,6 +561,8 @@ export async function renderSoftPoster(params: {
   const ageLabel = overlay.ageRating ? (params.ageBadge?.text ?? null) : null;
 
   const drawLogo = overlay.logoOnPoster && params.logoPath != null;
+  const prefetchedFor = (path: string) =>
+    [params.prefetchedLogo, ...(params.prefetchedAlternates ?? [])].find((logo) => logo?.path === path) ?? null;
   const layers: OverlayOptions[] = [];
   if (drawLogo) {
     if (params.artTextless) layers.push(await softBlurBand(baseBuf, w, h));
@@ -609,7 +612,7 @@ export async function renderSoftPoster(params: {
     const logoPadTop = topBandBottom > 0 ? topBandBottom + Math.round(w * LOGO_GAP_SHARE) : padTop;
 
     const placeLogo = async (path: string) => {
-      const raster = await preparePosterLogoRaster(path, maxLogoW, params.prefetchedLogo);
+      const raster = await preparePosterLogoRaster(path, maxLogoW, prefetchedFor(path));
       if (!raster) return null;
       const scale = Math.min(1, maxLogoW / raster.width, maxLogoH / raster.height);
       const logoW = Math.max(1, Math.min(w, Math.round(raster.width * scale)));

@@ -96,6 +96,7 @@ export async function renderLandscapeSoft(params: {
   logoPath: string | null;
   logoAlternates?: string[];
   prefetchedLogo?: PrefetchedPosterLogo | null;
+  prefetchedAlternates?: PrefetchedPosterLogo[];
   onLogoFailed?: () => void;
 }): Promise<Buffer> {
   ensurePolisSharpConfigured();
@@ -185,7 +186,8 @@ export async function renderLandscapeSoft(params: {
         maxH: Math.round(h * LOGO_MAX_HEIGHT_SHARE),
         left: padX,
         bottom,
-        prefetched: params.prefetchedLogo ?? null,
+        prefetched:
+          [params.prefetchedLogo, ...(params.prefetchedAlternates ?? [])].find((logo) => logo?.path === path) ?? null,
       }).catch((error: unknown) => {
         console.warn(`[polis] title logo skipped: ${error instanceof Error ? error.message : String(error)}`);
         params.onLogoFailed?.();
