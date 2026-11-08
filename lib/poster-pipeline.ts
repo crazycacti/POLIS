@@ -164,6 +164,7 @@ export async function renderPosterForImdb(params: {
         logoPath,
         logoAlternates,
         prefetchedLogo: primaryLogo,
+        onLogoFailed: () => params.onDegraded?.(),
       }),
     );
   }
@@ -183,6 +184,7 @@ export async function renderPosterForImdb(params: {
         logoPath,
         logoAlternates,
         prefetchedLogo: primaryLogo,
+        onLogoFailed: () => params.onDegraded?.(),
       }),
     );
   }

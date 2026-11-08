@@ -520,6 +520,7 @@ export async function renderSoftPoster(params: {
   logoPath: string | null;
   logoAlternates?: string[];
   prefetchedLogo?: PrefetchedPosterLogo | null;
+  onLogoFailed?: () => void;
 }): Promise<Buffer | null> {
   ensurePolisSharpConfigured();
   const { overlay } = params;
@@ -630,7 +631,11 @@ export async function renderSoftPoster(params: {
 
     let chosen: Awaited<ReturnType<typeof placeLogo>> = null;
     for (const path of [params.logoPath, ...(params.logoAlternates ?? [])]) {
-      const candidate = await placeLogo(path);
+      const candidate = await placeLogo(path).catch((error: unknown) => {
+        console.warn(`[polis] title logo skipped: ${error instanceof Error ? error.message : String(error)}`);
+        params.onLogoFailed?.();
+        return null;
+      });
       if (!candidate) continue;
       if (!chosen || candidate.share > chosen.share) chosen = candidate;
       if (candidate.share >= LOGO_MIN_LEGIBLE_SHARE) break;

@@ -96,6 +96,7 @@ export async function renderLandscapeSoft(params: {
   logoPath: string | null;
   logoAlternates?: string[];
   prefetchedLogo?: PrefetchedPosterLogo | null;
+  onLogoFailed?: () => void;
 }): Promise<Buffer> {
   ensurePolisSharpConfigured();
   const { overlay } = params;
@@ -185,6 +186,10 @@ export async function renderLandscapeSoft(params: {
         left: padX,
         bottom,
         prefetched: params.prefetchedLogo ?? null,
+      }).catch((error: unknown) => {
+        console.warn(`[polis] title logo skipped: ${error instanceof Error ? error.message : String(error)}`);
+        params.onLogoFailed?.();
+        return null;
       });
       if (!candidate) continue;
       if (!chosen || candidate.share > chosen.share) chosen = candidate;
