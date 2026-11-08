@@ -1,15 +1,23 @@
 "use client";
 
-import { ChevronDown, ChevronUp, X } from "lucide-react";
+import { ChevronDown, ChevronUp, MoreHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
-import { MDBLIST_WATCHLIST_PRESETS, TMDB_CATALOG_PRESETS } from "@/lib/catalog-presets";
-import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
+import { PolisSwitch } from "@/components/setup/polis-switch";
+import { SetupMenu } from "@/components/setup/setup-menu";
+import {
+  MDBLIST_WATCHLIST_PRESETS,
+  TMDB_CATALOG_PRESETS,
+  TMDB_EXTRA_CATALOG_PRESETS,
+} from "@/lib/catalog-presets";
+import { CATALOG_NAME_MAX_LENGTH, type PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import {
   catalogDefinitionKey,
   mergeCatalogSelections,
   moveCatalogSelection,
+  moveCatalogSelectionToEdge,
   removeCatalogSelection,
+  updateCatalogSelection,
 } from "@/lib/polis-catalogs-json";
 import {
   mdblistListToCatalogDefinitions,
@@ -18,13 +26,14 @@ import {
 } from "@/lib/mdblist-list-catalog";
 
 const CATALOG_LIMIT = 32;
+const TMDB_CATALOG_OPTIONS = [...TMDB_CATALOG_PRESETS, ...TMDB_EXTRA_CATALOG_PRESETS];
 
 type CatalogSource = "tmdb" | "watchlist" | "lists";
 type DiscoverMode = "user" | "search" | "mine" | "top";
 
 const POPULAR_AUTHOR_LIMIT = 8;
 type PendingFocus =
-  | { action: "up" | "down"; key: string }
+  | { action: "up" | "down" | "rename" | "edge"; key: string }
   | { action: "remove"; index: number };
 
 const SOURCE_LABELS: Record<CatalogSource, string> = {
@@ -102,6 +111,8 @@ export function SetupCatalogsPanel(props: {
     [topLists],
   );
   const selectedPaneRef = useRef<HTMLElement>(null);
+  const [renamingKey, setRenamingKey] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
   const selectedHeadingRef = useRef<HTMLHeadingElement>(null);
   const pendingFocus = useRef<PendingFocus | null>(null);
 
@@ -125,18 +136,26 @@ export function SetupCatalogsPanel(props: {
     if (!pending || !pane) return;
     pendingFocus.current = null;
     if (pending.action === "remove") {
-      const removeButtons = pane.querySelectorAll<HTMLButtonElement>("[data-catalog-remove]");
-      const next = removeButtons[Math.min(pending.index, removeButtons.length - 1)];
+      const visible = [...pane.querySelectorAll<HTMLButtonElement>("[data-catalog-remove]")].filter(
+        (button) => button.offsetParent !== null,
+      );
+      const names = pane.querySelectorAll<HTMLButtonElement>("[data-catalog-name]");
+      const targets = visible.length > 0 ? visible : [...names];
+      const next = targets[Math.min(pending.index, targets.length - 1)];
       (next ?? selectedHeadingRef.current)?.focus();
       return;
     }
     const row = pane.querySelector(`[data-catalog-key="${CSS.escape(pending.key)}"]`);
+    if (pending.action === "rename" || pending.action === "edge") {
+      row?.querySelector<HTMLButtonElement>("[data-catalog-name]")?.focus();
+      return;
+    }
     const sameDirection = row?.querySelector<HTMLButtonElement>(
       `[data-catalog-move="${pending.action}"]:not(:disabled)`,
     );
     const anyMove = row?.querySelector<HTMLButtonElement>("[data-catalog-move]:not(:disabled)");
     (sameDirection ?? anyMove)?.focus();
-  }, [props.selected]);
+  }, [props.selected, renamingKey]);
 
   const wouldExceedLimit = (count: number) => props.selected.length + count > CATALOG_LIMIT;
 
@@ -216,6 +235,26 @@ export function SetupCatalogsPanel(props: {
     if (!discovering) void discover("user", author);
   }
 
+  const renameOpen = useRef<string | null>(null);
+
+  function startRename(def: PolisCatalogDefinition) {
+    const key = catalogDefinitionKey(def);
+    renameOpen.current = key;
+    setRenamingKey(key);
+    setRenameDraft(def.name);
+  }
+
+  function finishRename(save: boolean) {
+    const key = renameOpen.current;
+    renameOpen.current = null;
+    setRenamingKey(null);
+    if (!key) return;
+    if (save && renameDraft.trim()) {
+      props.onChange(updateCatalogSelection(props.selected, key, { name: renameDraft }));
+    }
+    pendingFocus.current = { action: "rename", key };
+  }
+
   function submitSearch(e: FormEvent) {
     e.preventDefault();
     if (search.trim() && !discovering) void discover("search");
@@ -285,6 +324,10 @@ export function SetupCatalogsPanel(props: {
             ) : null}
           </div>
         ) : (
+          <>
+          <p aria-hidden className="flex justify-end pb-1 text-xs text-zinc-400">
+            <span className="mr-[calc(2.25rem+0.25rem)] w-12 text-center pointer-coarse:mr-[calc(2.75rem+0.25rem)] sm:mr-[calc(9rem+0.25rem)] sm:pointer-coarse:mr-[calc(11rem+0.25rem)]">Home</span>
+          </p>
           <ol className="polis-catalog-selected-list divide-y divide-white/5 border-y border-white/5">
             {props.selected.map((c, index) => {
               const key = catalogDefinitionKey(c);
@@ -295,7 +338,37 @@ export function SetupCatalogsPanel(props: {
                     {index + 1}
                   </span>
                   <span className="min-w-0 flex-1 pl-1">
-                    <span className="block truncate text-sm text-zinc-200">{name}</span>
+                    {renamingKey === key ? (
+                      <input
+                        aria-label={`Rename ${name}`}
+                        autoFocus
+                        className="polis-input w-full py-1 text-sm"
+                        maxLength={CATALOG_NAME_MAX_LENGTH}
+                        onBlur={() => finishRename(true)}
+                        onFocus={(e) => e.currentTarget.select()}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            finishRename(true);
+                          } else if (e.key === "Escape") {
+                            e.preventDefault();
+                            finishRename(false);
+                          }
+                        }}
+                        value={renameDraft}
+                      />
+                    ) : (
+                      <button
+                        aria-label={`Rename ${name}`}
+                        className="polis-focus block max-w-full truncate rounded text-left text-sm text-zinc-200 hover:text-white"
+                        data-catalog-name
+                        onClick={() => startRename(c)}
+                        type="button"
+                      >
+                        {name}
+                      </button>
+                    )}
                     {c.provider.kind === "mdblist" && !props.hasMdblist ? (
                       <span className="block truncate text-xs text-amber-200/95">
                         Needs your MDBList key
@@ -307,9 +380,64 @@ export function SetupCatalogsPanel(props: {
                     )}
                   </span>
                   <span className="flex shrink-0 items-center">
+                    <span className="mr-1 flex w-12 justify-center">
+                      <PolisSwitch
+                        aria-label={`Show ${name} on Home`}
+                        checked={c.home !== false}
+                        onChange={(home) => props.onChange(updateCatalogSelection(props.selected, key, { home }))}
+                      />
+                    </span>
+                    <SetupMenu
+                      icon={MoreHorizontal}
+                      iconOnly
+                      items={[
+                        { label: "Rename", onSelect: () => startRename(c) },
+                        {
+                          label: "Move up",
+                          disabled: index === 0,
+                          onSelect: () => {
+                            pendingFocus.current = { action: "edge", key };
+                            props.onChange(moveCatalogSelection(props.selected, key, "up"));
+                          },
+                        },
+                        {
+                          label: "Move down",
+                          disabled: index === props.selected.length - 1,
+                          onSelect: () => {
+                            pendingFocus.current = { action: "edge", key };
+                            props.onChange(moveCatalogSelection(props.selected, key, "down"));
+                          },
+                        },
+                        {
+                          label: "Move to top",
+                          disabled: index === 0,
+                          onSelect: () => {
+                            pendingFocus.current = { action: "edge", key };
+                            props.onChange(moveCatalogSelectionToEdge(props.selected, key, "top"));
+                          },
+                        },
+                        {
+                          label: "Move to bottom",
+                          disabled: index === props.selected.length - 1,
+                          onSelect: () => {
+                            pendingFocus.current = { action: "edge", key };
+                            props.onChange(moveCatalogSelectionToEdge(props.selected, key, "bottom"));
+                          },
+                        },
+                        {
+                          label: "Remove",
+                          dividerBefore: true,
+                          onSelect: () => {
+                            pendingFocus.current = { action: "remove", index };
+                            props.onChange(removeCatalogSelection(props.selected, key));
+                          },
+                        },
+                      ]}
+                      label={`More for ${name}`}
+                    />
                     <button
                       aria-label={`Move ${name} up`}
-                      className="polis-icon-btn pointer-coarse:h-11 pointer-coarse:w-11"
+                      className="polis-icon-btn hidden pointer-coarse:h-11 pointer-coarse:w-11 sm:inline-flex"
                       data-catalog-move="up"
                       disabled={index === 0}
                       onClick={() => {
@@ -322,7 +450,7 @@ export function SetupCatalogsPanel(props: {
                     </button>
                     <button
                       aria-label={`Move ${name} down`}
-                      className="polis-icon-btn pointer-coarse:h-11 pointer-coarse:w-11"
+                      className="polis-icon-btn hidden pointer-coarse:h-11 pointer-coarse:w-11 sm:inline-flex"
                       data-catalog-move="down"
                       disabled={index === props.selected.length - 1}
                       onClick={() => {
@@ -335,7 +463,7 @@ export function SetupCatalogsPanel(props: {
                     </button>
                     <button
                       aria-label={`Remove ${name}`}
-                      className="polis-icon-btn pointer-coarse:h-11 pointer-coarse:w-11"
+                      className="polis-icon-btn hidden pointer-coarse:h-11 pointer-coarse:w-11 sm:inline-flex"
                       data-catalog-remove
                       onClick={() => {
                         pendingFocus.current = { action: "remove", index };
@@ -350,6 +478,7 @@ export function SetupCatalogsPanel(props: {
               );
             })}
           </ol>
+          </>
         )}
       </section>
 
@@ -381,7 +510,7 @@ export function SetupCatalogsPanel(props: {
         ) : null}
 
         {source === "tmdb" ? (
-          <ul className="space-y-1">{presetRows(TMDB_CATALOG_PRESETS, (def) => def.name)}</ul>
+          <ul className="space-y-1">{presetRows(TMDB_CATALOG_OPTIONS, (def) => def.name)}</ul>
         ) : null}
 
         {source !== "tmdb" && !props.hasMdblist ? (

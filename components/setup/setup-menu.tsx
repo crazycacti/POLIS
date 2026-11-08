@@ -10,7 +10,12 @@ export type SetupMenuItem = {
   dividerBefore?: boolean;
 };
 
-export function SetupMenu(props: { label: string; icon: LucideIcon; items: SetupMenuItem[] }) {
+export function SetupMenu(props: {
+  label: string;
+  icon: LucideIcon;
+  items: SetupMenuItem[];
+  iconOnly?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -82,14 +87,15 @@ export function SetupMenu(props: { label: string; icon: LucideIcon; items: Setup
         aria-controls={open ? menuId : undefined}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="polis-btn-secondary"
+        aria-label={props.iconOnly ? props.label : undefined}
+        className={props.iconOnly ? "polis-icon-btn pointer-coarse:h-11 pointer-coarse:w-11" : "polis-btn-secondary"}
         onClick={() => (open ? close(false) : openAt(0))}
         onKeyDown={onButtonKeyDown}
         ref={buttonRef}
         type="button"
       >
         <Icon aria-hidden className="h-4 w-4" />
-        {props.label}
+        {props.iconOnly ? null : props.label}
       </button>
       {open ? (
         <div
