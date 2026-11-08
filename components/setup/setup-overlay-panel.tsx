@@ -33,7 +33,7 @@ import type {
   ShadeLevel,
 } from "@/lib/poster-query";
 import { LOGO_SOURCES_AUTO, PILL_ALPHA_MAX, PILL_ALPHA_MIN } from "@/lib/poster-query";
-import type { RatingSource } from "@/lib/ratings";
+import { MAX_RATING_BADGES, parseRatingBadgeSources, type RatingBadgeSource, type RatingSource } from "@/lib/ratings";
 
 const LOGO_SOURCE_ORDERS: { value: string; label: string }[] = [
   { value: LOGO_SOURCES_AUTO, label: "Match the art" },
@@ -60,6 +60,23 @@ const RATING_SOURCES: { value: RatingSource; label: string }[] = [
   { value: "letterboxd", label: "Letterboxd" },
   { value: "mdblist", label: "MDBList" },
 ];
+
+const RATING_BADGE_OPTIONS: { value: RatingBadgeSource; label: string }[] = [
+  { value: "imdb", label: "IMDb" },
+  { value: "tomatoes", label: "Rotten Tomatoes" },
+  { value: "tomatoesaudience", label: "RT Audience" },
+  { value: "metacritic", label: "Metacritic" },
+  { value: "letterboxd", label: "Letterboxd" },
+  { value: "trakt", label: "Trakt" },
+  { value: "tmdb", label: "TMDB" },
+  { value: "mdblist", label: "MDBList" },
+];
+
+function toggleRatingBadge(current: string, source: RatingBadgeSource, on: boolean): string {
+  const list = parseRatingBadgeSources(current).filter((s) => s !== source);
+  if (on) list.push(source);
+  return list.slice(0, MAX_RATING_BADGES).join(",");
+}
 
 const SCORE_STYLES: { value: PosterLook; label: string }[] = [
   { value: "soft", label: "Circle" },
@@ -133,6 +150,11 @@ function badgesSummary(overlay: PosterOverlayQuery): string {
 
 function ratingSummary(overlay: PosterOverlayQuery, classic: boolean): string {
   if (!overlay.rating) return OFF_SUMMARY;
+  const badges = parseRatingBadgeSources(overlay.ratingBadges);
+  if (badges.length > 0) {
+    const names = badges.map((b) => RATING_BADGE_OPTIONS.find((o) => o.value === b)?.label ?? b);
+    return `${names.join(", ")} badges`;
+  }
   const source = RATING_SOURCES.find((option) => option.value === overlay.ratingSource)?.label ?? overlay.ratingSource;
   return `${source}, ${classic ? "star pill" : "circle"}`;
 }
@@ -147,11 +169,17 @@ function shadeSummary(overlay: PosterOverlayQuery): string {
   return `${shade}, labels ${overlay.pillAlpha}%`;
 }
 
-function ChipToggle(props: { label: string; pressed: boolean; onChange: (pressed: boolean) => void }) {
+function ChipToggle(props: {
+  label: string;
+  pressed: boolean;
+  onChange: (pressed: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
     <button
       aria-pressed={props.pressed}
-      className={`polis-focus min-h-10 rounded-full border px-4 text-sm transition-colors pointer-coarse:min-h-11 ${
+      disabled={props.disabled}
+      className={`polis-focus min-h-10 rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-h-11 ${
         props.pressed
           ? "border-cyan-400/80 bg-cyan-500/20 text-white"
           : "border-white/15 text-zinc-400 hover:border-white/30 hover:text-white"
@@ -300,6 +328,7 @@ export function SetupOverlayPanel(props: {
   const { overlay, setOverlay, openPart, onOpenPartChange } = props;
   const landscape = overlay.posterShape === "landscape";
   const classic = overlay.look === "classic" && !landscape;
+  const badgeMode = parseRatingBadgeSources(overlay.ratingBadges).length > 0;
   const toggle = (part: PosterPart) => () => onOpenPartChange(openPart === part ? null : part);
 
   return (
@@ -429,12 +458,35 @@ export function SetupOverlayPanel(props: {
         part="rating"
         summary={ratingSummary(overlay, classic)}
       >
-        {landscape ? null : (
+        <div aria-labelledby="rating-sites-label" className="sm:col-span-2" role="group">
+          <span className="mb-1.5 block text-sm text-zinc-300" id="rating-sites-label">
+            Rating sites
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {RATING_BADGE_OPTIONS.map((option) => {
+              const selected = parseRatingBadgeSources(overlay.ratingBadges);
+              const pressed = selected.includes(option.value);
+              return (
+                <ChipToggle
+                  disabled={!pressed && selected.length >= MAX_RATING_BADGES}
+                  key={option.value}
+                  label={option.label}
+                  onChange={(on) =>
+                    setOverlay((o) => ({ ...o, ratingBadges: toggleRatingBadge(o.ratingBadges, option.value, on) }))
+                  }
+                  pressed={pressed}
+                />
+              );
+            })}
+          </div>
+        </div>
+        {landscape || badgeMode ? null : (
           <ScoreStylePicker
             onChange={(look) => setOverlay((o) => ({ ...o, look }))}
             value={overlay.look}
           />
         )}
+        {badgeMode ? null : (
         <SetupOverlayField label="Source">
           <select
             className="polis-select w-full"
@@ -453,7 +505,8 @@ export function SetupOverlayPanel(props: {
             ))}
           </select>
         </SetupOverlayField>
-        {classic ? (
+        )}
+        {classic && !badgeMode ? (
           <SetupOverlayField label="Format">
             <select
               className="polis-select w-full"
@@ -467,12 +520,13 @@ export function SetupOverlayPanel(props: {
           </SetupOverlayField>
         ) : null}
         <SetupOverlayRange
-          label={classic ? "Font size" : "Ring size"}
+          label={badgeMode ? "Badge size" : classic ? "Font size" : "Ring size"}
           max={LABEL_RANGE_MAX}
           min={LABEL_RANGE_MIN}
           onChange={(ratingFontSize) => setOverlay((o) => ({ ...o, ratingFontSize }))}
           value={overlay.ratingFontSize}
         />
+{badgeMode ? null : (
         <SetupOverlayColor
           auto={overlay.ratingColor === "auto"}
           autoLabel={classic ? "Auto text color" : "Ring color follows the score"}
@@ -485,6 +539,7 @@ export function SetupOverlayPanel(props: {
           }
           onColorChange={(ratingColor) => setOverlay((o) => ({ ...o, ratingColor }))}
         />
+        )}
       </PosterPartRow>
 
       {landscape ? null : (
