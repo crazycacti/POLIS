@@ -13,13 +13,16 @@ import {
 } from "@/lib/polis-catalogs-json";
 import {
   mdblistListToCatalogDefinitions,
+  popularMdblistAuthors,
   type MdblistListSummary,
 } from "@/lib/mdblist-list-catalog";
 
 const CATALOG_LIMIT = 32;
 
 type CatalogSource = "tmdb" | "watchlist" | "lists";
-type DiscoverMode = "user" | "search" | "mine";
+type DiscoverMode = "user" | "search" | "mine" | "top";
+
+const POPULAR_AUTHOR_LIMIT = 8;
 type PendingFocus =
   | { action: "up" | "down"; key: string }
   | { action: "remove"; index: number };
@@ -93,6 +96,11 @@ export function SetupCatalogsPanel(props: {
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [noListsFound, setNoListsFound] = useState(false);
   const [discovering, setDiscovering] = useState<DiscoverMode | null>(null);
+  const [topLists, setTopLists] = useState<MdblistListSummary[] | null>(null);
+  const popularAuthors = useMemo(
+    () => (topLists ? popularMdblistAuthors(topLists, POPULAR_AUTHOR_LIMIT) : []),
+    [topLists],
+  );
   const selectedPaneRef = useRef<HTMLElement>(null);
   const selectedHeadingRef = useRef<HTMLHeadingElement>(null);
   const pendingFocus = useRef<PendingFocus | null>(null);
@@ -160,15 +168,16 @@ export function SetupCatalogsPanel(props: {
     [props.onChange, props.selected],
   );
 
-  async function discover(mode: DiscoverMode) {
+  async function discover(mode: DiscoverMode, author?: string) {
     setDiscovering(mode);
     setDiscoverError(null);
     setNoListsFound(false);
     try {
-      const body: Record<string, string> = {};
+      const body: Record<string, string | boolean> = {};
       if (props.mdblistApiKey) body.mdblistApiKey = props.mdblistApiKey;
-      if (mode === "user") body.username = username.trim();
+      if (mode === "user") body.username = (author ?? username).trim();
       else if (mode === "search") body.search = search.trim();
+      else if (mode === "top") body.top = true;
       const res = await fetch("/api/catalogs/discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -184,6 +193,7 @@ export function SetupCatalogsPanel(props: {
         return;
       }
       const lists = data.mdblistLists ?? [];
+      if (mode === "top") setTopLists(lists);
       setRemoteLists(lists);
       setNoListsFound(lists.length === 0);
     } catch {
@@ -192,6 +202,18 @@ export function SetupCatalogsPanel(props: {
     } finally {
       setDiscovering(null);
     }
+  }
+
+  const topRequested = useRef(false);
+  useEffect(() => {
+    if (source !== "lists" || !props.hasMdblist || topRequested.current) return;
+    topRequested.current = true;
+    void discover("top");
+  });
+
+  function showAuthor(author: string) {
+    setUsername(author);
+    if (!discovering) void discover("user", author);
   }
 
   function submitSearch(e: FormEvent) {
@@ -403,6 +425,14 @@ export function SetupCatalogsPanel(props: {
               <button
                 className="polis-btn-secondary shrink-0"
                 disabled={Boolean(discovering)}
+                onClick={() => void discover("top")}
+                type="button"
+              >
+                {discovering === "top" ? "Loading…" : "Popular"}
+              </button>
+              <button
+                className="polis-btn-secondary shrink-0"
+                disabled={Boolean(discovering)}
                 onClick={() => void discover("mine")}
                 type="button"
               >
@@ -432,6 +462,22 @@ export function SetupCatalogsPanel(props: {
               </form>
             </div>
 
+            {popularAuthors.length > 0 ? (
+              <div aria-label="Popular authors" className="flex flex-wrap gap-2" role="group">
+                {popularAuthors.map((author) => (
+                  <button
+                    className="polis-focus min-h-9 rounded-full border border-white/15 px-3 text-sm text-zinc-300 hover:border-white/30 hover:text-white pointer-coarse:min-h-11"
+                    disabled={Boolean(discovering)}
+                    key={author.username}
+                    onClick={() => showAuthor(author.username)}
+                    type="button"
+                  >
+                    {`@${author.username}`}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             {discoverError ? (
               <p className="text-sm text-amber-200/95" role="alert">
                 {discoverError}
@@ -447,7 +493,10 @@ export function SetupCatalogsPanel(props: {
                   const defs = mdblistListToCatalogDefinitions(list);
                   const checked = defs.every((d) => selectedKeys.has(catalogDefinitionKey(d)));
                   const missing = defs.filter((d) => !selectedKeys.has(catalogDefinitionKey(d)));
-                  const detail = [list.username ? `@${list.username}` : null, `#${list.id}`]
+                  const detail = [
+                    list.username ? `@${list.username}` : null,
+                    list.items != null ? `${list.items} ${list.items === 1 ? "title" : "titles"}` : `#${list.id}`,
+                  ]
                     .filter(Boolean)
                     .join(", ");
                   return (

@@ -4,6 +4,7 @@ import { proxyClientKey } from "@/lib/client-request-context";
 import { MDBLIST_WATCHLIST_PRESETS, TMDB_CATALOG_PRESETS } from "@/lib/catalog-presets";
 import {
   fetchMdblistOwnLists,
+  fetchMdblistTopLists,
   fetchMdblistUserListsByUsername,
   searchMdblistLists,
 } from "@/lib/mdblist-lists";
@@ -26,6 +27,7 @@ type DiscoverBody = {
   mdblistApiKey?: unknown;
   username?: unknown;
   search?: unknown;
+  top?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -73,7 +75,9 @@ export async function POST(request: Request) {
   try {
     const search = typeof body.search === "string" ? body.search.trim() : "";
     const username = typeof body.username === "string" ? body.username.trim() : "";
-    if (search) {
+    if (body.top === true) {
+      response.mdblistLists = await fetchMdblistTopLists(serverKey || callerKey, serverKey ? { serverKeyProfile: DISCOVER_SERVER_KEY_PROFILE } : {});
+    } else if (search) {
       response.mdblistLists = await searchMdblistLists(search, mdblistKey, listsOptions);
     } else if (username) {
       response.mdblistLists = await fetchMdblistUserListsByUsername(username, mdblistKey, listsOptions);

@@ -27,8 +27,13 @@ function mediatypeFromRow(row: Record<string, unknown>): string | null {
 }
 
 function usernameFromRow(row: Record<string, unknown>): string | null {
-  const raw = row.username ?? row.user ?? row.owner;
+  const raw = row.user_name ?? row.username ?? row.user ?? row.owner;
   return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+}
+
+function countFromRow(row: Record<string, unknown>, key: string): number | null {
+  const raw = row[key];
+  return typeof raw === "number" && Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : null;
 }
 
 function rowsFromPayload(payload: unknown): Record<string, unknown>[] {
@@ -58,6 +63,8 @@ function summariesFromRows(rows: Record<string, unknown>[]): MdblistListSummary[
       name: listNameFromRow(row),
       mediatype: mediatypeFromRow(row),
       username: usernameFromRow(row),
+      items: countFromRow(row, "items"),
+      likes: countFromRow(row, "likes"),
     });
   }
   return out;
@@ -127,4 +134,23 @@ export async function searchMdblistLists(
   const url = new URL("https://api.mdblist.com/lists/search");
   url.searchParams.set("query", q);
   return mdblistListsGet(url, apiKey, options);
+}
+
+const TOP_LISTS_TTL_MS = 6 * 60 * 60 * 1000;
+
+let topListsCache: { at: number; lists: MdblistListSummary[] } | null = null;
+
+export async function fetchMdblistTopLists(
+  apiKey: string,
+  options: MdblistListsOptions = {},
+  now = Date.now(),
+): Promise<MdblistListSummary[]> {
+  if (topListsCache && now - topListsCache.at < TOP_LISTS_TTL_MS) return topListsCache.lists;
+  const lists = await mdblistListsGet(new URL("https://api.mdblist.com/lists/top"), apiKey, options);
+  if (lists.length > 0) topListsCache = { at: now, lists };
+  return lists;
+}
+
+export function clearMdblistTopListsCache(): void {
+  topListsCache = null;
 }
