@@ -262,7 +262,7 @@ export function SetupCatalogsPanel(props: {
             ref={selectedHeadingRef}
             tabIndex={-1}
           >
-            In Stremio
+            Your catalogs
             <span className="ml-2 text-sm font-normal tabular-nums text-zinc-400">
               {props.selected.length}
               <span className="sr-only"> {props.selected.length === 1 ? "row" : "rows"}</span>

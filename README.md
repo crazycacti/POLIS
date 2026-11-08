@@ -16,7 +16,7 @@ Poster overlays for Stremio, Aurora Media Center and AIOMetadata: ratings, trend
 
 | Catalogs | Phone |
 | --- | --- |
-| <img src="docs/images/catalogs.jpg" alt="The Catalogs tab with four TMDB rows in order and the sources to add more"> | <img src="docs/images/phone.jpg" width="260" alt="The configure page at phone width"> |
+| <img src="docs/images/catalogs.jpg" alt="The Catalogs tab with four TMDB catalogs in order and the sources to add more"> | <img src="docs/images/phone.jpg" width="260" alt="The configure page at phone width"> |
 
 ## What it does
 

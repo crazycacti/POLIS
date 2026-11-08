@@ -52,14 +52,14 @@ export const rootMetadata: Metadata = {
 export const setupPageMetadata: Metadata = {
   title: "Setup",
   description:
-    "Configure API keys, overlay options, and catalogs. Copy your addon install URL or AIOMetadata art patterns for Aurora and Stremio.",
+    "Configure API keys, overlay options, and catalogs. Copy your install URL or AIOMetadata art patterns.",
   alternates: {
     canonical: "/configure",
   },
   openGraph: {
     title: `Setup | ${SITE_NAME}`,
     description:
-      "Configure API keys, overlay options, and catalogs. Copy your addon install URL or AIOMetadata art patterns for Aurora and Stremio.",
+      "Configure API keys, overlay options, and catalogs. Copy your install URL or AIOMetadata art patterns.",
     url: "/configure",
   },
 };
@@ -67,14 +67,14 @@ export const setupPageMetadata: Metadata = {
 export const configurePageMetadata: Metadata = {
   title: "Configure",
   description:
-    "Configure API keys, overlay options, and catalogs. Save your profile with a password and install the Stremio addon.",
+    "Configure API keys, overlay options, and catalogs. Save your profile with a password and copy your install URL.",
   alternates: {
     canonical: "/configure",
   },
   openGraph: {
     title: `Configure | ${SITE_NAME}`,
     description:
-      "Configure API keys, overlay options, and catalogs. Save your profile with a password and install the Stremio addon.",
+      "Configure API keys, overlay options, and catalogs. Save your profile with a password and copy your install URL.",
     url: "/configure",
   },
 };
