@@ -28,8 +28,8 @@ async function setup() {
     GET(new Request(`http://polis.test/api/config/${config.id}`, { headers: cookie ? { cookie } : {} }), {
       params: Promise.resolve({ configId: config.id }),
     });
-  const sessionCookie = auth.configureSessionCookieHeader(auth.createConfigureSessionToken(config.id)).split(";")[0];
-  return { config, get, sessionCookie, auth };
+  const sessionCookie = auth.configureSessionCookieHeader(auth.createConfigureSessionToken(config.id, store.getConfigPasswordHash(config.id))).split(";")[0];
+  return { config, get, sessionCookie, auth, store };
 }
 
 describe("GET /api/config/[configId]", () => {
@@ -52,7 +52,14 @@ describe("GET /api/config/[configId]", () => {
   test("does not accept another profile's session", async () => {
     const { get, auth } = await setup();
     const other = await setup();
-    const foreign = auth.configureSessionCookieHeader(auth.createConfigureSessionToken(other.config.id)).split(";")[0];
+    const foreign = auth.configureSessionCookieHeader(auth.createConfigureSessionToken(other.config.id, other.store.getConfigPasswordHash(other.config.id))).split(";")[0];
     expect((await get(foreign)).status).toBe(401);
+  });
+
+  test("ends older sessions when the password changes", async () => {
+    const { config, get, sessionCookie, store } = await setup();
+    expect((await get(sessionCookie)).status).toBe(200);
+    await store.setPolisConfigPassword(config.id, "a different passphrase");
+    expect((await get(sessionCookie)).status).toBe(401);
   });
 });

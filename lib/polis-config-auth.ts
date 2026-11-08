@@ -21,15 +21,23 @@ function signPayload(payload: string): string {
   return createHmac("sha256", sessionSecret()).update(payload).digest("base64url");
 }
 
-export function createConfigureSessionToken(configId: string): string {
+const PASSWORD_STAMP_LENGTH = 16;
+
+// Sessions carry a stamp of the password hash, so setting or changing a password ends older sessions.
+function passwordStamp(configId: string, passwordHash: string | null): string {
+  return signPayload(`password:${configId}:${passwordHash?.trim() ?? ""}`).slice(0, PASSWORD_STAMP_LENGTH);
+}
+
+export function createConfigureSessionToken(configId: string, passwordHash: string | null): string {
   const exp = Date.now() + SESSION_MS;
-  const payload = `${configId}:${exp}`;
+  const payload = `${configId}:${exp}:${passwordStamp(configId, passwordHash)}`;
   return `${payload}.${signPayload(payload)}`;
 }
 
 export function verifyConfigureSessionToken(
   token: string | null | undefined,
   configId: string,
+  passwordHash: string | null,
 ): boolean {
   if (!token?.trim()) return false;
   const parts = token.split(".");
@@ -46,11 +54,13 @@ export function verifyConfigureSessionToken(
     return false;
   }
 
-  const [id, expRaw] = payload.split(":");
-  if (id !== configId) return false;
+  const [id, expRaw, stamp, ...rest] = payload.split(":");
+  if (id !== configId || rest.length > 0) return false;
   const exp = Number(expRaw);
   if (!Number.isFinite(exp) || exp < Date.now()) return false;
-  return true;
+  const expectedStamp = passwordStamp(configId, passwordHash);
+  if (!stamp || stamp.length !== expectedStamp.length) return false;
+  return timingSafeEqual(Buffer.from(stamp), Buffer.from(expectedStamp));
 }
 
 export function parseConfigureSessionCookie(

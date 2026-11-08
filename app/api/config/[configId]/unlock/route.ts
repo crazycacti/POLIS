@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { checkConfigPassword } from "@/lib/polis-config-api-auth";
-import {
-  configureSessionCookieHeader,
-  createConfigureSessionToken,
-} from "@/lib/polis-config-auth";
+import { checkConfigPassword, issueConfigureSessionToken } from "@/lib/polis-config-api-auth";
+import { configureSessionCookieHeader } from "@/lib/polis-config-auth";
 import { isValidPolisConfigId } from "@/lib/polis-config-id";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { readJsonBody, SMALL_JSON_BODY_MAX_BYTES } from "@/lib/request-json-body";
@@ -28,7 +25,7 @@ export async function POST(
   }
 
   if (!config.hasPassword) {
-    const token = createConfigureSessionToken(configId);
+    const token = issueConfigureSessionToken(configId);
     return NextResponse.json(
       { ok: true, authenticated: true },
       { headers: { "Set-Cookie": configureSessionCookieHeader(token) } },
@@ -53,7 +50,7 @@ export async function POST(
     return NextResponse.json({ error: check.error }, { status: check.status, headers });
   }
 
-  const token = createConfigureSessionToken(configId);
+  const token = issueConfigureSessionToken(configId);
   return NextResponse.json(
     { ok: true, authenticated: true },
     { headers: { "Set-Cookie": configureSessionCookieHeader(token) } },

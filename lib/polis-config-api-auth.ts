@@ -36,10 +36,14 @@ export async function checkConfigPassword(
   return { ok: true };
 }
 
+export function issueConfigureSessionToken(configId: string): string {
+  return createConfigureSessionToken(configId, getConfigPasswordHash(configId));
+}
+
 export function isConfigureSessionValid(request: Request, configId: string): boolean {
   const parsed = parseConfigureSessionCookie(request.headers.get("cookie"));
   if (!parsed || parsed.configId !== configId) return false;
-  return verifyConfigureSessionToken(parsed.token, configId);
+  return verifyConfigureSessionToken(parsed.token, configId, getConfigPasswordHash(configId));
 }
 
 export async function authorizeConfigWrite(
@@ -63,7 +67,7 @@ export async function authorizeConfigWrite(
   if (typeof password === "string" && password.trim()) {
     const check = await checkConfigPassword(configId, password.trim());
     if (check.ok) {
-      return { ok: true, sessionToken: createConfigureSessionToken(configId) };
+      return { ok: true, sessionToken: issueConfigureSessionToken(configId) };
     }
     return { ok: false, status: check.status, error: check.error };
   }

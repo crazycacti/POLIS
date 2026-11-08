@@ -2,13 +2,10 @@ import { NextResponse } from "next/server";
 
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import { parsePolisCatalogDefinition } from "@/lib/polis-catalogs-json";
-import {
-  authorizeConfigWrite,
-} from "@/lib/polis-config-api-auth";
+import { authorizeConfigWrite, issueConfigureSessionToken } from "@/lib/polis-config-api-auth";
 import { CONFIG_JSON_BODY_MAX_BYTES, readJsonBody } from "@/lib/request-json-body";
 import {
   configureSessionCookieHeader,
-  createConfigureSessionToken,
   hashConfigPassword,
   validateNewPasswordPair,
 } from "@/lib/polis-config-auth";
@@ -175,7 +172,7 @@ export async function POST(request: Request) {
     }
 
     const headers: HeadersInit = {};
-    const token = auth.sessionToken ?? createConfigureSessionToken(body.configId);
+    const token = issueConfigureSessionToken(body.configId);
     headers["Set-Cookie"] = configureSessionCookieHeader(token);
 
     return NextResponse.json(configResponse(updated), { headers });
@@ -207,7 +204,7 @@ export async function POST(request: Request) {
     passwordHash,
   });
 
-  const token = createConfigureSessionToken(created.id);
+  const token = issueConfigureSessionToken(created.id);
   return NextResponse.json(configResponse(created), {
     status: 201,
     headers: { "Set-Cookie": configureSessionCookieHeader(token) },
