@@ -1,8 +1,29 @@
 import { TMDB_CATALOG_PRESETS } from "@/lib/catalog-presets";
 import { parsePolisCatalogDefinition } from "@/lib/polis-catalogs-json";
 
+export type TmdbCatalogList =
+  | "trending"
+  | "popular"
+  | "top_rated"
+  | "now_playing"
+  | "upcoming"
+  | "on_the_air"
+  | "airing_today";
+
+const TMDB_LISTS_BY_TYPE: Record<"movie" | "series", readonly TmdbCatalogList[]> = {
+  movie: ["trending", "popular", "top_rated", "now_playing", "upcoming"],
+  series: ["trending", "popular", "top_rated", "on_the_air", "airing_today"],
+};
+
+export function isTmdbListForType(list: string, type: "movie" | "series"): list is TmdbCatalogList {
+  return (TMDB_LISTS_BY_TYPE[type] as readonly string[]).includes(list);
+}
+
+export const CATALOG_NAME_MAX_LENGTH = 60;
+export const DISCOVER_ONLY_GENRE_OPTION = "All";
+
 export type PolisCatalogProvider =
-  | { kind: "tmdb"; list: "trending" | "popular" }
+  | { kind: "tmdb"; list: TmdbCatalogList }
   | { kind: "mdblist"; list: "watchlist" | "list"; listId?: string };
 
 export type PolisCatalogDefinition = {
@@ -10,6 +31,7 @@ export type PolisCatalogDefinition = {
   type: "movie" | "series";
   name: string;
   provider: PolisCatalogProvider;
+  home?: false;
 };
 
 function parseMdblistCatalogEntry(raw: string): PolisCatalogDefinition | null {
@@ -124,6 +146,20 @@ export type StremioManifestCatalog = {
 };
 
 export function toStremioManifestCatalog(def: PolisCatalogDefinition): StremioManifestCatalog {
+  if (def.home === false) {
+    // A required extra keeps the row off the Board; Discover opens it with the first option.
+    return {
+      type: def.type,
+      id: def.id,
+      name: def.name,
+      extra: [
+        { name: "genre", isRequired: true, options: [DISCOVER_ONLY_GENRE_OPTION] },
+        { name: "skip", isRequired: false },
+      ],
+      extraSupported: ["genre", "skip"],
+      showInHome: false,
+    };
+  }
   return {
     type: def.type,
     id: def.id,

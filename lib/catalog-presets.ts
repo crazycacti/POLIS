@@ -27,6 +27,15 @@ export const TMDB_CATALOG_PRESETS: PolisCatalogDefinition[] = [
   },
 ];
 
+export const TMDB_EXTRA_CATALOG_PRESETS: PolisCatalogDefinition[] = [
+  { id: "tmdb-top-rated", type: "movie", name: "Top rated movies", provider: { kind: "tmdb", list: "top_rated" } },
+  { id: "tmdb-top-rated", type: "series", name: "Top rated TV", provider: { kind: "tmdb", list: "top_rated" } },
+  { id: "tmdb-now-playing", type: "movie", name: "In theaters", provider: { kind: "tmdb", list: "now_playing" } },
+  { id: "tmdb-upcoming", type: "movie", name: "Upcoming movies", provider: { kind: "tmdb", list: "upcoming" } },
+  { id: "tmdb-on-the-air", type: "series", name: "On the air", provider: { kind: "tmdb", list: "on_the_air" } },
+  { id: "tmdb-airing-today", type: "series", name: "Airing today", provider: { kind: "tmdb", list: "airing_today" } },
+];
+
 export const MDBLIST_WATCHLIST_PRESETS: PolisCatalogDefinition[] = [
   {
     id: "mdblist-watchlist-movie",

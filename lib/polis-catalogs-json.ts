@@ -1,9 +1,14 @@
-import type { PolisCatalogDefinition, PolisCatalogProvider } from "@/lib/polis-catalogs";
+import {
+  CATALOG_NAME_MAX_LENGTH,
+  isTmdbListForType,
+  type PolisCatalogDefinition,
+  type PolisCatalogProvider,
+} from "@/lib/polis-catalogs";
 
 const MDBLIST_LIST_ID = /^\d{1,20}$/;
 
-function parseProvider(raw: Record<string, unknown>): PolisCatalogProvider | null {
-  if (raw.kind === "tmdb" && (raw.list === "trending" || raw.list === "popular")) {
+function parseProvider(raw: Record<string, unknown>, type: "movie" | "series"): PolisCatalogProvider | null {
+  if (raw.kind === "tmdb" && typeof raw.list === "string" && isTmdbListForType(raw.list, type)) {
     return { kind: "tmdb", list: raw.list };
   }
   if (raw.kind === "mdblist" && raw.list === "watchlist") {
@@ -23,13 +28,14 @@ export function parsePolisCatalogDefinition(row: unknown): PolisCatalogDefinitio
   const id = typeof record.id === "string" ? record.id.trim() : "";
   const type =
     record.type === "series" ? "series" : record.type === "movie" ? "movie" : null;
-  const name = typeof record.name === "string" ? record.name.trim() : "";
+  const name =
+    typeof record.name === "string" ? record.name.trim().replace(/\s+/g, " ").slice(0, CATALOG_NAME_MAX_LENGTH).trim() : "";
   const provider =
-    record.provider && typeof record.provider === "object"
-      ? parseProvider(record.provider as Record<string, unknown>)
+    type && record.provider && typeof record.provider === "object"
+      ? parseProvider(record.provider as Record<string, unknown>, type)
       : null;
   if (!id || !type || !name || !provider) return null;
-  return { id, type, name, provider };
+  return record.home === false ? { id, type, name, provider, home: false } : { id, type, name, provider };
 }
 
 export function parsePolisCatalogDefinitionsFromJson(raw: string | null | undefined): PolisCatalogDefinition[] {
@@ -96,4 +102,32 @@ export function moveCatalogSelection(
   const [item] = next.splice(index, 1);
   next.splice(target, 0, item);
   return next;
+}
+
+export function moveCatalogSelectionToEdge(
+  current: PolisCatalogDefinition[],
+  key: string,
+  edge: "top" | "bottom",
+): PolisCatalogDefinition[] {
+  const index = current.findIndex((c) => catalogDefinitionKey(c) === key);
+  if (index < 0) return current;
+  const next = [...current];
+  const [item] = next.splice(index, 1);
+  if (edge === "top") next.unshift(item);
+  else next.push(item);
+  return next;
+}
+
+export function updateCatalogSelection(
+  current: PolisCatalogDefinition[],
+  key: string,
+  patch: { name?: string; home?: boolean },
+): PolisCatalogDefinition[] {
+  return current.map((c) => {
+    if (catalogDefinitionKey(c) !== key) return c;
+    const name = patch.name?.trim().replace(/\s+/g, " ").slice(0, CATALOG_NAME_MAX_LENGTH).trim() || c.name;
+    const { home: _home, ...rest } = c;
+    const home = patch.home ?? c.home !== false;
+    return home ? { ...rest, name } : { ...rest, name, home: false };
+  });
 }

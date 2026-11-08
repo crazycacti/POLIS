@@ -210,7 +210,7 @@ async function fetchTmdbCatalogMetas(params: {
   if (def.provider.list === "trending") {
     path = stremioType === "movie" ? "/trending/movie/day" : "/trending/tv/day";
   } else {
-    path = stremioType === "movie" ? "/movie/popular" : "/tv/popular";
+    path = `/${stremioType === "movie" ? "movie" : "tv"}/${def.provider.list}`;
   }
 
   const metas: StremioCatalogMeta[] = [];
