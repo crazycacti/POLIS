@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { SetupPasswordFields } from "@/components/setup/setup-password-fields";
 import { validateNewPasswordPair } from "@/lib/polis-config-auth-constants";
+import { restoreFocus } from "@/lib/focus-restore";
 
 export function SetupPasswordDialog(props: {
   open: boolean;
@@ -32,7 +33,7 @@ export function SetupPasswordDialog(props: {
     panelRef.current?.querySelector<HTMLInputElement>("input[name='new-password']")?.focus();
     return () => {
       document.body.style.overflow = previousOverflow;
-      returnFocusRef.current?.focus();
+      restoreFocus(returnFocusRef.current);
     };
   }, [props.open]);
 

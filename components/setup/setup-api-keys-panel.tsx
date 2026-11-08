@@ -1,7 +1,7 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ApiKeyProvider, ApiKeyValidateResult } from "@/lib/api-key-validate";
 import { inferTmdbCredentialParams } from "@/lib/tmdb-credential-infer";
@@ -122,6 +122,14 @@ function ApiKeyRow(props: {
   const [draft, setDraft] = useState("");
   const [validation, setValidation] = useState<Validation>({ state: "idle" });
   const [notice, setNotice] = useState<string | null>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const refocusEditButton = useRef(false);
+
+  useEffect(() => {
+    if (editing || !refocusEditButton.current) return;
+    refocusEditButton.current = false;
+    editButtonRef.current?.focus();
+  }, [editing]);
 
   const browserValue = source.browserValue.trim();
   const trimmedDraft = draft.trim();
@@ -156,6 +164,7 @@ function ApiKeyRow(props: {
   }
 
   function closeEditor() {
+    refocusEditButton.current = true;
     setDraft("");
     setValidation({ state: "idle" });
     setEditing(false);
@@ -194,6 +203,10 @@ function ApiKeyRow(props: {
     setNotice(null);
     closeEditor();
     props.onRemove(def.id);
+    if (!editing) {
+      refocusEditButton.current = false;
+      editButtonRef.current?.focus();
+    }
   }
 
   return (
@@ -215,7 +228,7 @@ function ApiKeyRow(props: {
             Get a key
           </a>
           {!editing ? (
-            <button className="polis-btn-secondary" onClick={openEditor} type="button">
+            <button className="polis-btn-secondary" onClick={openEditor} ref={editButtonRef} type="button">
               {browserValue || source.hasProfile ? "Replace" : source.hasServer ? "Use my own key" : "Add key"}
             </button>
           ) : null}

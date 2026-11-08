@@ -55,8 +55,10 @@ export function SetupSaveBar(props: {
           ) : null}
           <p
             aria-live="polite"
-            className={`flex min-w-0 items-center gap-2 text-zinc-300 ${props.error ? "sr-only" : ""}`}
+            className={`flex min-w-0 items-center gap-2 text-zinc-300 outline-none ${props.error ? "sr-only" : ""}`}
+            data-polis-focus-fallback=""
             role="status"
+            tabIndex={-1}
           >
             {locked ? (
               <span className="text-amber-100/95" id={reasonId}>
