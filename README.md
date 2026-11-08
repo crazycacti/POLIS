@@ -50,7 +50,9 @@ Open **More install options** to copy `customPosterUrlPattern` and `customLandsc
 
 ### Keys on the public instance
 
-The public instance uses shared server keys, each profile gets a daily share of them, and limits apply per client. Add your own keys under **API keys** to raise your limits. Watchlist and list catalogs always need your own MDBList key.
+The public instance has no server keys. Add your own TMDB and MDBList keys under **API keys**; Fanart.tv and TheTVDB are optional. Your keys are saved in your profile and used only for your posters and catalogs.
+
+On a self-hosted server you can set server keys instead. Each profile then gets a daily share of them, and limits apply per client. Watchlist and list catalogs always need the visitor's own MDBList key.
 
 ## Self-host with Docker
 
