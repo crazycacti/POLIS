@@ -28,6 +28,8 @@ describe("handleStremioMetaRequest upstream failures", () => {
 
 describe("handleStremioCatalogRequest upstream failures", () => {
   it("answers with no titles and CORS headers when TMDB cannot be reached", async () => {
+    const savedCatalogsFlag = process.env.POLIS_ENABLE_CATALOGS;
+    process.env.POLIS_ENABLE_CATALOGS = "1";
     const realFetch = globalThis.fetch;
     const realWarn = console.warn;
     console.warn = () => {};
@@ -46,6 +48,8 @@ describe("handleStremioCatalogRequest upstream failures", () => {
     } finally {
       globalThis.fetch = realFetch;
       console.warn = realWarn;
+      if (savedCatalogsFlag === undefined) delete process.env.POLIS_ENABLE_CATALOGS;
+      else process.env.POLIS_ENABLE_CATALOGS = savedCatalogsFlag;
     }
   });
 });
