@@ -171,6 +171,8 @@ Then open `http://localhost:3050/configure`.
 
 This product uses the TMDB API but is not endorsed or certified by TMDB. Metadata is also provided by [TheTVDB](https://thetvdb.com), with ratings from [MDBList](https://mdblist.com) and art from [Fanart.tv](https://fanart.tv).
 
+IMDb, Rotten Tomatoes, Metacritic, Letterboxd, Trakt, TMDB and MDBList names and logos are trademarks of their owners and are shown only to identify where each score comes from. Logo badges are optional. POLIS is not affiliated with or endorsed by any of them, and logos are removed on request.
+
 Inspired by the Better Posters addon.
 
 ## Support

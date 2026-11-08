@@ -84,6 +84,9 @@ function toggleRatingBadge(current: string, source: RatingBadgeSource, on: boole
   return list.slice(0, MAX_RATING_BADGES).join(",");
 }
 
+const RATING_LOGO_NOTICE =
+  "Site logos are trademarks of their owners. POLIS is not affiliated with or endorsed by them.";
+
 const SCORE_STYLES: { value: PosterLook; label: string }[] = [
   { value: "soft", label: "Circle" },
   { value: "classic", label: "Star pill" },
@@ -558,6 +561,9 @@ export function SetupOverlayPanel(props: {
           onColorChange={(ratingColor) => setOverlay((o) => ({ ...o, ratingColor }))}
         />
         )}
+      {badgeMode && overlay.ratingBadgeStyle === "logo" ? (
+          <p className="text-[11px] leading-snug text-zinc-400 sm:col-span-2">{RATING_LOGO_NOTICE}</p>
+        ) : null}
       </PosterPartRow>
 
       {landscape ? null : (
