@@ -8,6 +8,10 @@ export {
 export const POLIS_CONFIGURE_SESSION_COOKIE = "polis_configure_session";
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 
+export function polisSessionSecret(): string {
+  return sessionSecret();
+}
+
 function sessionSecret(): string {
   const fromEnv = process.env.POLIS_SESSION_SECRET?.trim();
   if (fromEnv) return fromEnv;
