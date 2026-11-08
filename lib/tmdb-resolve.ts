@@ -95,6 +95,7 @@ export type ResolvedTitle = {
   posterImages?: TmdbPosterImage[];
   backdropImages?: TmdbBackdropImage[];
   logoPaths?: string[];
+  partial?: boolean;
 };
 
 export { tmdbApiGet } from "@/lib/tmdb-api-get";
@@ -132,27 +133,30 @@ export async function resolveTitleFromImdb(params: {
 
   if (stremioType === "movie") {
     const d = detailsRaw as MovieDetailsJson;
-    const [logoPath, externalIds] = await Promise.all([
-      fetchLogoPath("movie", tmdbId, credential, language),
-      fetchExternalIds("movie", tmdbId, credential),
+    const [logo, externalIds] = await Promise.all([
+      optionalLookup(fetchLogoPath("movie", tmdbId, credential, language)),
+      optionalLookup(fetchExternalIds("movie", tmdbId, credential)),
     ]);
     const credits = creditsBlockFromDetails(d);
-    return mapResolved(
-      imdbId,
-      "movie",
-      tmdbId,
-      d,
-      logoPath,
-      externalIds?.tvdb_id ?? null,
-      null,
-      credits,
-    );
+    return {
+      ...mapResolved(
+        imdbId,
+        "movie",
+        tmdbId,
+        d,
+        logo.value,
+        externalIds.value?.tvdb_id ?? null,
+        null,
+        credits,
+      ),
+      partial: logo.failed || externalIds.failed,
+    };
   }
 
   const d = detailsRaw as MovieDetailsJson;
-  const [logoPath, externalIds, videos] = await Promise.all([
-    fetchLogoPath("tv", tmdbId, credential, language),
-    fetchExternalIds("tv", tmdbId, credential),
+  const [logo, externalIds, videos] = await Promise.all([
+    optionalLookup(fetchLogoPath("tv", tmdbId, credential, language)),
+    optionalLookup(fetchExternalIds("tv", tmdbId, credential)),
     fetchTmdbSeriesVideos({
       tmdbTvId: tmdbId,
       imdbId,
@@ -162,16 +166,29 @@ export async function resolveTitleFromImdb(params: {
     }),
   ]);
   const credits = creditsBlockFromDetails(d);
-  return mapResolved(
-    imdbId,
-    "series",
-    tmdbId,
-    d,
-    logoPath,
-    externalIds?.tvdb_id ?? null,
-    videos,
-    credits,
-  );
+  return {
+    ...mapResolved(
+      imdbId,
+      "series",
+      tmdbId,
+      d,
+      logo.value,
+      externalIds.value?.tvdb_id ?? null,
+      videos,
+      credits,
+    ),
+    partial: logo.failed || externalIds.failed,
+  };
+}
+
+type OptionalLookup<T> = { value: T | null; failed: boolean };
+
+async function optionalLookup<T>(lookup: Promise<T | null>): Promise<OptionalLookup<T>> {
+  try {
+    return { value: await lookup, failed: false };
+  } catch {
+    return { value: null, failed: true };
+  }
 }
 
 function isoDateMidnight(date: string | undefined): string | null {
@@ -184,7 +201,9 @@ function seriesReleaseInfo(d: MovieDetailsJson): string | undefined {
   const start = d.first_air_date?.slice(0, 4);
   const end = d.last_air_date?.slice(0, 4);
   if (!start) return undefined;
-  if (d.status === "Ended" && end && end !== start) return `${start}-${end}`;
+  if ((d.status === "Ended" || d.status === "Canceled") && end && end !== start) {
+    return `${start}-${end}`;
+  }
   if (d.status === "Returning Series" || d.status === "In Production") return `${start}-`;
   return start;
 }
@@ -219,7 +238,7 @@ function mapResolved(
   const year = releaseRaw?.slice(0, 4);
   const genres = (d.genres ?? []).map((g) => g.name).filter(Boolean) as string[];
   const title =
-    stremioType === "movie" ? (d.title ?? imdbId) : (d.name ?? d.title ?? imdbId);
+    stremioType === "movie" ? d.title?.trim() || imdbId : d.name?.trim() || d.title?.trim() || imdbId;
   const detailsRecord = d as MovieDetailsJson & {
     release_dates?: { results?: { iso_3166_1?: string; release_dates?: { certification?: string }[] }[] };
     content_ratings?: { results?: { iso_3166_1?: string; rating?: string }[] };

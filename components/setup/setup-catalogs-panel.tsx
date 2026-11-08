@@ -161,10 +161,6 @@ export function SetupCatalogsPanel(props: {
   );
 
   async function discover(mode: DiscoverMode) {
-    if (!props.hasMdblist) {
-      setDiscoverError("Add an MDBList API key on the API keys tab first.");
-      return;
-    }
     setDiscovering(mode);
     setDiscoverError(null);
     setNoListsFound(false);

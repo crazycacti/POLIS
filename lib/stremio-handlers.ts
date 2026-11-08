@@ -22,6 +22,13 @@ import { buildPolisManifest, type PolisManifestKind } from "@/lib/stremio-manife
 import { stremioCorsHeaders } from "@/lib/stremio-cors";
 import { isImdbId, normalizeMetaPathId } from "@/lib/stremio-imdb-id";
 import { resolveTitleFromImdb } from "@/lib/tmdb-resolve";
+import { redactUpstreamSecrets } from "@/lib/upstream-guard";
+
+const UPSTREAM_FAILURE_CACHE_SEC = 30;
+
+function upstreamErrorLabel(error: unknown): string {
+  return redactUpstreamSecrets(error instanceof Error ? error.message : String(error));
+}
 
 function jsonResponse(body: unknown, cacheSeconds: number, status = 200) {
   return NextResponse.json(body, {
@@ -115,16 +122,29 @@ async function handleStremioMetaRequestInner(
     ),
   });
 
-  const meta = await getOrBuildStremioMeta(metaCacheKey, config?.id ?? null, async () => {
-    const resolved = await resolveTitleFromImdb({
-      imdbId: id,
-      stremioType,
-      credential: integrator.tmdb!.credential,
-      language,
-    });
-    if (!resolved) return {};
-    return buildStremioMetaRecord(resolved, publicBase, artworkAuth, posterQuery, config?.id);
-  });
+  let meta: Record<string, unknown>;
+  let partial = false;
+  try {
+    meta = await getOrBuildStremioMeta(
+      metaCacheKey,
+      config?.id ?? null,
+      async () => {
+        const resolved = await resolveTitleFromImdb({
+          imdbId: id,
+          stremioType,
+          credential: integrator.tmdb!.credential,
+          language,
+        });
+        if (!resolved) return {};
+        partial = resolved.partial === true;
+        return buildStremioMetaRecord(resolved, publicBase, artworkAuth, posterQuery, config?.id);
+      },
+      () => !partial,
+    );
+  } catch (error) {
+    console.warn(`[polis] meta ${rawType} ${id} failed: ${upstreamErrorLabel(error)}`);
+    return jsonResponse({ meta: {} }, UPSTREAM_FAILURE_CACHE_SEC, 502);
+  }
 
   return jsonResponse({ meta }, 300);
 }
@@ -177,22 +197,28 @@ async function handleStremioCatalogRequestInner(
       integrator.mdblistApiKey,
     ),
   });
-  const metas = await getOrBuildStremioCatalog(catalogCacheKey, config?.id ?? null, async () => {
-    const built = await fetchPolisCatalogMetas({
-      type: rawType,
-      catalogId,
-      credential: integrator.tmdb?.credential ?? null,
-      mdblistApiKey: integrator.mdblistAccountApiKey,
-      language,
-      publicBase,
-      extra,
-      posterQueryString: config?.posterQuery,
-      catalogDefinitions: config?.catalogs,
-      configId: config?.id,
+  let metas: Awaited<ReturnType<typeof fetchPolisCatalogMetas>>;
+  try {
+    metas = await getOrBuildStremioCatalog(catalogCacheKey, config?.id ?? null, async () => {
+      const built = await fetchPolisCatalogMetas({
+        type: rawType,
+        catalogId,
+        credential: integrator.tmdb?.credential ?? null,
+        mdblistApiKey: integrator.mdblistAccountApiKey,
+        language,
+        publicBase,
+        extra,
+        posterQueryString: config?.posterQuery,
+        catalogDefinitions: config?.catalogs,
+        configId: config?.id,
+      });
+      if (skip === 0) prewarmCatalogPosters(built, publicBase);
+      return built;
     });
-    if (skip === 0) prewarmCatalogPosters(built, publicBase);
-    return built;
-  });
+  } catch (error) {
+    console.warn(`[polis] catalog ${rawType} ${catalogId} failed: ${upstreamErrorLabel(error)}`);
+    return jsonResponse({ metas: [] }, UPSTREAM_FAILURE_CACHE_SEC, 502);
+  }
 
   return jsonResponse({ metas }, 300);
 }

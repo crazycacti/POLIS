@@ -136,6 +136,7 @@ export async function getOrBuildStremioMeta(
   cacheKey: string,
   configId: string | null,
   build: () => Promise<Record<string, unknown>>,
+  isComplete: () => boolean = () => true,
 ): Promise<Record<string, unknown>> {
   return serveFreshOrStale({
     key: `meta:${cacheKey}`,
@@ -144,7 +145,7 @@ export async function getOrBuildStremioMeta(
     readStale: () => readCachedStremioMeta(cacheKey, configId, { allowStale: true }),
     build,
     store: (meta) => writeCachedStremioMeta(cacheKey, configId, meta),
-    isStorable: (meta) => Object.keys(meta).length > 0,
+    isStorable: (meta) => Object.keys(meta).length > 0 && isComplete(),
   });
 }
 
