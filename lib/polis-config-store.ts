@@ -14,7 +14,7 @@ import {
 } from "@/lib/poster-query";
 import { normalizeConfigLabel } from "@/lib/polis-config-label";
 import { purgePosterMemoryCacheForConfig } from "@/lib/poster-render-cache";
-import { isSealedSecret, openSecret, sealSecret } from "@/lib/stored-secret";
+import { hasStoredSecretKey, isSealedSecret, openSecret, sealSecret } from "@/lib/stored-secret";
 import type { PolisManifestKind } from "@/lib/stremio-manifest";
 
 export type StoredPolisConfig = {
@@ -115,7 +115,7 @@ function sealPlaintextKeys(row: Row): void {
   const tmdb = row.tmdb_integrator_secret?.trim() || null;
   const mdblist = row.mdblist_integrator_key?.trim() || null;
   const needs = (value: string | null) => value != null && !isSealedSecret(value);
-  if (!needs(tmdb) && !needs(mdblist)) return;
+  if ((!needs(tmdb) && !needs(mdblist)) || !hasStoredSecretKey()) return;
   getPolisDb()
     .query(`UPDATE user_configs SET tmdb_integrator_secret = ?, mdblist_integrator_key = ? WHERE id = ?`)
     .run(sealSecret(tmdb), sealSecret(mdblist), row.id);

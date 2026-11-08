@@ -95,7 +95,7 @@ polis.example.com {
 }
 ```
 
-With nginx, log `$uri` (no query string) instead of `$request`, or turn `access_log` off for this site. With Traefik, set `accessLog.fields.names.RequestPath: drop` and `accessLog.fields.queryParameters.defaultMode: drop`.
+With nginx, turn `access_log` off for this site, or use a `log_format` that leaves out `$request`, `$uri` and `$args`. With Traefik, set `accessLog.format: json`, then `accessLog.fields.names.RequestPath: drop`, `accessLog.fields.names.RequestLine: drop` and `accessLog.fields.queryParameters.defaultMode: drop`.
 
 Stored API keys are encrypted with a key derived from `POLIS_SESSION_SECRET`, or from `POLIS_DATA_KEY` when it is set. Keep that value: if it changes, saved keys can't be read and users have to enter them again.
 

@@ -35,6 +35,16 @@ describe("stored api keys", () => {
     }
   });
 
+  it("treats an empty POLIS_DATA_KEY as unset", () => {
+    delete process.env.POLIS_DATA_KEY;
+    const withSession = sealSecret("empty-data-key-check");
+    process.env.POLIS_DATA_KEY = "";
+    expect(openSecret(withSession)).toBe("empty-data-key-check");
+    const sealedWithEmpty = sealSecret("empty-data-key-check");
+    delete process.env.POLIS_DATA_KEY;
+    expect(openSecret(sealedWithEmpty)).toBe("empty-data-key-check");
+  });
+
   it("encrypts keys in the database and seals old plain rows on read", () => {
     const created = createPolisConfig({
       overlay: parsePosterOverlayQuery(new URLSearchParams()),

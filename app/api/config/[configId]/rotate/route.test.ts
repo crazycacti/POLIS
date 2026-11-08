@@ -27,11 +27,11 @@ async function setup(withPassword: boolean) {
   const cookie = auth
     .configureSessionCookieHeader(auth.createConfigureSessionToken(config.id, store.getConfigPasswordHash(config.id)))
     .split(";")[0];
-  const rotate = (withCookie: boolean) =>
+  const rotate = (withCookie: boolean, extra: Record<string, string> = {}) =>
     POST(
       new Request(`http://polis.test/api/config/${config.id}/rotate`, {
         method: "POST",
-        headers: withCookie ? { cookie } : {},
+        headers: { ...(withCookie ? { cookie } : {}), ...extra },
       }),
       { params: Promise.resolve({ configId: config.id }) },
     );
@@ -53,6 +53,13 @@ describe("POST /api/config/[configId]/rotate", () => {
   test("needs the profile's session", async () => {
     const { config, rotate, store } = await setup(true);
     expect((await rotate(false)).status).toBe(401);
+    expect(store.getPolisConfig(config.id)).not.toBeNull();
+  });
+
+  test("refuses requests from other sites", async () => {
+    const { config, rotate, store } = await setup(true);
+    expect((await rotate(true, { "sec-fetch-site": "same-site" })).status).toBe(403);
+    expect((await rotate(true, { origin: "https://other.thatscrazy.dev", host: "polis.test" })).status).toBe(403);
     expect(store.getPolisConfig(config.id)).not.toBeNull();
   });
 

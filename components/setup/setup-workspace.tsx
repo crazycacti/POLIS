@@ -120,9 +120,11 @@ function artworkResetKey(
   return options.find((o) => o.value === value)?.key ?? null;
 }
 
-function clearStoredConfigId(): void {
+function clearStoredConfigId(expected?: string): void {
   try {
-    localStorage.removeItem(LS_CONFIG_ID);
+    if (expected === undefined || localStorage.getItem(LS_CONFIG_ID) === expected) {
+      localStorage.removeItem(LS_CONFIG_ID);
+    }
   } catch {}
 }
 
@@ -259,7 +261,7 @@ export function SetupWorkspace(props: {
         }
         if (!res.ok) {
           setConfigId(props.fixedConfigId?.trim() || null);
-          if (!props.fixedConfigId?.trim()) clearStoredConfigId();
+          if (!props.fixedConfigId?.trim()) clearStoredConfigId(cid);
           setConfigExists(false);
           setConfigHasTmdbKey(false);
           setConfigHasMdblistKey(false);
@@ -1051,7 +1053,7 @@ export function SetupWorkspace(props: {
         }
         lockReason={lockReason}
         onSave={handleSaveClick}
-        onNewInstallUrl={configExists && configHasPassword ? rotateInstallUrl : undefined}
+        onNewInstallUrl={configExists && configHasPassword && saveStatus === "saved" ? rotateInstallUrl : undefined}
         landscapePattern={patterns?.landscapePattern ?? null}
         posterPattern={patterns?.posterPattern ?? null}
         saveLabel={configId ? "Save" : "Create profile"}
