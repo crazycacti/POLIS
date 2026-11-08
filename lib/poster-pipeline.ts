@@ -12,7 +12,9 @@ import { renderPosterJpeg } from "@/lib/render-poster-default";
 import { MAX_LOGO_ALTERNATES, renderSoftPoster } from "@/lib/render-poster-soft";
 import { softFontAvailable } from "@/lib/poster-soft-font";
 import {
+  buildRatingBadges,
   mergeRatingScores,
+  parseRatingBadgeSources,
   resolveRatingDisplay,
   type RatingScores,
 } from "@/lib/ratings";
@@ -119,6 +121,9 @@ export async function renderPosterForImdb(params: {
   const ratingLabel = ratingResolved?.label ?? null;
   const ratingValueTen = ratingResolved?.valueTen ?? null;
   const ratingColorSource = ratingResolved?.colorSource ?? null;
+  const ratingBadges = params.overlay.rating
+    ? buildRatingBadges(parseRatingBadgeSources(params.overlay.ratingBadges), scores)
+    : [];
 
   const trendBadges = params.overlay.trendTags
     ? buildTrendBadges({
@@ -161,6 +166,7 @@ export async function renderPosterForImdb(params: {
         overlay: params.overlay,
         ratingValueTen,
         ratingColorSource,
+        ratingBadges,
         trendBadges,
         qualityMarkIds,
         ageBadge,
@@ -182,6 +188,7 @@ export async function renderPosterForImdb(params: {
         genreNames: resolved.genreNames,
         ratingValueTen,
         ratingColorSource,
+        ratingBadges,
         trendBadges,
         qualityMarkIds,
         ageBadge,

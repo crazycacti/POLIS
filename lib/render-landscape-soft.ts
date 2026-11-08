@@ -23,6 +23,7 @@ import {
   logoShadow,
   marksCapsuleSvg,
   pillOpacity,
+  RATING_BADGE_SCALE,
   RING_DIAMETER,
   RING_STROKE,
   ratingRingSvg,
@@ -90,6 +91,7 @@ export async function renderLandscapeSoft(params: {
   overlay: PosterOverlayQuery;
   ratingValueTen: number | null;
   ratingColorSource: RatingSource | null;
+  ratingBadges?: string[];
   trendBadges: PosterPillBadge[];
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
@@ -112,7 +114,8 @@ export async function renderLandscapeSoft(params: {
   const rowMaxRight = Math.round(w * INFO_ROW_MAX_WIDTH);
 
   const valueTen = overlay.rating ? params.ratingValueTen : null;
-  const showRing = valueTen != null && Number.isFinite(valueTen);
+  const badgeTexts = overlay.rating ? (params.ratingBadges ?? []) : [];
+  const showRing = badgeTexts.length === 0 && valueTen != null && Number.isFinite(valueTen);
   const ringScale = textSizeFactor(overlay, "ratingFontSize");
   const ringD = Math.round(sizeRef * RING_DIAMETER * ringScale);
   const ringStroke = Math.max(2, sizeRef * RING_STROKE * ringScale);
@@ -125,13 +128,25 @@ export async function renderLandscapeSoft(params: {
   const markIds = overlay.qualityTags ? normalizeQualityMarkIds(params.qualityMarkIds) : [];
   const markItems = await buildTopItems(markIds, ageLabel, trendFs);
 
-  const rowH = Math.max(showRing ? ringD : 0, trendText || markItems.length > 0 ? pillH : 0);
+  const badgeFs = Math.round(scoreFs * RATING_BADGE_SCALE);
+  const badgeH = Math.round(badgeFs * CAPSULE_HEIGHT);
+  const rowH = Math.max(
+    showRing ? ringD : badgeTexts.length > 0 ? badgeH : 0,
+    trendText || markItems.length > 0 ? pillH : 0,
+  );
   const hasRow = rowH > 0;
   const rowCenterY = h - padBottom - rowH / 2;
 
   const svgParts: string[] = [];
   const glyphLayers: OverlayOptions[] = [];
   let cursor = padX;
+
+  for (const text of badgeTexts) {
+    const badge = capsuleAt(text, badgeFs, cursor, rowCenterY, rowMaxRight - cursor);
+    if (!badge || badge.rect.left + badge.rect.width > rowMaxRight) break;
+    svgParts.push(...(await capsuleSvg(baseBuf, badge, pillOpacity(overlay))));
+    cursor = badge.rect.left + badge.rect.width + gap;
+  }
 
   if (showRing && valueTen != null) {
     svgParts.push(

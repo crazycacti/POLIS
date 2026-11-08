@@ -193,3 +193,66 @@ export function pickRatingDisplay(
 ): string | null {
   return resolveRatingDisplay(source, scores, tmdbFallback, style)?.label ?? null;
 }
+
+export const RATING_BADGE_SOURCES = [
+  "imdb",
+  "tomatoes",
+  "tomatoesaudience",
+  "metacritic",
+  "letterboxd",
+  "trakt",
+  "tmdb",
+  "mdblist",
+] as const satisfies readonly RatingSource[];
+
+export type RatingBadgeSource = (typeof RATING_BADGE_SOURCES)[number];
+
+export const MAX_RATING_BADGES = 3;
+
+const RATING_BADGE_PREFIX: Record<RatingBadgeSource, string> = {
+  imdb: "IMDb",
+  tomatoes: "RT",
+  tomatoesaudience: "RT Audience",
+  metacritic: "MC",
+  letterboxd: "LB",
+  trakt: "Trakt",
+  tmdb: "TMDB",
+  mdblist: "MDBList",
+};
+
+function isRatingBadgeSource(value: string): value is RatingBadgeSource {
+  return (RATING_BADGE_SOURCES as readonly string[]).includes(value);
+}
+
+export function parseRatingBadgeSources(raw: string | null | undefined): RatingBadgeSource[] {
+  const out: RatingBadgeSource[] = [];
+  for (const part of (raw ?? "").split(",")) {
+    const source = part.trim().toLowerCase();
+    if (!isRatingBadgeSource(source) || out.includes(source)) continue;
+    out.push(source);
+    if (out.length === MAX_RATING_BADGES) break;
+  }
+  return out;
+}
+
+export function ratingBadgeText(source: RatingBadgeSource, valueTen: number): string {
+  const value = clampTen(valueTen);
+  const prefix = RATING_BADGE_PREFIX[source];
+  if (PERCENT_SOURCES.has(source)) {
+    const percent = Math.round(value * 10);
+    return source === "metacritic" || source === "mdblist" ? `${prefix} ${percent}` : `${prefix} ${percent}%`;
+  }
+  if (source === "letterboxd") return `${prefix} ${(value / 2).toFixed(1)}`;
+  return `${prefix} ${value.toFixed(1)}`;
+}
+
+export function buildRatingBadges(sources: RatingBadgeSource[], scores: RatingScores): string[] {
+  const out: string[] = [];
+  for (const source of sources) {
+    const value = scores[source];
+    if (value == null || !Number.isFinite(value)) continue;
+    out.push(ratingBadgeText(source, value));
+  }
+  return out;
+}
+

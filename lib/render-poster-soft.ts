@@ -70,6 +70,9 @@ const TAB_RADIUS = 0.34;
 const CAPSULE_MAX_LUMINANCE = 0.12;
 const CAPSULE_DARKEN = 0.45;
 const TEXT_PRIMARY = "#ffffff";
+export const RATING_BADGE_SCALE = 0.72;
+const RATING_BADGE_GAP = 0.02;
+const RATING_BADGE_ROW_SHARE_WITH_GENRE = 0.72;
 
 export type Rect = { left: number; top: number; width: number; height: number };
 
@@ -273,6 +276,13 @@ async function capsuleFill(base: Buffer, rect: Rect, alpha: number): Promise<str
 }
 
 export type Capsule = { text: string; rect: Rect; fs: number; tab: boolean };
+
+export function fitBadgeRow(badges: Capsule[], gap: number, maxWidth: number): Capsule[] {
+  const kept = [...badges];
+  const width = () => kept.reduce((sum, c) => sum + c.rect.width, 0) + gap * Math.max(0, kept.length - 1);
+  while (kept.length > 1 && width() > maxWidth) kept.pop();
+  return kept;
+}
 
 export function capsuleAt(text: string, fs: number, left: number, centerY: number, maxW: number): Capsule | null {
   const padX = Math.round(fs * CAPSULE_PAD_X);
@@ -514,6 +524,7 @@ export async function renderSoftPoster(params: {
   genreNames: string[];
   ratingValueTen: number | null;
   ratingColorSource: RatingSource | null;
+  ratingBadges?: string[];
   trendBadges: PosterPillBadge[];
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
@@ -543,7 +554,9 @@ export async function renderSoftPoster(params: {
   const ringScale = textSizeFactor(overlay, "ratingFontSize");
 
   const valueTen = overlay.rating ? params.ratingValueTen : null;
-  const showRing = valueTen != null && Number.isFinite(valueTen);
+  const badgeTexts = overlay.rating ? (params.ratingBadges ?? []) : [];
+  const showBadges = badgeTexts.length > 0;
+  const showRing = !showBadges && valueTen != null && Number.isFinite(valueTen);
   const ringD = Math.round(w * RING_DIAMETER * ringScale);
   const ringStroke = Math.max(2, w * RING_STROKE * ringScale);
   const scoreFs = scoreTextPx(w, overlay);
@@ -553,7 +566,12 @@ export async function renderSoftPoster(params: {
   const textRating = overlay.look === "classic";
   const ratingH = textRating ? Math.round(scoreFs * CAPSULE_HEIGHT) : ringD;
   const genreRaw = overlay.genre ? normalizeGenreLabel(params.genreNames, overlay.genreMode) : null;
-  const footerH = Math.max(showRing ? ratingH : 0, genreRaw ? Math.round(genreFs * CAPSULE_HEIGHT) : 0);
+  const badgeFs = Math.round(scoreFs * RATING_BADGE_SCALE);
+  const badgeH = Math.round(badgeFs * CAPSULE_HEIGHT);
+  const footerH = Math.max(
+    showRing ? ratingH : showBadges ? badgeH : 0,
+    genreRaw ? Math.round(genreFs * CAPSULE_HEIGHT) : 0,
+  );
   const hasFooter = footerH > 0;
   const footerCenterY = h - padBottom - footerH / 2;
 
@@ -662,7 +680,24 @@ export async function renderSoftPoster(params: {
   const svgParts: string[] = [];
   let genreRight = w - padX;
   const ratingColorValue = valueTen != null ? ringColor(overlay, valueTen, params.ratingColorSource) : TEXT_PRIMARY;
-  if (showRing && valueTen != null && textRating) {
+  if (showBadges) {
+    const gap = Math.round(w * RATING_BADGE_GAP);
+    const rowMax = Math.round((w - padX * 2) * (genreRaw ? RATING_BADGE_ROW_SHARE_WITH_GENRE : 1));
+    const badges = fitBadgeRow(
+      badgeTexts.map((text) => capsuleAt(text, badgeFs, 0, footerCenterY, rowMax)).filter((c): c is Capsule => c != null),
+      gap,
+      rowMax,
+    );
+    let right = w - padX;
+    for (const badge of [...badges].reverse()) {
+      badge.rect.left = right - badge.rect.width;
+      right = badge.rect.left - gap;
+    }
+    for (const parts of await Promise.all(badges.map((c) => capsuleSvg(baseBuf, c, pillOpacity(overlay))))) {
+      svgParts.push(...parts);
+    }
+    if (badges.length > 0) genreRight = right + gap - Math.round(w * FOOTER_GAP);
+  } else if (showRing && valueTen != null && textRating) {
     const capsule = ratingCapsuleAt({
       valueTen,
       fs: scoreFs,
