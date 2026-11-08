@@ -259,7 +259,7 @@ export async function purgePolisConfigDiskCache(configId: string): Promise<void>
       try {
         await rm(dir, { recursive: true, force: true });
       } catch (error) {
-        console.warn(`[polis] cache purge failed for ${ns} of config ${id}`, error);
+        console.warn(`[polis] cache purge failed for ${ns} of a profile`, error);
       }
     }),
   );

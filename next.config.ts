@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
       ignore: DEV_INCOMING_REQUEST_IGNORE,
     },
   },
+  async headers() {
+    // Profile ids in these paths act as access tokens, so they must never leave in a Referer header.
+    const noReferrer = [{ key: "Referrer-Policy", value: "no-referrer" }];
+    return [
+      { source: "/:configId([A-Za-z0-9_-]{12,48})/:path*", headers: noReferrer },
+      { source: "/api/config/:path*", headers: noReferrer },
+    ];
+  },
   images: {
     localPatterns: [
       { pathname: "/demo-posters/**", search: "**" },
