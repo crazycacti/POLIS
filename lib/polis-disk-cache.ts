@@ -6,6 +6,8 @@ import path from "node:path";
 import { polisCacheRoot } from "@/lib/polis-cache-path";
 import { polisEnvPositiveInt } from "@/lib/polis-env-int";
 
+const DEFAULT_CACHE_MAX_BYTES = 10 * 1024 * 1024 * 1024;
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_CACHE_MAX_AGE_DAYS = 45;
 const CACHE_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
@@ -212,8 +214,7 @@ export async function sweepPolisDiskCache(now = Date.now()): Promise<{ removed: 
     }
   }
 
-  const maxBytes = polisEnvPositiveInt("POLIS_CACHE_MAX_BYTES");
-  if (maxBytes == null) return { removed };
+  const maxBytes = polisEnvPositiveInt("POLIS_CACHE_MAX_BYTES") ?? DEFAULT_CACHE_MAX_BYTES;
 
   const links = new Map<number, number>();
   let total = 0;

@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { imageResponse } from "@/lib/cached-file-response";
+import { proxyClientKey } from "@/lib/client-request-context";
+import { posterRendersPerClient } from "@/lib/client-render-budget";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import {
   renderBackdropJpegCached,
@@ -13,6 +15,19 @@ import { resolvePolisIntegratorAuth } from "@/lib/stremio-integrator-auth";
 import { resolveTmdbAuth } from "@/lib/tmdb-auth";
 import { stremioCorsHeaders } from "@/lib/stremio-cors";
 import { resolveTitleForArtwork } from "@/lib/tmdb-resolve";
+
+function renderLimitedResponse(request: NextRequest): NextResponse | null {
+  const clientKey = proxyClientKey(request);
+  if (posterRendersPerClient.take(clientKey)) return null;
+  return new NextResponse("Too many requests", {
+    status: 429,
+    headers: {
+      "Cache-Control": "no-store",
+      "Retry-After": String(posterRendersPerClient.retryAfterSec(clientKey)),
+      ...stremioCorsHeaders(),
+    },
+  });
+}
 
 export async function handleBackdropRequest(
   request: NextRequest,
@@ -52,6 +67,9 @@ async function handleBackdropRequestInner(
       ...stremioCorsHeaders(),
     });
   }
+
+  const limited = renderLimitedResponse(request);
+  if (limited) return limited;
 
   const resolved = await resolveTitleForArtwork(imdbId, auth.credential, language);
   if (!resolved?.backdropPath) {
@@ -113,6 +131,9 @@ async function handleLogoRequestInner(
       ...stremioCorsHeaders(),
     });
   }
+
+  const limited = renderLimitedResponse(request);
+  if (limited) return limited;
 
   const resolved = await resolveTitleForArtwork(imdbId, auth.credential, language);
   if (!resolved?.logoPath) {
