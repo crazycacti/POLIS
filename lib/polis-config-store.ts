@@ -252,6 +252,17 @@ export function updatePolisConfig(
   return getPolisConfig(configId);
 }
 
+export function rotatePolisConfigId(configId: string): StoredPolisConfig | null {
+  if (!getPolisConfig(configId)) return null;
+  const nextId = generatePolisConfigId();
+  getPolisDb()
+    .query(`UPDATE user_configs SET id = ?, updated_at = ? WHERE id = ?`)
+    .run(nextId, Date.now(), configId);
+  void purgePolisConfigDiskCache(configId).catch(() => {});
+  purgePosterMemoryCacheForConfig(configId);
+  return getPolisConfig(nextId);
+}
+
 export function overlayFromStoredConfig(config: StoredPolisConfig): PosterOverlayQuery {
   return parsePosterOverlayQuery(new URLSearchParams(config.posterQuery));
 }

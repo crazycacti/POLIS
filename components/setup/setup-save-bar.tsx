@@ -38,8 +38,18 @@ export function SetupSaveBar(props: {
   saveLabel: string;
   saving: boolean;
   onSave: () => void;
+  onNewInstallUrl?: () => Promise<string | null>;
 }) {
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [rotateStep, setRotateStep] = useState<"idle" | "confirm" | "working">("idle");
+  const [rotateError, setRotateError] = useState<string | null>(null);
+
+  async function confirmNewInstallUrl() {
+    if (!props.onNewInstallUrl) return;
+    setRotateStep("working");
+    setRotateError(await props.onNewInstallUrl());
+    setRotateStep("idle");
+  }
   const reasonId = useId();
   const locked = Boolean(props.lockReason);
   const deepLink = props.installUrl ? stremioDeepLink(props.installUrl) : null;
@@ -147,7 +157,40 @@ export function SetupSaveBar(props: {
                 >
                   Open in Stremio Web
                 </a>
+                {props.onNewInstallUrl && rotateStep === "idle" ? (
+                  <button className="polis-btn-secondary" onClick={() => setRotateStep("confirm")} type="button">
+                    New install URL
+                  </button>
+                ) : null}
               </div>
+              {rotateStep !== "idle" ? (
+                <div className="flex flex-wrap items-center gap-3" role="group" aria-label="New install URL">
+                  <p className="text-sm text-amber-100/95">
+                    The current URL stops working. Reinstall POLIS on each device.
+                  </p>
+                  <button
+                    className="polis-btn-secondary"
+                    disabled={rotateStep === "working"}
+                    onClick={() => setRotateStep("idle")}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="polis-btn"
+                    disabled={rotateStep === "working"}
+                    onClick={() => void confirmNewInstallUrl()}
+                    type="button"
+                  >
+                    {rotateStep === "working" ? "Making URL…" : "Make new URL"}
+                  </button>
+                </div>
+              ) : null}
+              {rotateError ? (
+                <p className="text-sm text-amber-200/95" role="alert">
+                  {rotateError}
+                </p>
+              ) : null}
             </div>
           ) : (
             <p className="text-sm text-zinc-400">Save the profile to get an install URL.</p>

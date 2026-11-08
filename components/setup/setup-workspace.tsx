@@ -658,6 +658,32 @@ export function SetupWorkspace(props: {
     : !configExists || hasUnsavedChanges
       ? "dirty"
       : "saved";
+  async function rotateInstallUrl(): Promise<string | null> {
+    const current = configId?.trim();
+    if (!current || !origin) return "Save the profile first.";
+    try {
+      const res = await fetch(`/api/config/${encodeURIComponent(current)}/rotate`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as { configId?: string; error?: string };
+      if (!res.ok || !data.configId) return data.error ?? "Could not make a new install URL.";
+      try {
+        localStorage.setItem(LS_CONFIG_ID, data.configId);
+      } catch {}
+      if (props.fixedConfigId) {
+        window.location.replace(`/${encodeURIComponent(data.configId)}/configure`);
+        return null;
+      }
+      createdHereConfigId.current = data.configId;
+      setConfigId(data.configId);
+      setInstallUrl(stremioUserInstallUrl(origin, data.configId));
+      return null;
+    } catch {
+      return "Network error. Try again.";
+    }
+  }
+
   function handleSaveClick() {
     if (lockReason) return;
     if (!origin) {
@@ -1025,6 +1051,7 @@ export function SetupWorkspace(props: {
         }
         lockReason={lockReason}
         onSave={handleSaveClick}
+        onNewInstallUrl={configExists && configHasPassword ? rotateInstallUrl : undefined}
         landscapePattern={patterns?.landscapePattern ?? null}
         posterPattern={patterns?.posterPattern ?? null}
         saveLabel={configId ? "Save" : "Create profile"}
