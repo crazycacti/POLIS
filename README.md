@@ -42,7 +42,7 @@ Open the configure page on the public instance, [polis.thatscrazy.dev/configure]
 3. Select **Create profile** and set a password.
 4. Select **Install in Stremio**, or copy the install URL into your player.
 
-The install URL contains your profile id, and anyone with it can see that profile's settings. Don't post it publicly.
+The install URL contains your profile id, and anyone with it can use POLIS with the keys saved in that profile. Don't post it publicly. If it leaks, open **More install options** and select **New install URL**; the old URL stops working. Saved keys are encrypted on the server.
 
 ### AIOMetadata
 
@@ -78,6 +78,27 @@ polis.example.com {
 }
 ```
 
+### Keep ids and keys out of proxy logs
+
+Install URLs carry profile ids, and AIOMetadata patterns can carry API keys in the query string. Most proxies log full URLs, so drop or mask them. With Caddy:
+
+```
+polis.example.com {
+	log {
+		format filter {
+			request>uri delete
+			request>client_ip ip_mask 16 32
+			request>remote_ip ip_mask 16 32
+		}
+	}
+	reverse_proxy 127.0.0.1:3050
+}
+```
+
+With nginx, log `$uri` (no query string) instead of `$request`, or turn `access_log` off for this site. With Traefik, set `accessLog.fields.names.RequestPath: drop` and `accessLog.fields.queryParameters.defaultMode: drop`.
+
+Stored API keys are encrypted with a key derived from `POLIS_SESSION_SECRET`, or from `POLIS_DATA_KEY` when it is set. Keep that value: if it changes, saved keys can't be read and users have to enter them again.
+
 Data lives in `./data`: `polis.sqlite` and the image cache. The container starts as root, hands `./data` to the `bun` user, then runs as `bun`. Don't set `user:` in compose, or that step is skipped. The image has a built-in health check on `/health`.
 
 To update:
@@ -95,7 +116,7 @@ Settings come from `.env`. Only the first group is needed.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `POLIS_PUBLIC_URL` | request origin | Public base URL used in manifests and art URLs |
-| `POLIS_SESSION_SECRET` | none | Signs configure sessions. Required in production |
+| `POLIS_SESSION_SECRET` | none | Signs configure sessions and encrypts saved keys. Required in production |
 | `TMDB_API_KEY` or `TMDB_ACCESS_TOKEN` | none | Server TMDB key, used when a profile has none |
 
 **Optional keys**
@@ -143,6 +164,7 @@ Settings come from `.env`. Only the first group is needed.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `POLIS_DATA_KEY` | derived from the session secret | Separate key for encrypting saved API keys |
 | `POLIS_DB_PATH` | `./polis.sqlite` (`/app/data/polis.sqlite` in Docker) | Profile database |
 | `POLIS_POSTER_FORMAT` | `webp` | Poster output format |
 | `POLIS_RENDER_MAX_CONCURRENT` | CPU count | Renders at once |
