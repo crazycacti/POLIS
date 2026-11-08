@@ -142,6 +142,7 @@ export type StremioManifestCatalog = {
   name: string;
   extra: { name: string; isRequired: boolean; options?: string[] }[];
   extraSupported?: string[];
+  extraRequired?: string[];
   showInHome?: boolean;
 };
 
@@ -157,6 +158,7 @@ export function toStremioManifestCatalog(def: PolisCatalogDefinition): StremioMa
         { name: "skip", isRequired: false },
       ],
       extraSupported: ["genre", "skip"],
+      extraRequired: ["genre"],
       showInHome: false,
     };
   }

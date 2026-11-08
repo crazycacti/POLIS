@@ -244,7 +244,7 @@ export function SetupCatalogsPanel(props: {
     setRenameDraft(def.name);
   }
 
-  function finishRename(save: boolean) {
+  function finishRename(save: boolean, returnFocus = true) {
     const key = renameOpen.current;
     renameOpen.current = null;
     setRenamingKey(null);
@@ -252,7 +252,7 @@ export function SetupCatalogsPanel(props: {
     if (save && renameDraft.trim()) {
       props.onChange(updateCatalogSelection(props.selected, key, { name: renameDraft }));
     }
-    pendingFocus.current = { action: "rename", key };
+    if (returnFocus) pendingFocus.current = { action: "rename", key };
   }
 
   function submitSearch(e: FormEvent) {
@@ -344,7 +344,7 @@ export function SetupCatalogsPanel(props: {
                         autoFocus
                         className="polis-input w-full py-1 text-sm"
                         maxLength={CATALOG_NAME_MAX_LENGTH}
-                        onBlur={() => finishRename(true)}
+                        onBlur={() => finishRename(true, false)}
                         onFocus={(e) => e.currentTarget.select()}
                         onChange={(e) => setRenameDraft(e.target.value)}
                         onKeyDown={(e) => {
