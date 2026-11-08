@@ -46,9 +46,9 @@ describe("mdblist key source", () => {
     expect(profile.mdblistAccountApiKey).toBe("profile-key");
   });
 
-  test("only server keys used by a saved profile are charged to its share", () => {
+  test("server keys are charged to the profile's share, or to one shared anonymous share", () => {
     expect(serverKeyProfileFor("server", "cfg1")).toBe("cfg1");
-    expect(serverKeyProfileFor("server", null)).toBeNull();
+    expect(serverKeyProfileFor("server", null)).toBe("anonymous");
     expect(serverKeyProfileFor("profile", "cfg1")).toBeNull();
     expect(serverKeyProfileFor("request", null)).toBeNull();
   });

@@ -97,5 +97,8 @@ export function serverKeyProfileFor(
   configId: string | null,
 ): string | null {
   if (source !== "server") return null;
-  return configId?.trim() || null;
+  return configId?.trim() || ANONYMOUS_SERVER_KEY_PROFILE;
 }
+
+export const ANONYMOUS_SERVER_KEY_PROFILE = "anonymous";
+export const PREVIEW_SERVER_KEY_PROFILE = "preview";

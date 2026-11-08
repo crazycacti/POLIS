@@ -17,6 +17,7 @@ import {
   type PreviewThumbWidth,
 } from "@/lib/preview-image-cache";
 import { previewProvidersTag, type PreviewCallerKeys } from "@/lib/preview-keys";
+import { PREVIEW_SERVER_KEY_PROFILE } from "@/lib/stremio-integrator-auth";
 import { previewRenderBudget, type PreviewRenderBudget, type PreviewRenderKeySource } from "@/lib/preview-render-budget";
 import { tmdbCredentialFromRaw } from "@/lib/tmdb-credential-infer";
 import { serverTmdbCredential, type TmdbCredential } from "@/lib/tmdb-server-credential";
@@ -36,6 +37,7 @@ export type PreviewAuth = {
   tvdbCredentials: TvdbCredentials | null;
   providers: PreviewProviders;
   keySource: PreviewRenderKeySource;
+  mdblistUsesServerKey: boolean;
 };
 
 function serverEnv(name: string): string | null {
@@ -68,6 +70,7 @@ export function resolvePreviewAuth(caller: PreviewCallerKeys): PreviewAuth {
       tvdb: tvdbCredentials != null,
     },
     keySource: usesServerKey ? "server" : "caller",
+    mdblistUsesServerKey: serverMdblist != null,
   };
 }
 
@@ -146,7 +149,7 @@ async function renderFull(request: PreviewRequest, fullKey: string, credential: 
       credential,
       language: request.language,
       mdblistApiKey: request.auth.mdblistApiKey,
-      mdblistServerKeyProfile: null,
+      mdblistServerKeyProfile: request.auth.mdblistUsesServerKey ? PREVIEW_SERVER_KEY_PROFILE : null,
       fanartApiKey: request.auth.fanartApiKey,
       tvdbCredentials: request.auth.tvdbCredentials,
       configId: null,
