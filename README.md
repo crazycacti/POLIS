@@ -16,7 +16,7 @@ Poster overlays for Stremio, Aurora Media Center and AIOMetadata: ratings, trend
 
 | Catalogs | Phone |
 | --- | --- |
-| <img src="docs/images/catalogs.jpg" alt="The Catalogs tab with four TMDB catalogs in order and the sources to add more"> | <img src="docs/images/phone.jpg" width="260" alt="The configure page at phone width"> |
+| <img src="docs/images/catalogs.jpg" alt="The Catalogs tab with four TMDB catalogs, each with a Home switch, and the sources to add more"> | <img src="docs/images/phone.jpg" width="260" alt="The configure page at phone width"> |
 
 ## What it does
 
@@ -26,7 +26,7 @@ Poster overlays for Stremio, Aurora Media Center and AIOMetadata: ratings, trend
 - **Places title logos:** from TMDB, Fanart.tv or TheTVDB, on a 3 by 3 grid, with a shadow and a scrim when the art behind is too bright.
 - **Picks artwork:** TMDB, Fanart.tv, TheTVDB, MetaHub, AniList, Kitsu or MyAnimeList, with a fallback source.
 - **Does landscape too:** backdrops with logo, score and trend tag for clients that show wide art.
-- **Serves catalogs:** TMDB trending and popular rows, your MDBList watchlist and any MDBList list, with POLIS posters.
+- **Serves catalogs:** TMDB trending, popular, top rated, in theaters, upcoming, on the air and airing today, your MDBList watchlist, and any MDBList list, including the most-liked public lists. Rename them, reorder them, and keep any of them off Home so they only show in Discover.
 - **Saves profiles:** each profile gets its own install URL and a password. Looks can be saved, shared as a code and edited as JSON.
 
 <p align="center">
