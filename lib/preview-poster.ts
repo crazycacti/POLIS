@@ -149,7 +149,8 @@ async function renderFull(request: PreviewRequest, fullKey: string, credential: 
       credential,
       language: request.language,
       mdblistApiKey: request.auth.mdblistApiKey,
-      mdblistServerKeyProfile: request.auth.mdblistUsesServerKey ? PREVIEW_SERVER_KEY_PROFILE : null,
+      mdblistServerKeyProfile:
+        request.auth.mdblistUsesServerKey && request.countAgainstBudget !== false ? PREVIEW_SERVER_KEY_PROFILE : null,
       fanartApiKey: request.auth.fanartApiKey,
       tvdbCredentials: request.auth.tvdbCredentials,
       configId: null,

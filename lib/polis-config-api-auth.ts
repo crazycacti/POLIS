@@ -50,7 +50,7 @@ export async function authorizeConfigWrite(
   request: Request,
   configId: string,
   password?: string | null,
-): Promise<{ ok: true; sessionToken?: string } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const config = getPolisConfig(configId);
   if (!config) {
     return { ok: false, status: 404, error: "Config not found" };
@@ -67,7 +67,7 @@ export async function authorizeConfigWrite(
   if (typeof password === "string" && password.trim()) {
     const check = await checkConfigPassword(configId, password.trim());
     if (check.ok) {
-      return { ok: true, sessionToken: issueConfigureSessionToken(configId) };
+      return { ok: true };
     }
     return { ok: false, status: check.status, error: check.error };
   }

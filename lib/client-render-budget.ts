@@ -26,6 +26,11 @@ export const posterRendersPerClient = new SlidingWindowLimiter(
   () => polisEnvPositiveInt("POLIS_POSTER_RENDERS_PER_CLIENT_PER_MIN") ?? DEFAULT_POSTER_RENDERS_PER_CLIENT_PER_MIN,
 );
 
+export const artworkRendersPerClient = new SlidingWindowLimiter(
+  RENDER_WINDOW_MS,
+  () => polisEnvPositiveInt("POLIS_POSTER_RENDERS_PER_CLIENT_PER_MIN") ?? DEFAULT_POSTER_RENDERS_PER_CLIENT_PER_MIN,
+);
+
 export function renderLimitedResponseInit(error: RenderLimitedError, init?: HeadersInit): ResponseInit {
   const headers = new Headers(init);
   headers.set("Cache-Control", "no-store");

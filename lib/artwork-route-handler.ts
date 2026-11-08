@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { imageResponse } from "@/lib/cached-file-response";
 import { proxyClientKey } from "@/lib/client-request-context";
-import { posterRendersPerClient } from "@/lib/client-render-budget";
+import { artworkRendersPerClient } from "@/lib/client-render-budget";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import {
   renderBackdropJpegCached,
@@ -18,12 +18,12 @@ import { resolveTitleForArtwork } from "@/lib/tmdb-resolve";
 
 function renderLimitedResponse(request: NextRequest): NextResponse | null {
   const clientKey = proxyClientKey(request);
-  if (posterRendersPerClient.take(clientKey)) return null;
+  if (artworkRendersPerClient.take(clientKey)) return null;
   return new NextResponse("Too many requests", {
     status: 429,
     headers: {
       "Cache-Control": "no-store",
-      "Retry-After": String(posterRendersPerClient.retryAfterSec(clientKey)),
+      "Retry-After": String(artworkRendersPerClient.retryAfterSec(clientKey)),
       ...stremioCorsHeaders(),
     },
   });
