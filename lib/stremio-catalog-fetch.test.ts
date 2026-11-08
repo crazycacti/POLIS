@@ -240,3 +240,40 @@ describe("mdblist catalog rate limits", () => {
     }
   });
 });
+
+describe("mdblist list rows", () => {
+  it("keeps only rows of the catalog's type from a flat list", async () => {
+    const def: PolisCatalogDefinition = {
+      id: "mdblist-list-424242-movie",
+      type: "movie",
+      name: "Mixed list",
+      provider: { kind: "mdblist", list: "list", listId: "424242" },
+    };
+    const realFetch = globalThis.fetch;
+    const requested: string[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL): Promise<Response> => {
+      requested.push(input instanceof Request ? input.url : String(input));
+      return Response.json([
+        { title: "A Movie", mediatype: "movie", imdb_id: "tt0000101" },
+        { title: "A Show", mediatype: "show", imdb_id: "tt0000102" },
+        { title: "Untyped", imdb_id: "tt0000103" },
+      ]);
+    }) as typeof fetch;
+    try {
+      const metas = await fetchPolisCatalogMetas({
+        type: "movie",
+        catalogId: def.id,
+        credential: null,
+        mdblistApiKey: "mixed-list-key",
+        language: "en-US",
+        publicBase: "http://localhost:3050",
+        extra: new URLSearchParams(),
+        catalogDefinitions: [def],
+      });
+      expect(metas.map((m) => m.id)).toEqual(["tt0000101", "tt0000103"]);
+      expect(new URL(requested[0]!).pathname).toBe("/lists/424242/items");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});

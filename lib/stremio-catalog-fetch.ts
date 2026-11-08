@@ -79,19 +79,26 @@ function mdblistRowsForCatalogType(
   payload: unknown,
   stremioType: "movie" | "series",
 ): MdblistListRow[] {
-  if (Array.isArray(payload)) {
-    return payload.filter((r): r is MdblistListRow => Boolean(r) && typeof r === "object");
-  }
+  if (Array.isArray(payload)) return mdblistRowsOfType(payload, stremioType);
   if (!payload || typeof payload !== "object") return [];
   const record = payload as Record<string, unknown>;
   const keyed = stremioType === "movie" ? record.movies : record.shows;
   if (Array.isArray(keyed)) {
     return keyed.filter((r): r is MdblistListRow => Boolean(r) && typeof r === "object");
   }
-  if (Array.isArray(record.items)) {
-    return record.items.filter((r): r is MdblistListRow => Boolean(r) && typeof r === "object");
-  }
+  if (Array.isArray(record.items)) return mdblistRowsOfType(record.items, stremioType);
   return [];
+}
+
+function mdblistRowsOfType(rows: unknown[], stremioType: "movie" | "series"): MdblistListRow[] {
+  return rows.filter((r): r is MdblistListRow => {
+    if (!r || typeof r !== "object") return false;
+    const record = r as Record<string, unknown>;
+    const kind = record.mediatype ?? record.media_type;
+    if (typeof kind !== "string" || !kind.trim()) return true;
+    const isMovie = kind.trim().toLowerCase() === "movie";
+    return stremioType === "movie" ? isMovie : !isMovie;
+  });
 }
 
 // Upstream URLs carry api keys; keep them out of logged messages.
@@ -299,7 +306,7 @@ async function fetchMdblistCatalogMetas(params: {
   if (def.provider.list === "watchlist") {
     url = new URL(`https://api.mdblist.com/watchlist/items/${mediaSegment}`);
   } else if (def.provider.listId) {
-    url = new URL(`https://api.mdblist.com/lists/${def.provider.listId}/items`);
+    url = new URL(`https://api.mdblist.com/lists/${encodeURIComponent(def.provider.listId)}/items`);
   } else {
     return [];
   }

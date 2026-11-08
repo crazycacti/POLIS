@@ -4,6 +4,7 @@ import { TMDB_CATALOG_PRESETS } from "@/lib/catalog-presets";
 import {
   catalogDefinitionKey,
   moveCatalogSelection,
+  parsePolisCatalogDefinition,
 } from "@/lib/polis-catalogs-json";
 
 describe("moveCatalogSelection", () => {
@@ -20,5 +21,27 @@ describe("moveCatalogSelection", () => {
   it("no-ops at bounds", () => {
     expect(moveCatalogSelection(list, catalogDefinitionKey(a), "up")).toBe(list);
     expect(moveCatalogSelection(list, catalogDefinitionKey(b), "down")).toBe(list);
+  });
+});
+
+describe("parsePolisCatalogDefinition mdblist list ids", () => {
+  const row = (listId: string) => ({
+    id: "mdblist-list-x-movie",
+    type: "movie",
+    name: "List",
+    provider: { kind: "mdblist", list: "list", listId },
+  });
+
+  it("keeps numeric list ids", () => {
+    expect(parsePolisCatalogDefinition(row("12345"))?.provider).toEqual({
+      kind: "mdblist",
+      list: "list",
+      listId: "12345",
+    });
+  });
+
+  it("drops list ids that are not numeric", () => {
+    expect(parsePolisCatalogDefinition(row("../../watchlist/items/movie?x="))).toBeNull();
+    expect(parsePolisCatalogDefinition(row("12%2F34"))).toBeNull();
   });
 });

@@ -1,5 +1,7 @@
 import type { PolisCatalogDefinition, PolisCatalogProvider } from "@/lib/polis-catalogs";
 
+const MDBLIST_LIST_ID = /^\d{1,20}$/;
+
 function parseProvider(raw: Record<string, unknown>): PolisCatalogProvider | null {
   if (raw.kind === "tmdb" && (raw.list === "trending" || raw.list === "popular")) {
     return { kind: "tmdb", list: raw.list };
@@ -9,7 +11,7 @@ function parseProvider(raw: Record<string, unknown>): PolisCatalogProvider | nul
   }
   if (raw.kind === "mdblist" && raw.list === "list" && typeof raw.listId === "string") {
     const listId = raw.listId.trim();
-    if (!listId) return null;
+    if (!MDBLIST_LIST_ID.test(listId)) return null;
     return { kind: "mdblist", list: "list", listId };
   }
   return null;
