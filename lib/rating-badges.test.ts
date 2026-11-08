@@ -42,3 +42,13 @@ describe("rating badges", () => {
     expect(fitBadgeRow([capsule("a", 500)], 10, 100).map((c) => c.text)).toEqual(["a"]);
   });
 });
+
+describe("rating logos", () => {
+  it("ships no IMDb or Rotten Tomatoes logo, so those badges stay text", async () => {
+    const { loadRatingLogo } = await import("@/lib/rating-logos");
+    expect(await loadRatingLogo("imdb", 20)).toBeNull();
+    expect(await loadRatingLogo("tomatoes", 20)).toBeNull();
+    expect(await loadRatingLogo("tomatoesaudience", 20)).toBeNull();
+    expect(await loadRatingLogo("letterboxd", 20)).not.toBeNull();
+  });
+});
