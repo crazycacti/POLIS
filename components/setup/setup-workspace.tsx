@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
@@ -157,6 +157,7 @@ export function SetupWorkspace(props: {
   const [passwordDialogError, setPasswordDialogError] = useState<string | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
   const [configLoadFailed, setConfigLoadFailed] = useState(false);
+  const createdHereConfigId = useRef<string | null>(null);
   const [configLoadAttempt, setConfigLoadAttempt] = useState(0);
   const [configSaving, setConfigSaving] = useState(false);
   const [selectedCatalogs, setSelectedCatalogs] = useState<PolisCatalogDefinition[]>([]);
@@ -238,6 +239,11 @@ export function SetupWorkspace(props: {
       }
       return;
     }
+    if (createdHereConfigId.current === cid) {
+      createdHereConfigId.current = null;
+      setOverlaySettled(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -272,6 +278,10 @@ export function SetupWorkspace(props: {
         setConfigHasPassword(Boolean(data.hasPassword));
         setConfigHasTmdbKey(Boolean(data.hasTmdbIntegrator));
         setConfigHasMdblistKey(Boolean(data.hasMdblistIntegrator));
+        setSentKeyInputs((prev) => ({
+          tmdb: data.hasTmdbIntegrator ? prev.tmdb : "",
+          mdblist: data.hasMdblistIntegrator ? prev.mdblist : "",
+        }));
         let baselineQuery = initialQueryString;
         if (typeof data.posterQuery === "string" && data.posterQuery.trim()) {
           const serverOverlay = parsePosterOverlayQuery(new URLSearchParams(data.posterQuery));
@@ -733,6 +743,7 @@ export function SetupWorkspace(props: {
         return;
       }
       setPasswordDialogOpen(false);
+      if (data.configId !== configId?.trim()) createdHereConfigId.current = data.configId;
       setConfigId(data.configId);
       setConfigExists(true);
       setConfigHasPassword(Boolean(data.hasPassword ?? true));
