@@ -96,4 +96,12 @@ describe("pickBestTrendBadge", () => {
     });
     expect(badge?.text).toBe("Oscar Winner");
   });
+
+  test("a National Film Registry keyword is not an Oscar win", () => {
+    const badge = pickBestTrendBadge({
+      resolved: baseResolved(),
+      mdblist: mdblist(["national-film-preservation-board-winner"]),
+    });
+    expect(badge?.text).not.toBe("Oscar Winner");
+  });
 });

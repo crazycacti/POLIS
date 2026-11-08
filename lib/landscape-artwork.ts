@@ -118,7 +118,9 @@ export async function landscapeFromPortrait(portrait: Buffer): Promise<Buffer> {
     .blur(PORTRAIT_FALLBACK_BLUR_SIGMA)
     .linear(PORTRAIT_FALLBACK_DIM, 0)
     .toBuffer();
-  const foreground = await sharp(portrait).resize({ height: LANDSCAPE_HEIGHT }).toBuffer();
+  const foreground = await sharp(portrait)
+    .resize({ width: LANDSCAPE_WIDTH, height: LANDSCAPE_HEIGHT, fit: "inside" })
+    .toBuffer();
   const meta = await sharp(foreground).metadata();
   const left = Math.max(0, Math.round((LANDSCAPE_WIDTH - (meta.width ?? 0)) / 2));
   return sharp(background).composite([{ input: foreground, top: 0, left }]).toBuffer();

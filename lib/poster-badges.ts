@@ -167,8 +167,7 @@ function collectTrendCandidates(params: {
   }
 
   if (
-    hasKeywordExact(keywords, "oscar-winner", "best-picture-winner") ||
-    hasKeywordExact(keywords, "national-film-preservation-board-winner")
+    hasKeywordExact(keywords, "oscar-winner", "best-picture-winner")
   ) {
     candidates.push({ text: "Oscar Winner", priority: 100 });
   } else if (
