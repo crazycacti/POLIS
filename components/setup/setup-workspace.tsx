@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction 
 
 import { SetupApiKeysPanel } from "@/components/setup/setup-api-keys-panel";
 import { SetupOverlayPanel } from "@/components/setup/setup-overlay-panel";
+import { SetupCustomBadgesPanel } from "@/components/setup/setup-custom-badges-panel";
 import { SetupLooks } from "@/components/setup/setup-looks";
 import { posterPartHeaderId, type PosterPart } from "@/components/setup/setup-poster-parts";
 import { SetupPreviewSidebar, type PreviewImageSrcs } from "@/components/setup/setup-preview-sidebar";
@@ -71,6 +72,12 @@ import {
   type PreviewCallerKeys,
 } from "@/lib/preview-keys";
 import { previewPosterPath } from "@/lib/preview-poster-urls";
+import {
+  CUSTOM_BADGES_PARAM,
+  encodeCustomBadgesParam,
+  parseCustomBadges,
+  type CustomBadge,
+} from "@/lib/custom-badges";
 import { PREVIEW_SMALL_THUMB_WIDTH, previewThumbSrcSet } from "@/lib/preview-sizes";
 
 const SIDE_BY_SIDE_LAYOUT_QUERY = "(min-width: 64rem)";
@@ -111,7 +118,7 @@ const ARTWORK_KEY_NOTICE: Partial<Record<NonNullable<ArtworkSourceKey>, string>>
   tvdb: "TheTVDB art needs a TVDB key in this browser. Add it under API keys or choose another source.",
 };
 
-type BaselineSource = { query: string; catalogs: PolisCatalogDefinition[] | null };
+type BaselineSource = { query: string; catalogs: PolisCatalogDefinition[] | null; customBadges: CustomBadge[] };
 
 function artworkResetKey(
   options: readonly { value: string; key: ArtworkSourceKey }[],
@@ -163,6 +170,7 @@ export function SetupWorkspace(props: {
   const [configLoadAttempt, setConfigLoadAttempt] = useState(0);
   const [configSaving, setConfigSaving] = useState(false);
   const [selectedCatalogs, setSelectedCatalogs] = useState<PolisCatalogDefinition[]>([]);
+  const [customBadges, setCustomBadges] = useState<CustomBadge[]>([]);
   const [catalogsCustomized, setCatalogsCustomized] = useState(false);
   const [catalogsHydrated, setCatalogsHydrated] = useState(false);
   const [setupHydrated, setSetupHydrated] = useState(false);
@@ -236,7 +244,7 @@ export function SetupWorkspace(props: {
       setConfigHasTmdbKey(false);
       setConfigHasMdblistKey(false);
       if (catalogsHydrated) {
-        setBaselineSource({ query: initialQueryString, catalogs: null });
+        setBaselineSource({ query: initialQueryString, catalogs: null, customBadges: [] });
         setOverlaySettled(true);
       }
       return;
@@ -265,7 +273,7 @@ export function SetupWorkspace(props: {
           setConfigExists(false);
           setConfigHasTmdbKey(false);
           setConfigHasMdblistKey(false);
-          setBaselineSource({ query: initialQueryString, catalogs: null });
+          setBaselineSource({ query: initialQueryString, catalogs: null, customBadges: [] });
           return;
         }
         setConfigExists(true);
@@ -275,6 +283,7 @@ export function SetupWorkspace(props: {
           hasPassword?: boolean;
           hasTmdbIntegrator?: boolean;
           hasMdblistIntegrator?: boolean;
+          customBadges?: unknown;
         };
         if (cancelled) return;
         setConfigHasPassword(Boolean(data.hasPassword));
@@ -296,7 +305,9 @@ export function SetupWorkspace(props: {
           setSelectedCatalogs(serverCatalogs);
           markCatalogsCustomized();
         }
-        setBaselineSource({ query: baselineQuery, catalogs: serverCatalogs });
+        const serverBadges = parseCustomBadges(data.customBadges) ?? [];
+        setCustomBadges(serverBadges);
+        setBaselineSource({ query: baselineQuery, catalogs: serverCatalogs, customBadges: serverBadges });
         if (origin) {
           setInstallUrl(stremioUserInstallUrl(origin, cid));
         }
@@ -335,10 +346,16 @@ export function SetupWorkspace(props: {
     [],
   );
   const debouncedOverlay = useDebouncedValue(overlay, 400);
-  const previewOverlayQuery = useMemo(
-    () => serializePosterQuery(debouncedOverlay),
-    [debouncedOverlay],
+  const savableBadges = useMemo(
+    () => customBadges.filter((badge) => parseCustomBadges([badge]) != null),
+    [customBadges],
   );
+  const debouncedCustomBadges = useDebouncedValue(savableBadges, 400);
+  const previewOverlayQuery = useMemo(() => {
+    const query = serializePosterQuery(debouncedOverlay);
+    const badges = encodeCustomBadgesParam(debouncedCustomBadges);
+    return badges ? `${query}&${CUSTOM_BADGES_PARAM}=${badges}` : query;
+  }, [debouncedCustomBadges, debouncedOverlay]);
 
   useEffect(() => {
     if (!configId) {
@@ -617,8 +634,8 @@ export function SetupWorkspace(props: {
     [mdblistInput, profileKeyRemovals, secretInput, sentKeyInputs],
   );
   const currentSnapshot = useMemo(
-    () => setupSnapshot(queryString, selectedCatalogs, keyChanges),
-    [keyChanges, queryString, selectedCatalogs],
+    () => setupSnapshot(queryString, selectedCatalogs, keyChanges, savableBadges),
+    [keyChanges, queryString, savableBadges, selectedCatalogs],
   );
   const hasUnsavedChanges = hasUnsavedSetupChanges(savedSnapshot, currentSnapshot);
 
@@ -629,6 +646,7 @@ export function SetupWorkspace(props: {
         baselineSource.query,
         baselineSource.catalogs ?? selectedCatalogs,
         NO_KEY_CHANGES,
+        baselineSource.customBadges,
       ),
     );
     setBaselineSource(null);
@@ -722,7 +740,7 @@ export function SetupWorkspace(props: {
     setConfigSaving(true);
     setConfigError(null);
     setPasswordDialogError(null);
-    const sentSnapshot = setupSnapshot(queryString, selectedCatalogs, NO_KEY_CHANGES);
+    const sentSnapshot = setupSnapshot(queryString, selectedCatalogs, NO_KEY_CHANGES, savableBadges);
     const sentKeys: SetupKeyInputs = { tmdb: secretInput.trim(), mdblist: mdblistInput.trim() };
     try {
       const integrator = setupIntegratorPatch(
@@ -736,6 +754,7 @@ export function SetupWorkspace(props: {
       const body: Record<string, unknown> = {
         posterQuery: queryString,
         catalogs: selectedCatalogs,
+        customBadges: savableBadges,
         ...(Object.keys(integrator).length > 0 ? { integrator } : {}),
       };
       if (existingConfigId) body.configId = existingConfigId;
@@ -989,6 +1008,7 @@ export function SetupWorkspace(props: {
             overlay={overlay}
             setOverlay={changeOverlay}
           />
+          <SetupCustomBadgesPanel badges={customBadges} onChange={setCustomBadges} />
           </div>
           <SetupPreviewSidebar
             hasPreviewCredential={hasPreviewCredential}

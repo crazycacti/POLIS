@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { MDBLIST_WATCHLIST_PRESETS, TMDB_CATALOG_PRESETS } from "@/lib/catalog-presets";
+import { parseCustomBadges } from "@/lib/custom-badges";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 import {
   hasUnsavedSetupChanges,
@@ -26,6 +27,17 @@ describe("setupSnapshot", () => {
 
   it("changes when catalog order changes", () => {
     expect(setupSnapshot("", [a, b])).not.toBe(setupSnapshot("", [b, a]));
+  });
+
+  it("changes when a catalog is taken off Home", () => {
+    expect(setupSnapshot("", [{ ...a, home: false }])).not.toBe(setupSnapshot("", [a]));
+  });
+
+  it("changes when a custom badge is added or edited", () => {
+    const badge = parseCustomBadges([{ text: "Family", corner: "top-left", color: "#ffffff", background: "#000000" }]) ?? [];
+    const edited = parseCustomBadges([{ text: "Date night", corner: "top-left", color: "#ffffff", background: "#000000" }]) ?? [];
+    expect(setupSnapshot("", [a], undefined, badge)).not.toBe(setupSnapshot("", [a]));
+    expect(setupSnapshot("", [a], undefined, edited)).not.toBe(setupSnapshot("", [a], undefined, badge));
   });
 
   it("changes when the poster query changes", () => {

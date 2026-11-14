@@ -1,3 +1,4 @@
+import { serializeCustomBadges, type CustomBadge } from "@/lib/custom-badges";
 import type { PolisCatalogDefinition } from "@/lib/polis-catalogs";
 
 export type SetupKeyInputs = { tmdb: string; mdblist: string };
@@ -45,6 +46,7 @@ export function setupSnapshot(
   posterQuery: string,
   catalogs: readonly PolisCatalogDefinition[],
   keyChanges: SetupKeyChanges = NO_KEY_CHANGES,
+  customBadges: readonly CustomBadge[] = [],
 ): string {
   return JSON.stringify([
     posterQuery,
@@ -55,8 +57,10 @@ export function setupSnapshot(
       c.provider.kind,
       c.provider.list,
       c.provider.kind === "mdblist" ? (c.provider.listId ?? null) : null,
+      c.home !== false,
     ]),
     [keyChanges.tmdb, keyChanges.mdblist],
+    serializeCustomBadges([...customBadges]),
   ]);
 }
 
