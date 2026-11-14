@@ -664,17 +664,22 @@ export async function renderSoftPoster(params: {
   const markFs = labelTextPx(w, overlay, "qualityMarkSize");
   const topItems = await buildTopItems(markIds, ageLabel, markFs);
   const topRow = fitTopRow({ label: trendText, items: topItems, fs: trendFs, itemsFs: markFs, w, padX });
+  const topRowHeight = Math.max(
+    topRow.label ? topRow.fs * CAPSULE_HEIGHT : 0,
+    topRow.items.length > 0 ? topRow.itemsFs * CAPSULE_HEIGHT : 0,
+  );
+  const topRowCenterY = padTop + Math.round(topRowHeight / 2);
   const trendCapsule = !topRow.label
     ? null
     : topRow.items.length === 0
       ? topTabAt(topRow.label, topRow.fs, w, w - padX * 2)
-      : capsuleAt(topRow.label, topRow.fs, padX, padTop + Math.round((topRow.fs * CAPSULE_HEIGHT) / 2), w - padX * 2);
+      : capsuleAt(topRow.label, topRow.fs, padX, topRowCenterY, w - padX * 2);
   const marksCapsule =
     topRow.items.length > 0
       ? {
           rect: {
             left: w - padX - topRow.itemsWidth,
-            top: padTop,
+            top: topRowCenterY - Math.round((topRow.itemsFs * CAPSULE_HEIGHT) / 2),
             width: topRow.itemsWidth,
             height: Math.round(topRow.itemsFs * CAPSULE_HEIGHT),
           },

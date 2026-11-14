@@ -71,11 +71,19 @@ describe("renderSoftPoster", () => {
         ageBadge: { text: "PG-13", kind: "age" },
         logoPath: null,
       });
-    const small = await render("quality=1&age=1&rating=0&mark_font=30");
-    const large = await render("quality=1&age=1&rating=0&mark_font=72");
-    expect(small).not.toBeNull();
-    expect(large).not.toBeNull();
-    expect(small?.equals(large ?? Buffer.alloc(0))).toBe(false);
+    const markedRows = async (buf: Buffer | null) => {
+      if (!buf) throw new Error("poster did not render");
+      const { data, info } = await sharp(buf).extract({ left: 0, top: 0, width: 500, height: 200 }).raw().toBuffer({ resolveWithObject: true });
+      const rows = new Set<number>();
+      for (let i = 0; i < data.length; i += info.channels) {
+        const changed = Math.abs((data[i] ?? 0) - 0x55) > 24 || Math.abs((data[i + 2] ?? 0) - 0x77) > 24;
+        if (changed) rows.add(Math.floor(i / info.channels / info.width));
+      }
+      return rows.size;
+    };
+    const small = await markedRows(await render("quality=1&age=1&rating=0&mark_font=30"));
+    const large = await markedRows(await render("quality=1&age=1&rating=0&mark_font=72"));
+    expect(large).toBeGreaterThan(small);
   });
 
   test("top right rating badges leave the bottom of the poster as it is without badges", async () => {
@@ -201,6 +209,16 @@ describe("fitTopRow", () => {
     expect(row.items.length).toBeLessThan(items.length);
     expect(row.fs).toBeGreaterThanOrEqual(Math.round(29 * 0.75));
     expect(row.itemsWidth).toBeLessThanOrEqual(500 - 80);
+  });
+
+  test("sizes the marks on their own and shrinks both sizes together when the row is too wide", () => {
+    if (!softFontAvailable()) return;
+    const fits = fitTopRow({ label: "New", items: [text(20)], fs: 20, itemsFs: 40, w: 500, padX: 40 });
+    expect(fits.fs).toBe(20);
+    expect(fits.itemsFs).toBe(40);
+    const tight = fitTopRow({ label: "Golden Globe Winner", items: [text(120), text(120)], fs: 29, itemsFs: 58, w: 500, padX: 40 });
+    expect(tight.itemsFs / tight.fs).toBeCloseTo(2, 1);
+    expect(tight.itemsWidth).toBeLessThanOrEqual(500 - 80);
   });
 });
 
