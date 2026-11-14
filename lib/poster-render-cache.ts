@@ -1,3 +1,4 @@
+import { customBadgesFingerprint, type CustomBadge } from "@/lib/custom-badges";
 import { posterDiskExtension } from "@/lib/poster-output-format";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { polisCacheScope } from "@/lib/polis-cache-path";
@@ -89,6 +90,7 @@ type PosterCacheKeyParams = {
   language: string;
   configId: string | null;
   integratorFingerprint?: string;
+  customBadgesFingerprint?: string;
 };
 
 function posterCacheKeyParts(params: PosterCacheKeyParams, prefix: string, dropTrendRank: boolean): string {
@@ -97,7 +99,9 @@ function posterCacheKeyParts(params: PosterCacheKeyParams, prefix: string, dropT
   const scope = params.configId?.trim() || "_";
   const integrator =
     scope === "_" ? (params.integratorFingerprint?.trim() || "_") : "_";
-  return [prefix, scope, integrator, params.language, params.imdbId, canonicalOverlay].join("\0");
+  const parts = [prefix, scope, integrator, params.language, params.imdbId, canonicalOverlay];
+  if (params.customBadgesFingerprint) parts.push(`cb:${params.customBadgesFingerprint}`);
+  return parts.join("\0");
 }
 
 export function posterRenderCacheKey(params: PosterCacheKeyParams): string {
@@ -180,6 +184,7 @@ export async function renderPosterForImdbCached(params: {
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
   configId: string | null;
+  customBadges?: CustomBadge[];
   admitRender?: RenderAdmission;
 }): Promise<PosterCacheResult | null> {
   const overlay = await withLiveTrendRank(params);
@@ -195,6 +200,7 @@ export async function renderPosterForImdbCached(params: {
       fanartApiKey: params.fanartApiKey,
       tvdbCredentials: params.tvdbCredentials,
     }),
+    customBadgesFingerprint: customBadgesFingerprint(params.customBadges ?? []),
   };
   const cacheKey = posterRenderCacheKey(keyParams);
   const aliasKey = posterLatestAliasKey(keyParams);
@@ -262,6 +268,7 @@ export async function renderPosterForImdbCached(params: {
           fanartApiKey: params.fanartApiKey,
           tvdbCredentials: params.tvdbCredentials,
           configId: params.configId,
+          customBadges: params.customBadges,
           onDegraded: (retryAt) => {
             degraded = true;
             degradedRetryAts.push(retryAt);

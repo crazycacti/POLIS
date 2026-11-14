@@ -9,6 +9,8 @@ import { normalizeQualityMarkIds, type QualityMarkId } from "@/lib/poster-qualit
 import type { LogoSize, PosterOverlayQuery } from "@/lib/poster-query";
 import { labelTextPx, scoreTextPx, textSizeFactor } from "@/lib/poster-type-scale";
 import type { RatingBadge, RatingSource } from "@/lib/ratings";
+import type { CustomBadge } from "@/lib/custom-badges";
+import { buildCustomBadgeBoxes, placeCustomBadges } from "@/lib/render-custom-badges";
 import {
   buildTopItems,
   CAPSULE_HEIGHT,
@@ -51,6 +53,7 @@ const ROW_ONLY_SCRIM_STRENGTH = 0.7;
 const TOP_SCRIM_HEIGHT = 0.42;
 const TOP_SCRIM_STOPS: [number, number][] = [[0, 0], [0.5, 0.2], [1, 0.5]];
 const BADGE_STACK_MAX_WIDTH = 0.3;
+const CUSTOM_BADGE_REACH = 0.5;
 export const LANDSCAPE_BYTE_BUDGET = 80 * 1024;
 
 function linearScrim(w: number, h: number, horizontal: boolean, stops: [number, number][], strength: number): Buffer {
@@ -96,6 +99,7 @@ export async function renderLandscapeSoft(params: {
   ratingValueTen: number | null;
   ratingColorSource: RatingSource | null;
   ratingBadges?: RatingBadge[];
+  customBadges?: CustomBadge[];
   trendBadges: PosterPillBadge[];
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
@@ -228,6 +232,7 @@ export async function renderLandscapeSoft(params: {
     glyphLayers.push(...drawn.glyphs);
   }
 
+  let logoTop: number | null = null;
   const logoLayers: OverlayOptions[] = [];
   const drawLogo = overlay.logoOnPoster && params.artTextless && params.logoPath != null;
   if (drawLogo && params.logoPath) {
@@ -255,6 +260,7 @@ export async function renderLandscapeSoft(params: {
     if (chosen) {
       const { logo, rect, scrimAlpha } = chosen;
       const shadow = await logoShadow(logo, sizeRef);
+      logoTop = rect.top;
       if (scrimAlpha > 0) logoLayers.push(logoScrim(rect, w, h, scrimAlpha, sizeRef));
       logoLayers.push(
         {
@@ -265,6 +271,24 @@ export async function renderLandscapeSoft(params: {
         { input: logo, top: rect.top, left: rect.left },
       );
     }
+  }
+
+  if (params.customBadges && params.customBadges.length > 0) {
+    const boxes = buildCustomBadgeBoxes({
+      badges: params.customBadges,
+      fs: trendFs,
+      alpha: pillOpacity(overlay),
+      maxWidth: () => Math.round(w * BADGE_STACK_MAX_WIDTH),
+    });
+    const reach = Math.round(h * CUSTOM_BADGE_REACH);
+    const rowTop = hasRow ? Math.round(rowCenterY - rowH / 2) - gap : h - padBottom;
+    const placed = placeCustomBadges(boxes, {
+      "top-left": { top: padBottom, bottom: reach, left: padX, right: w - padX, gap },
+      "top-right": { top: stackBottom > 0 ? stackBottom + gap : padBottom, bottom: reach, left: padX, right: w - padX, gap },
+      "bottom-left": { top: reach, bottom: logoTop != null ? logoTop - gap : rowTop, left: padX, right: w - padX, gap },
+      "bottom-right": { top: reach, bottom: rowTop, left: padX, right: w - padX, gap },
+    });
+    if (placed.svg) svgParts.push(placed.svg);
   }
 
   const layers: OverlayOptions[] = [];

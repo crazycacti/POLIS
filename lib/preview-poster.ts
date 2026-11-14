@@ -1,3 +1,4 @@
+import { customBadgesFingerprint, type CustomBadge } from "@/lib/custom-badges";
 import { posterContentType, posterDiskExtension } from "@/lib/poster-output-format";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { polisSingleflight } from "@/lib/polis-singleflight";
@@ -113,7 +114,13 @@ type PreviewRequest = {
   clientKey: string;
   budget?: PreviewRenderBudget;
   countAgainstBudget?: boolean;
+  customBadges?: CustomBadge[];
 };
+
+function withCustomBadgesKey(key: string, badges: CustomBadge[] | undefined): string {
+  const fingerprint = customBadgesFingerprint(badges ?? []);
+  return fingerprint ? `${key}\0cb:${fingerprint}` : key;
+}
 
 function fullPath(fullKey: string): Promise<string | null> {
   return previewCachedPath(TITLE_PREVIEW_STORE, PREVIEW_TITLE_SCOPE, fullKey, posterDiskExtension(), PREVIEW_RENDER_TTL_MS);
@@ -154,6 +161,7 @@ async function renderFull(request: PreviewRequest, fullKey: string, credential: 
       fanartApiKey: request.auth.fanartApiKey,
       tvdbCredentials: request.auth.tvdbCredentials,
       configId: null,
+      customBadges: request.customBadges,
       onDegraded: () => {
         degraded = true;
       },
@@ -209,7 +217,10 @@ async function previewForKey(
 
 export async function previewPoster(request: PreviewRequest): Promise<PreviewPosterResult> {
   const keyFor = (providers: PreviewProviders) =>
-    previewRenderCacheKey({ imdbId: request.imdbId, overlay: request.overlay, language: request.language, providers });
+    withCustomBadgesKey(
+      previewRenderCacheKey({ imdbId: request.imdbId, overlay: request.overlay, language: request.language, providers }),
+      request.customBadges,
+    );
 
   const credential = request.auth.credential;
   if (!credential) {
@@ -232,15 +243,18 @@ export async function previewPoster(request: PreviewRequest): Promise<PreviewPos
 }
 
 export async function previewPosterCached(
-  request: Pick<PreviewRequest, "imdbId" | "overlay" | "width" | "auth" | "language">,
+  request: Pick<PreviewRequest, "imdbId" | "overlay" | "width" | "auth" | "language" | "customBadges">,
 ): Promise<boolean> {
   if (!request.auth.credential) return false;
-  const fullKey = previewRenderCacheKey({
-    imdbId: request.imdbId,
-    overlay: request.overlay,
-    language: request.language,
-    providers: request.auth.providers,
-  });
+  const fullKey = withCustomBadgesKey(
+    previewRenderCacheKey({
+      imdbId: request.imdbId,
+      overlay: request.overlay,
+      language: request.language,
+      providers: request.auth.providers,
+    }),
+    request.customBadges,
+  );
   if (request.width == null) return (await fullPath(fullKey)) != null;
   return cachedPreviewThumbExists(TITLE_PREVIEW_STORE, PREVIEW_TITLE_SCOPE, fullKey, request.width, PREVIEW_RENDER_TTL_MS);
 }

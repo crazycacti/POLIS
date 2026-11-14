@@ -23,6 +23,8 @@ import { LOGO_GAP_SHARE, labelTextPx, logoMaxBox, scoreTextPx, textSizeFactor } 
 import { ratingDisplayColor } from "@/lib/rating-colors";
 import type { RatingBadge, RatingBadgeStyle, RatingSource } from "@/lib/ratings";
 import { escapeXml } from "@/lib/xml-escape";
+import type { CustomBadge } from "@/lib/custom-badges";
+import { buildCustomBadgeBoxes, cornerWidthLimit, placeCustomBadges } from "@/lib/render-custom-badges";
 
 const POSTER_WIDTH = 500;
 const POSTER_HEIGHT = 750;
@@ -76,6 +78,8 @@ const RATING_BADGE_GAP = 0.02;
 const RATING_BADGE_ROW_SHARE_WITH_GENRE = 0.72;
 const RATING_BADGE_STACK_MAX_SHARE = 0.6;
 const TOP_SCRIM_BAND = 0.26;
+const CUSTOM_BADGE_REACH = 0.5;
+const CUSTOM_BADGE_SOLO_SHARE = 0.85;
 const TOP_SCRIM_STRENGTH = 0.55;
 const TOP_SCRIM_STOPS: [number, number][] = [[0, 0], [0.5, 0.22], [1, 0.5]];
 const RATING_LOGO_HEIGHT = 0.95;
@@ -559,6 +563,7 @@ function logoRect(params: {
   padTop: number;
   bottomLimit: number;
   middleMinTop: number;
+  middleMaxBottom: number;
 }): Rect {
   const row = Math.floor(params.gridCell / 3);
   const col = params.gridCell % 3;
@@ -569,7 +574,10 @@ function logoRect(params: {
 
   let top: number;
   if (row === 0) top = params.padTop;
-  else if (row === 1) top = Math.max(params.middleMinTop, Math.round((params.h - params.logoH) / 2));
+  else if (row === 1) {
+    const centered = Math.round((params.h - params.logoH) / 2);
+    top = Math.max(params.middleMinTop, Math.min(centered, params.middleMaxBottom - params.logoH));
+  }
   else top = params.bottomLimit - params.logoH;
 
   return {
@@ -588,6 +596,7 @@ export async function renderSoftPoster(params: {
   ratingValueTen: number | null;
   ratingColorSource: RatingSource | null;
   ratingBadges?: RatingBadge[];
+  customBadges?: CustomBadge[];
   trendBadges: PosterPillBadge[];
   qualityMarkIds: QualityMarkId[];
   ageBadge: PosterPillBadge | null;
@@ -726,13 +735,40 @@ export async function renderSoftPoster(params: {
       });
     }
   }
-  const topBandBottom = Math.max(topRowBottom, stackBottom);
+  const customParts: string[] = [];
+  let customTopBottom = 0;
+  let customBottomTop = Number.POSITIVE_INFINITY;
+  if (params.customBadges && params.customBadges.length > 0) {
+    const gap = Math.round(w * RATING_BADGE_GAP);
+    const boxes = buildCustomBadgeBoxes({
+      badges: params.customBadges,
+      fs: trendFs,
+      alpha: pillOpacity(overlay),
+      maxWidth: cornerWidthLimit(params.customBadges, w - padX * 2, gap, CUSTOM_BADGE_SOLO_SHARE),
+    });
+    const reach = Math.round(h * CUSTOM_BADGE_REACH);
+    const below = (bottom: number) => (bottom > 0 ? bottom + gap : padTop);
+    const bottomEdge = hasFooter ? Math.round(footerCenterY - footerH / 2) - gap : h - padBottom;
+    const placed = placeCustomBadges(boxes, {
+      "top-left": { top: below(topRowBottom), bottom: reach, left: padX, right: w - padX, gap },
+      "top-right": { top: below(Math.max(topRowBottom, stackBottom)), bottom: reach, left: padX, right: w - padX, gap },
+      "bottom-left": { top: reach, bottom: bottomEdge, left: padX, right: w - padX, gap },
+      "bottom-right": { top: reach, bottom: bottomEdge, left: padX, right: w - padX, gap },
+    });
+    if (placed.svg) customParts.push(placed.svg);
+    customTopBottom = placed.topBottom;
+    customBottomTop = placed.bottomTop;
+  }
+  const topBandBottom = Math.max(topRowBottom, stackBottom, customTopBottom);
 
   if (drawLogo && params.logoPath) {
     const { maxW: maxLogoW, maxH: maxLogoH } = logoMaxBox(w, h, overlay.logoSize);
-    const bottomLimit = hasFooter
+    const footerLimit = hasFooter
       ? Math.round(footerCenterY - footerH / 2 - w * LOGO_GAP_SHARE)
       : h - padBottom;
+    const bottomLimit = Number.isFinite(customBottomTop)
+      ? Math.min(footerLimit, Math.round(customBottomTop - w * LOGO_GAP_SHARE))
+      : footerLimit;
     const logoPadTop = topBandBottom > 0 ? topBandBottom + Math.round(w * LOGO_GAP_SHARE) : padTop;
 
     const placeLogo = async (path: string) => {
@@ -750,7 +786,8 @@ export async function renderSoftPoster(params: {
         padX,
         padTop: logoPadTop,
         bottomLimit,
-        middleMinTop: stackBottom > 0 ? logoPadTop : 0,
+        middleMinTop: stackBottom > 0 || customTopBottom > 0 ? logoPadTop : 0,
+        middleMaxBottom: Number.isFinite(customBottomTop) ? bottomLimit : h,
       });
       const rect = {
         ...placed,
@@ -797,7 +834,7 @@ export async function renderSoftPoster(params: {
   let genreRight = w - padX;
   const ratingColorValue = valueTen != null ? ringColor(overlay, valueTen, params.ratingColorSource) : TEXT_PRIMARY;
   const badgeGlyphs: OverlayOptions[] = [...stackGlyphs];
-  svgParts.push(...stackParts);
+  svgParts.push(...stackParts, ...customParts);
   if (showBadges && !badgesOnTop) {
     const gap = Math.round(w * RATING_BADGE_GAP);
     const rowMax = Math.round((w - padX * 2) * (genreRaw ? RATING_BADGE_ROW_SHARE_WITH_GENRE : 1));

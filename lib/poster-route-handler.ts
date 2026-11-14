@@ -68,6 +68,7 @@ async function handlePosterDefaultRequestInner(
       fanartApiKey,
       tvdbCredentials,
       configId,
+      customBadges: config?.customBadges ?? [],
       admitRender: renderAdmissionFor(posterRendersPerClient, proxyClientKey(request)),
     });
   } catch (error) {

@@ -19,6 +19,7 @@ const config: StoredPolisConfig = {
   tmdbIntegratorSecret: null,
   mdblistIntegratorKey: "profile-key",
   hasPassword: false,
+  customBadges: [],
   createdAt: 0,
   updatedAt: 0,
 };

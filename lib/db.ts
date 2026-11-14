@@ -49,6 +49,9 @@ export function getPolisDb(): Database {
   if (!columns.includes("password_hash")) {
     db.run(`ALTER TABLE user_configs ADD COLUMN password_hash TEXT`);
   }
+  if (!columns.includes("custom_badges_json")) {
+    db.run(`ALTER TABLE user_configs ADD COLUMN custom_badges_json TEXT NOT NULL DEFAULT '[]'`);
+  }
 
   return db;
 }

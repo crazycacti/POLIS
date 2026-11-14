@@ -1,3 +1,4 @@
+import { CUSTOM_BADGES_PARAM, decodeCustomBadgesParam } from "@/lib/custom-badges";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -15,7 +16,7 @@ import { PREVIEW_WIDTH_PARAM } from "@/lib/preview-sizes";
 import { isImdbId } from "@/lib/stremio-imdb-id";
 
 const PREVIEW_FILE_SUFFIX = ".webp";
-const PREVIEW_QUERY_MAX_CHARS = 2048;
+const PREVIEW_QUERY_MAX_CHARS = 3072;
 const PREVIEW_LOOKUP_ATTEMPTS = 2;
 const NO_STORE = { "Cache-Control": "no-store" };
 
@@ -41,6 +42,7 @@ export async function handlePreviewPosterRequest(request: NextRequest, file: str
   const previewRequest = {
     imdbId,
     overlay: parsePosterOverlayQuery(searchParams),
+    customBadges: decodeCustomBadgesParam(searchParams.get(CUSTOM_BADGES_PARAM)),
     width: width.width,
     auth,
     language,

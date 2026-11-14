@@ -32,6 +32,7 @@ export async function GET(
     posterQuery: config.posterQuery,
     manifestKind: config.manifestKind,
     catalogs: config.catalogs,
+    customBadges: config.customBadges,
     hasPassword: config.hasPassword,
     hasTmdbIntegrator: Boolean(config.tmdbIntegratorSecret),
     hasMdblistIntegrator: Boolean(config.mdblistIntegratorKey),

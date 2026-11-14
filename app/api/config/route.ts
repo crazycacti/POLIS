@@ -27,6 +27,7 @@ import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-quer
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { isSameOriginRequest } from "@/lib/same-origin-request";
 import { isSealedSecret } from "@/lib/stored-secret";
+import { parseCustomBadges } from "@/lib/custom-badges";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,7 @@ type ConfigBody = {
   };
   password?: string;
   passwordConfirm?: string;
+  customBadges?: unknown;
 };
 
 function labelFromBody(body: ConfigBody): string | undefined | null {
@@ -110,6 +112,7 @@ function configResponse(config: StoredPolisConfig) {
     posterQuery: config.posterQuery,
     manifestKind: config.manifestKind,
     catalogs: config.catalogs,
+    customBadges: config.customBadges,
     hasPassword: config.hasPassword,
     hasTmdbIntegrator: Boolean(config.tmdbIntegratorSecret),
     hasMdblistIntegrator: Boolean(config.mdblistIntegratorKey),
@@ -140,6 +143,10 @@ export async function POST(request: Request) {
   const integrator = integratorFromBody(body);
   if (integrator === null) {
     return NextResponse.json({ error: "Invalid integrator key fields." }, { status: 400 });
+  }
+  const customBadges = body.customBadges === undefined ? undefined : parseCustomBadges(body.customBadges);
+  if (customBadges === null) {
+    return NextResponse.json({ error: "Invalid custom badges." }, { status: 400 });
   }
   const label = labelFromBody(body);
   if (label === null) {
@@ -175,6 +182,7 @@ export async function POST(request: Request) {
       ...(integrator !== undefined ? { integrator } : {}),
       ...(label !== undefined ? { label } : {}),
       ...(passwordHash !== undefined ? { passwordHash } : {}),
+      ...(customBadges !== undefined ? { customBadges } : {}),
     });
     if (!updated) {
       return NextResponse.json({ error: "Config not found" }, { status: 404 });
@@ -211,6 +219,7 @@ export async function POST(request: Request) {
     integrator,
     label,
     passwordHash,
+    customBadges,
   });
 
   const token = issueConfigureSessionToken(created.id);

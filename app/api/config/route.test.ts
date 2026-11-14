@@ -79,4 +79,18 @@ describe("POST /api/config", () => {
     );
     expect(response.status).toBe(403);
   });
+
+  test("saves custom badges and refuses invalid ones", async () => {
+    const { config, save, store } = await setup();
+    const badge = { text: "Family", icon: "popcorn", corner: "top-left", color: "#ffffff", background: "#18181b" };
+    const ok = await save({ configId: config.id, customBadges: [badge] }, { "sec-fetch-site": "same-origin" });
+    expect(ok.status).toBe(200);
+    expect(store.getPolisConfig(config.id)?.customBadges.map((b) => b.text)).toEqual(["Family"]);
+    const bad = await save(
+      { configId: config.id, customBadges: [{ ...badge, icon: "<script>" }] },
+      { "sec-fetch-site": "same-origin" },
+    );
+    expect(bad.status).toBe(400);
+    expect(store.getPolisConfig(config.id)?.customBadges).toHaveLength(1);
+  });
 });

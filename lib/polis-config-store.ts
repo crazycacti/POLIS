@@ -14,6 +14,7 @@ import {
 } from "@/lib/poster-query";
 import { normalizeConfigLabel } from "@/lib/polis-config-label";
 import { purgePosterMemoryCacheForConfig } from "@/lib/poster-render-cache";
+import { parseStoredCustomBadges, serializeCustomBadges, type CustomBadge } from "@/lib/custom-badges";
 import { hasStoredSecretKey, isSealedSecret, openSecret, sealSecret } from "@/lib/stored-secret";
 import type { PolisManifestKind } from "@/lib/stremio-manifest";
 
@@ -26,6 +27,7 @@ export type StoredPolisConfig = {
   tmdbIntegratorSecret: string | null;
   mdblistIntegratorKey: string | null;
   hasPassword: boolean;
+  customBadges: CustomBadge[];
   createdAt: number;
   updatedAt: number;
 };
@@ -44,6 +46,7 @@ type Row = {
   tmdb_integrator_secret: string | null;
   mdblist_integrator_key: string | null;
   password_hash: string | null;
+  custom_badges_json: string | null;
   created_at: number;
   updated_at: number;
 };
@@ -85,6 +88,7 @@ function rowToConfig(row: Row): StoredPolisConfig {
     tmdbIntegratorSecret: openSecret(row.tmdb_integrator_secret?.trim() || null),
     mdblistIntegratorKey: openSecret(row.mdblist_integrator_key?.trim() || null),
     hasPassword: Boolean(row.password_hash?.trim()),
+    customBadges: parseStoredCustomBadges(row.custom_badges_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -128,6 +132,7 @@ export function createPolisConfig(params: {
   integrator?: PolisConfigIntegratorPatch;
   label?: string | null;
   passwordHash: string;
+  customBadges?: CustomBadge[];
 }): StoredPolisConfig {
   const id = generatePolisConfigId();
   const now = Date.now();
@@ -142,9 +147,9 @@ export function createPolisConfig(params: {
       `INSERT INTO user_configs (
          id, label, poster_query, manifest_kind, catalogs_json,
          tmdb_integrator_secret, mdblist_integrator_key, password_hash,
-         created_at, updated_at
+         custom_badges_json, created_at, updated_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -155,6 +160,7 @@ export function createPolisConfig(params: {
       sealSecret(integrator.tmdb),
       sealSecret(integrator.mdblist),
       params.passwordHash,
+      serializeCustomBadges(params.customBadges ?? []),
       now,
       now,
     );
@@ -184,6 +190,7 @@ export function updatePolisConfig(
     integrator?: PolisConfigIntegratorPatch;
     label?: string | null;
     passwordHash?: string | null;
+    customBadges?: CustomBadge[];
   },
 ): StoredPolisConfig | null {
   const existing = getPolisConfig(configId);
@@ -220,6 +227,7 @@ export function updatePolisConfig(
       : existing.label;
   const passwordHash =
     params.passwordHash !== undefined ? params.passwordHash : undefined;
+  const customBadgesJson = serializeCustomBadges(params.customBadges ?? existing.customBadges);
 
   if (passwordHash !== undefined) {
     getPolisDb()
@@ -227,7 +235,7 @@ export function updatePolisConfig(
         `UPDATE user_configs
          SET label = ?, poster_query = ?, manifest_kind = ?, catalogs_json = ?,
              tmdb_integrator_secret = ?, mdblist_integrator_key = ?,
-             password_hash = ?, updated_at = ?
+             password_hash = ?, custom_badges_json = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -238,6 +246,7 @@ export function updatePolisConfig(
         tmdbColumn,
         mdblistColumn,
         passwordHash,
+        customBadgesJson,
         now,
         configId,
       );
@@ -247,7 +256,7 @@ export function updatePolisConfig(
         `UPDATE user_configs
          SET label = ?, poster_query = ?, manifest_kind = ?, catalogs_json = ?,
              tmdb_integrator_secret = ?, mdblist_integrator_key = ?,
-             updated_at = ?
+             custom_badges_json = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -257,6 +266,7 @@ export function updatePolisConfig(
         catalogsJson,
         tmdbColumn,
         mdblistColumn,
+        customBadgesJson,
         now,
         configId,
       );

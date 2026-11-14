@@ -9,6 +9,7 @@ import { buildAgeBadge, buildQualityMarkIds, buildTrendBadges } from "@/lib/post
 import type { PosterOverlayQuery } from "@/lib/poster-query";
 import { renderLandscapeSoft } from "@/lib/render-landscape-soft";
 import { renderPosterJpeg } from "@/lib/render-poster-default";
+import { customBadgesForTitle, type CustomBadge } from "@/lib/custom-badges";
 import { MAX_LOGO_ALTERNATES, renderSoftPoster } from "@/lib/render-poster-soft";
 import { softFontAvailable } from "@/lib/poster-soft-font";
 import {
@@ -33,6 +34,7 @@ export async function renderPosterForImdb(params: {
   fanartApiKey: string | null;
   tvdbCredentials: TvdbCredentials | null;
   configId?: string | null;
+  customBadges?: CustomBadge[];
   onDegraded?: (retryAt?: number) => void;
 }): Promise<Buffer | null> {
   const hit = await findTmdbTitle(params.imdbId, params.credential, params.language);
@@ -121,6 +123,10 @@ export async function renderPosterForImdb(params: {
   const ratingLabel = ratingResolved?.label ?? null;
   const ratingValueTen = ratingResolved?.valueTen ?? null;
   const ratingColorSource = ratingResolved?.colorSource ?? null;
+  const customBadges = customBadgesForTitle(params.customBadges ?? [], {
+    stremioType: hit.stremioType,
+    ratingValueTen: ratingValueTen ?? resolved.voteAverage,
+  });
   const ratingBadges = params.overlay.rating
     ? buildRatingBadges(parseRatingBadgeSources(params.overlay.ratingBadges), scores, params.overlay.ratingBadgeScale)
     : [];
@@ -167,6 +173,7 @@ export async function renderPosterForImdb(params: {
         ratingValueTen,
         ratingColorSource,
         ratingBadges,
+        customBadges,
         trendBadges,
         qualityMarkIds,
         ageBadge,
@@ -189,6 +196,7 @@ export async function renderPosterForImdb(params: {
         ratingValueTen,
         ratingColorSource,
         ratingBadges,
+        customBadges,
         trendBadges,
         qualityMarkIds,
         ageBadge,
