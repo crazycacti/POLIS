@@ -10,11 +10,16 @@ const DEFAULT_CACHE_MAX_BYTES = 10 * 1024 * 1024 * 1024;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_CACHE_MAX_AGE_DAYS = 45;
+const DEFAULT_ARTWORK_TTL_SEC = 7 * 24 * 60 * 60;
 const CACHE_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const TEMP_SUFFIX = ".tmp";
 
 let lastSweepAt = 0;
 let sweepInFlight: Promise<void> | null = null;
+
+export function polisArtworkDiskTtlMs(): number {
+  return (polisEnvPositiveInt("POLIS_CACHE_ARTWORK_TTL_SEC") ?? DEFAULT_ARTWORK_TTL_SEC) * 1000;
+}
 
 export function polisDiskCacheEnabled(): boolean {
   return process.env.POLIS_CACHE_DISABLE !== "1";
@@ -252,7 +257,7 @@ export async function purgePolisConfigDiskCache(configId: string): Promise<void>
   const id = configId.trim();
   if (!id) return;
   const scopeDir = path.join(polisCacheRoot());
-  const namespaces = ["poster", "poster-degraded", "backdrop", "logo", "meta", "catalog", "tmdb"];
+  const namespaces = ["poster", "poster-degraded", "poster-base", "backdrop", "logo", "meta", "catalog", "tmdb"];
   await Promise.all(
     namespaces.map(async (ns) => {
       const dir = path.join(scopeDir, ns, `c/${id}`);

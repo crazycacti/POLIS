@@ -9,6 +9,7 @@ import {
 } from "@/lib/demo-render-disk-cache";
 import {
   linkPolisDiskCacheAlias,
+  purgePolisConfigDiskCache,
   readPolisDiskBytes,
   resolvePolisDiskCachePath,
   sweepPolisDiskCache,
@@ -60,6 +61,14 @@ describe("polis disk cache", () => {
 
     await writePolisDiskBytes("poster", "g", "k", ".webp", Buffer.from("v2"));
     expect((await readPolisDiskBytes("poster", "g", "latest", ".webp"))?.toString()).toBe("v1");
+  });
+
+  test("purging a profile also drops its cached poster art", async () => {
+    await writePolisDiskBytes("poster-base", "c/profile1", "k", ".jpg", Buffer.from("art"));
+    await writePolisDiskBytes("poster-base", "c/other", "k", ".jpg", Buffer.from("art"));
+    await purgePolisConfigDiskCache("profile1");
+    expect(await resolvePolisDiskCachePath("poster-base", "c/profile1", "k", ".jpg")).toBeNull();
+    expect(await resolvePolisDiskCachePath("poster-base", "c/other", "k", ".jpg")).not.toBeNull();
   });
 
   test("the sweep removes files past the max age and keeps recent ones", async () => {

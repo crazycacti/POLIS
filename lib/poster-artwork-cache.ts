@@ -9,6 +9,7 @@ import {
 } from "@/lib/artwork-poster";
 import { polisCacheScope } from "@/lib/polis-cache-path";
 import {
+  polisArtworkDiskTtlMs,
   readPolisDiskBytes,
   resolvePolisDiskCachePath,
   writePolisDiskBytes,
@@ -225,9 +226,10 @@ export async function getPosterBaseBufferCached(params: {
   if (mem) return mem;
 
   const readDisk = async (): Promise<PosterBase | null> => {
-    const textless = await readPolisDiskBytes("poster-base", scope, cacheKey, TEXTLESS_BASE_EXT);
+    const ttlMs = polisArtworkDiskTtlMs();
+    const textless = await readPolisDiskBytes("poster-base", scope, cacheKey, TEXTLESS_BASE_EXT, ttlMs);
     if (textless) return { buffer: textless, textless: true };
-    const titled = await readPolisDiskBytes("poster-base", scope, cacheKey, BASE_EXT);
+    const titled = await readPolisDiskBytes("poster-base", scope, cacheKey, BASE_EXT, ttlMs);
     return titled ? { buffer: titled, textless: false } : null;
   };
 

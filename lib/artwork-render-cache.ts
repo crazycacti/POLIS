@@ -1,6 +1,7 @@
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { polisCacheScope } from "@/lib/polis-cache-path";
 import {
+  polisArtworkDiskTtlMs,
   readPolisDiskBytes,
   resolvePolisDiskCachePath,
   writePolisDiskBytes,
@@ -26,7 +27,7 @@ export async function resolveCachedBackdropDiskPath(
   configId: string | null,
 ): Promise<string | null> {
   const cacheKey = backdropCacheKey(imdbId, language, configId);
-  return resolvePolisDiskCachePath("backdrop", polisCacheScope(configId), cacheKey, ".jpg");
+  return resolvePolisDiskCachePath("backdrop", polisCacheScope(configId), cacheKey, ".jpg", polisArtworkDiskTtlMs());
 }
 
 export async function resolveCachedLogoDiskPath(
@@ -35,7 +36,7 @@ export async function resolveCachedLogoDiskPath(
   configId: string | null,
 ): Promise<string | null> {
   const cacheKey = logoCacheKey(imdbId, language, configId);
-  return resolvePolisDiskCachePath("logo", polisCacheScope(configId), cacheKey, ".png");
+  return resolvePolisDiskCachePath("logo", polisCacheScope(configId), cacheKey, ".png", polisArtworkDiskTtlMs());
 }
 
 export async function renderBackdropJpegCached(
@@ -46,12 +47,12 @@ export async function renderBackdropJpegCached(
 ): Promise<Buffer | null> {
   const cacheKey = backdropCacheKey(imdbId, language, configId);
   const scope = polisCacheScope(configId);
-  const diskPath = await resolvePolisDiskCachePath("backdrop", scope, cacheKey, ".jpg");
-  if (diskPath) return readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg");
+  const diskPath = await resolvePolisDiskCachePath("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
+  if (diskPath) return readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
 
   return polisSingleflight(`backdrop:${scope}:${cacheKey}`, async () => {
-    const racedPath = await resolvePolisDiskCachePath("backdrop", scope, cacheKey, ".jpg");
-    if (racedPath) return readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg");
+    const racedPath = await resolvePolisDiskCachePath("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
+    if (racedPath) return readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
 
     const jpeg = await renderBackdropJpeg(backdropPath, withPolisRenderLimit);
     if (!jpeg) return null;
@@ -68,12 +69,12 @@ export async function renderLogoPngCached(
 ): Promise<Buffer | null> {
   const cacheKey = logoCacheKey(imdbId, language, configId);
   const scope = polisCacheScope(configId);
-  const diskPath = await resolvePolisDiskCachePath("logo", scope, cacheKey, ".png");
-  if (diskPath) return readPolisDiskBytes("logo", scope, cacheKey, ".png");
+  const diskPath = await resolvePolisDiskCachePath("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
+  if (diskPath) return readPolisDiskBytes("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
 
   return polisSingleflight(`logo:${scope}:${cacheKey}`, async () => {
-    const racedPath = await resolvePolisDiskCachePath("logo", scope, cacheKey, ".png");
-    if (racedPath) return readPolisDiskBytes("logo", scope, cacheKey, ".png");
+    const racedPath = await resolvePolisDiskCachePath("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
+    if (racedPath) return readPolisDiskBytes("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
 
     const png = await renderLogoPng(logoPath, "original", withPolisRenderLimit);
     if (!png) return null;
