@@ -65,4 +65,18 @@ describe("POST /api/config", () => {
     );
     expect(response.status).toBe(400);
   });
+
+  test("refuses an unlock sent from another site", async () => {
+    const { config } = await setup();
+    const { POST: unlock } = await import("@/app/api/config/[configId]/unlock/route");
+    const response = await unlock(
+      new Request(`http://polis.test/api/config/${config.id}/unlock`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "sec-fetch-site": "cross-site" },
+        body: JSON.stringify({ password: "wrong password guess" }),
+      }),
+      { params: Promise.resolve({ configId: config.id }) },
+    );
+    expect(response.status).toBe(403);
+  });
 });
