@@ -69,9 +69,9 @@ describe("tmdb catalog pages", () => {
 
   async function page(
     skip: number,
-    options: { failingExternalId?: number; posterQueryString?: string } = {},
+    options: { failingExternalId?: number; posterQueryString?: string; onIncomplete?: () => void } = {},
   ) {
-    const { failingExternalId, posterQueryString } = options;
+    const { failingExternalId, posterQueryString, onIncomplete } = options;
     const realFetch = globalThis.fetch;
     const savedCacheFlag = process.env.POLIS_CACHE_DISABLE;
     process.env.POLIS_CACHE_DISABLE = "1";
@@ -101,6 +101,7 @@ describe("tmdb catalog pages", () => {
         extra: new URLSearchParams(skip ? { skip: String(skip) } : {}),
         catalogDefinitions: [def],
         posterQueryString,
+        onIncomplete,
       });
     } finally {
       globalThis.fetch = realFetch;
@@ -138,6 +139,24 @@ describe("tmdb catalog pages", () => {
     expect(second.map((m) => m.id)).not.toContain(`tt${1000000 + REPEATED_ROW}`);
     expect(second.at(-1)?.id).toBe("tt1000042");
     expect((await page(7))[0]?.id).toBe("tt1000009");
+  });
+
+  it("reports a page as incomplete when a title lookup fails, so it is not cached", async () => {
+    const realWarn = console.warn;
+    console.warn = () => {};
+    let incomplete = false;
+    try {
+      await page(0, { failingExternalId: 2, onIncomplete: () => (incomplete = true) });
+    } finally {
+      console.warn = realWarn;
+    }
+    expect(incomplete).toBe(true);
+  });
+
+  it("reports a full page as complete", async () => {
+    let incomplete = false;
+    await page(0, { onIncomplete: () => (incomplete = true) });
+    expect(incomplete).toBe(false);
   });
 
   it("starts at the raw row past the exact skip limit", async () => {

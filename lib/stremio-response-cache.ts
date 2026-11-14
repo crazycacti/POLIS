@@ -153,6 +153,7 @@ export async function getOrBuildStremioCatalog(
   cacheKey: string,
   configId: string | null,
   build: () => Promise<StremioCatalogMeta[]>,
+  isComplete: () => boolean = () => true,
 ): Promise<StremioCatalogMeta[]> {
   return serveFreshOrStale({
     key: `catalog:${cacheKey}`,
@@ -161,6 +162,6 @@ export async function getOrBuildStremioCatalog(
     readStale: () => readCachedStremioCatalog(cacheKey, configId, { allowStale: true }),
     build,
     store: (metas) => writeCachedStremioCatalog(cacheKey, configId, metas),
-    isStorable: (metas) => metas.length > 0,
+    isStorable: (metas) => metas.length > 0 && isComplete(),
   });
 }

@@ -12,7 +12,7 @@ import {
 } from "@/lib/stremio-catalog-extra";
 import { isImdbId } from "@/lib/stremio-imdb-id";
 import type { TmdbCredential } from "@/lib/tmdb-auth";
-import { tmdbApiGet } from "@/lib/tmdb-api-get";
+import { tmdbApiGetResult } from "@/lib/tmdb-api-get";
 import { rememberTmdbIdHint } from "@/lib/tmdb-resolve";
 import { fetchUpstream } from "@/lib/upstream-fetch";
 import { upstreamCredentialFingerprint, upstreamGuard } from "@/lib/upstream-guard";
@@ -129,14 +129,17 @@ export async function tmdbImdbIdForItem(params: {
   tmdbId: number;
   stremioType: "movie" | "series";
   credential: TmdbCredential;
+  onUnavailable?: () => void;
 }): Promise<string | null> {
   const kind = params.stremioType === "movie" ? "movie" : "tv";
   const url = new URL(
     `https://api.themoviedb.org/3/${kind}/${params.tmdbId}/external_ids`,
   );
-  const raw = (await tmdbApiGet(url, params.credential, {
+  const result = await tmdbApiGetResult(url, params.credential, {
     ttlSec: TMDB_EXTERNAL_IDS_TTL_SEC,
-  })) as { imdb_id?: string | null } | null;
+  });
+  if (result.outcome === "unavailable") params.onUnavailable?.();
+  const raw = result.value as { imdb_id?: string | null } | null;
   const imdb = raw?.imdb_id;
   if (typeof imdb !== "string" || !isImdbId(imdb)) return null;
   try {
@@ -155,6 +158,7 @@ async function tmdbRowToCatalogMeta(params: {
   posterQs: string;
   trendRank?: number | null;
   configId?: string | null;
+  onIncomplete?: () => void;
 }): Promise<StremioCatalogMeta | null> {
   const tmdbId = params.row.id;
   if (typeof tmdbId !== "number") return null;
@@ -163,6 +167,7 @@ async function tmdbRowToCatalogMeta(params: {
     tmdbId,
     stremioType: params.stremioType,
     credential: params.credential,
+    onUnavailable: params.onIncomplete,
   });
   if (!imdbId) return null;
 
@@ -199,6 +204,7 @@ async function fetchTmdbCatalogMetas(params: {
   skip: number;
   posterQueryString?: string;
   configId?: string | null;
+  onIncomplete?: () => void;
 }): Promise<StremioCatalogMeta[]> {
   const { def, credential, language, publicBase, skip } = params;
   const stremioType = def.type;
@@ -230,11 +236,13 @@ async function fetchTmdbCatalogMetas(params: {
     url.searchParams.set("language", language);
     url.searchParams.set("page", String(tmdbPage));
 
-    const raw = (await tmdbApiGet(
+    const pageResult = await tmdbApiGetResult(
       url,
       credential,
       isTrendingCatalog ? { ttlSec: TMDB_TRENDING_TTL_SEC } : {},
-    )) as TmdbPaged<TmdbTrendingRow> | null;
+    );
+    if (pageResult.outcome === "unavailable") params.onIncomplete?.();
+    const raw = pageResult.value as TmdbPaged<TmdbTrendingRow> | null;
     const rows = raw?.results ?? [];
     if (!rows.length) break;
 
@@ -255,6 +263,7 @@ async function fetchTmdbCatalogMetas(params: {
           posterQs,
           trendRank: isTrendingCatalog ? globalOffset + index + 1 : null,
           configId: params.configId,
+          onIncomplete: params.onIncomplete,
         }).catch((error: unknown) => {
           failedRows += 1;
           lastRowError = error;
@@ -262,6 +271,7 @@ async function fetchTmdbCatalogMetas(params: {
         }),
     );
     if (failedRows > 0) {
+      params.onIncomplete?.();
       console.warn(
         `[polis] ${failedRows} of ${slice.length} tmdb catalog rows failed for ${def.id}: ${errorMessageWithout(lastRowError, credentialSecret)}`,
       );
@@ -385,6 +395,7 @@ export async function fetchPolisCatalogMetas(params: {
   posterQueryString?: string;
   catalogDefinitions?: PolisCatalogDefinition[];
   configId?: string | null;
+  onIncomplete?: () => void;
 }): Promise<StremioCatalogMeta[]> {
   const def = findPolisCatalogDefinition(
     params.type,
@@ -414,6 +425,7 @@ async function fetchCatalogMetasForDefinition(
       skip,
       posterQueryString: params.posterQueryString,
       configId: params.configId,
+      onIncomplete: params.onIncomplete,
     });
   }
 

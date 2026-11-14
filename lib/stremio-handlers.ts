@@ -198,27 +198,36 @@ async function handleStremioCatalogRequestInner(
     ),
   });
   let metas: Awaited<ReturnType<typeof fetchPolisCatalogMetas>>;
+  let partial = false;
   try {
-    metas = await getOrBuildStremioCatalog(catalogCacheKey, config?.id ?? null, async () => {
-      const built = await fetchPolisCatalogMetas({
-        type: rawType,
-        catalogId,
-        credential: integrator.tmdb?.credential ?? null,
-        mdblistApiKey: integrator.mdblistAccountApiKey,
-        language,
-        publicBase,
-        extra,
-        posterQueryString: config?.posterQuery,
-        catalogDefinitions: config?.catalogs,
-        configId: config?.id,
-      });
-      if (skip === 0) prewarmCatalogPosters(built, publicBase);
-      return built;
-    });
+    metas = await getOrBuildStremioCatalog(
+      catalogCacheKey,
+      config?.id ?? null,
+      async () => {
+        const built = await fetchPolisCatalogMetas({
+          type: rawType,
+          catalogId,
+          credential: integrator.tmdb?.credential ?? null,
+          mdblistApiKey: integrator.mdblistAccountApiKey,
+          language,
+          publicBase,
+          extra,
+          posterQueryString: config?.posterQuery,
+          catalogDefinitions: config?.catalogs,
+          configId: config?.id,
+          onIncomplete: () => {
+            partial = true;
+          },
+        });
+        if (skip === 0) prewarmCatalogPosters(built, publicBase);
+        return built;
+      },
+      () => !partial,
+    );
   } catch (error) {
     console.warn(`[polis] catalog ${rawType} ${catalogId} failed: ${upstreamErrorLabel(error)}`);
     return jsonResponse({ metas: [] }, UPSTREAM_FAILURE_CACHE_SEC, 502);
   }
 
-  return jsonResponse({ metas }, 300);
+  return jsonResponse({ metas }, partial ? UPSTREAM_FAILURE_CACHE_SEC : 300);
 }
