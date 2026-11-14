@@ -188,6 +188,7 @@ function ChipToggle(props: {
 }) {
   return (
     <button
+      aria-label={props.order != null ? `${props.label}, ${props.order}` : undefined}
       aria-pressed={props.pressed}
       disabled={props.disabled}
       className={`polis-focus min-h-10 rounded-full border px-4 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-h-11 ${
@@ -198,7 +199,11 @@ function ChipToggle(props: {
       onClick={() => props.onChange(!props.pressed)}
       type="button"
     >
-      {props.order != null ? <span className="mr-1.5 tabular-nums text-cyan-200">{props.order}</span> : null}
+      {props.order != null ? (
+        <span aria-hidden className="mr-1.5 tabular-nums text-cyan-200">
+          {props.order}
+        </span>
+      ) : null}
       {props.label}
     </button>
   );
