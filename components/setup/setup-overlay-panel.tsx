@@ -34,7 +34,7 @@ import type {
 } from "@/lib/poster-query";
 import { LOGO_SOURCES_AUTO, PILL_ALPHA_MAX, PILL_ALPHA_MIN } from "@/lib/poster-query";
 import {
-  MAX_RATING_BADGES,
+  MAX_RATING_BADGE_CHOICES,
   parseRatingBadgeSources,
   type RatingBadgeSource,
   type RatingBadgeStyle,
@@ -81,7 +81,7 @@ const RATING_BADGE_OPTIONS: { value: RatingBadgeSource; label: string }[] = [
 function toggleRatingBadge(current: string, source: RatingBadgeSource, on: boolean): string {
   const list = parseRatingBadgeSources(current).filter((s) => s !== source);
   if (on) list.push(source);
-  return list.slice(0, MAX_RATING_BADGES).join(",");
+  return list.slice(0, MAX_RATING_BADGE_CHOICES).join(",");
 }
 
 const RATING_LOGO_NOTICE =
@@ -183,6 +183,7 @@ function ChipToggle(props: {
   pressed: boolean;
   onChange: (pressed: boolean) => void;
   disabled?: boolean;
+  order?: number;
 }) {
   return (
     <button
@@ -196,6 +197,7 @@ function ChipToggle(props: {
       onClick={() => props.onChange(!props.pressed)}
       type="button"
     >
+      {props.order != null ? <span className="mr-1.5 tabular-nums text-cyan-200">{props.order}</span> : null}
       {props.label}
     </button>
   );
@@ -477,9 +479,10 @@ export function SetupOverlayPanel(props: {
               const pressed = selected.includes(option.value);
               return (
                 <ChipToggle
-                  disabled={!pressed && selected.length >= MAX_RATING_BADGES}
+                  disabled={!pressed && selected.length >= MAX_RATING_BADGE_CHOICES}
                   key={option.value}
                   label={option.label}
+                  order={pressed ? selected.indexOf(option.value) + 1 : undefined}
                   onChange={(on) =>
                     setOverlay((o) => ({ ...o, ratingBadges: toggleRatingBadge(o.ratingBadges, option.value, on) }))
                   }

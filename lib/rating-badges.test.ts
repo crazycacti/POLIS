@@ -12,8 +12,15 @@ describe("rating badges", () => {
     expect(ratingBadgeText("letterboxd", 7.8)).toBe("LB 3.9");
   });
 
-  it("keeps up to three known sources once each, in order", () => {
-    expect(parseRatingBadgeSources("IMDb,tomatoes,imdb,bogus,letterboxd,trakt")).toEqual(["imdb", "tomatoes", "letterboxd"]);
+  it("keeps up to six known sources once each, in order", () => {
+    expect(parseRatingBadgeSources("IMDb,tomatoes,imdb,bogus,letterboxd,trakt,tmdb,mdblist,metacritic")).toEqual([
+      "imdb",
+      "tomatoes",
+      "letterboxd",
+      "trakt",
+      "tmdb",
+      "mdblist",
+    ]);
     expect(parseRatingBadgeSources("average")).toEqual([]);
   });
 
@@ -22,6 +29,12 @@ describe("rating badges", () => {
       { source: "tomatoes", text: "RT 90%", value: "90%" },
     ]);
     expect(buildRatingBadges(["tomatoesaudience"], { tomatoesaudience: 8.1 })[0]?.value).toBe("81%");
+  });
+
+  it("fills a missing score with the next site in order and shows at most three", () => {
+    const sources = parseRatingBadgeSources("imdb,metacritic,tomatoes,letterboxd,trakt");
+    const scores = { imdb: 8.4, tomatoes: 9.2, letterboxd: 7.8, trakt: 8 };
+    expect(buildRatingBadges(sources, scores).map((b) => b.source)).toEqual(["imdb", "tomatoes", "letterboxd"]);
   });
 
   it("keeps the logo style only when badges are on", () => {

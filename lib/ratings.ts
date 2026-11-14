@@ -208,6 +208,7 @@ export const RATING_BADGE_SOURCES = [
 export type RatingBadgeSource = (typeof RATING_BADGE_SOURCES)[number];
 
 export const MAX_RATING_BADGES = 3;
+export const MAX_RATING_BADGE_CHOICES = 6;
 
 const RATING_BADGE_PREFIX: Record<RatingBadgeSource, string> = {
   imdb: "IMDb",
@@ -230,7 +231,7 @@ export function parseRatingBadgeSources(raw: string | null | undefined): RatingB
     const source = part.trim().toLowerCase();
     if (!isRatingBadgeSource(source) || out.includes(source)) continue;
     out.push(source);
-    if (out.length === MAX_RATING_BADGES) break;
+    if (out.length === MAX_RATING_BADGE_CHOICES) break;
   }
   return out;
 }
@@ -261,6 +262,7 @@ export function buildRatingBadges(sources: RatingBadgeSource[], scores: RatingSc
     if (value == null || !Number.isFinite(value)) continue;
     const text = ratingBadgeText(source, value);
     out.push({ source, text, value: text.slice(RATING_BADGE_PREFIX[source].length + 1) });
+    if (out.length === MAX_RATING_BADGES) break;
   }
   return out;
 }
