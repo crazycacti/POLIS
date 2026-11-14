@@ -26,6 +26,13 @@ import { resolveTitleFromImdb } from "@/lib/tmdb-resolve";
 import { redactUpstreamSecrets } from "@/lib/upstream-guard";
 
 const UPSTREAM_FAILURE_CACHE_SEC = 30;
+const COMPLETE_RESPONSE_CACHE_SEC = 300;
+// Concurrent requests share one build result, so completeness travels with the object, not a per-request flag.
+const incompleteResults = new WeakSet<object>();
+
+function responseCacheSeconds(value: object): number {
+  return incompleteResults.has(value) ? UPSTREAM_FAILURE_CACHE_SEC : COMPLETE_RESPONSE_CACHE_SEC;
+}
 
 function upstreamErrorLabel(error: unknown): string {
   return redactUpstreamSecrets(error instanceof Error ? error.message : String(error));
@@ -138,7 +145,9 @@ async function handleStremioMetaRequestInner(
         });
         if (!resolved) return {};
         partial = resolved.partial === true;
-        return buildStremioMetaRecord(resolved, publicBase, artworkAuth, posterQuery, config?.id);
+        const record = buildStremioMetaRecord(resolved, publicBase, artworkAuth, posterQuery, config?.id);
+        if (partial) incompleteResults.add(record);
+        return record;
       },
       () => !partial,
     );
@@ -147,7 +156,7 @@ async function handleStremioMetaRequestInner(
     return jsonResponse({ meta: {} }, UPSTREAM_FAILURE_CACHE_SEC, 502);
   }
 
-  return jsonResponse({ meta }, 300);
+  return jsonResponse({ meta }, responseCacheSeconds(meta));
 }
 
 export async function handleStremioCatalogRequest(
@@ -221,6 +230,7 @@ async function handleStremioCatalogRequestInner(
           },
         });
         if (skip === 0) prewarmCatalogPosters(built, publicBase);
+        if (partial) incompleteResults.add(built);
         return built;
       },
       () => !partial,
@@ -230,5 +240,5 @@ async function handleStremioCatalogRequestInner(
     return jsonResponse({ metas: [] }, UPSTREAM_FAILURE_CACHE_SEC, 502);
   }
 
-  return jsonResponse({ metas }, partial ? UPSTREAM_FAILURE_CACHE_SEC : 300);
+  return jsonResponse({ metas }, responseCacheSeconds(metas));
 }
