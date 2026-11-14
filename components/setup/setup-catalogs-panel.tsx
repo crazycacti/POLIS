@@ -87,6 +87,7 @@ export function SetupCatalogsPanel(props: {
   onApplyDefaults: () => void;
   onGoToKeys: () => void;
   defaultCount: number;
+  isDefaultSelection: boolean;
   hasTmdb: boolean;
   hasMdblist: boolean;
   mdblistApiKey: string | null;
@@ -307,7 +308,7 @@ export function SetupCatalogsPanel(props: {
               <span className="sr-only"> {props.selected.length === 1 ? "row" : "rows"}</span>
             </span>
           </h2>
-          {props.defaultCount > 0 && props.selected.length > 0 ? (
+          {props.defaultCount > 0 && props.selected.length > 0 && !props.isDefaultSelection ? (
             <button className="polis-link-btn" onClick={props.onApplyDefaults} type="button">
               Use defaults
             </button>

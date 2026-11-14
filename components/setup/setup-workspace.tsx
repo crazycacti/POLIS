@@ -445,6 +445,11 @@ export function SetupWorkspace(props: {
     defaultCatalogSelection,
   ]);
 
+  const isDefaultCatalogSelection = useMemo(
+    () => JSON.stringify(selectedCatalogs) === JSON.stringify(defaultCatalogSelection),
+    [defaultCatalogSelection, selectedCatalogs],
+  );
+
   function applyDefaultCatalogs() {
     setSelectedCatalogs(defaultCatalogSelection);
     markCatalogsCustomized();
@@ -657,9 +662,11 @@ export function SetupWorkspace(props: {
 
   const saveStatus: SetupSaveStatus = configSaving
     ? "saving"
-    : !configExists || hasUnsavedChanges
-      ? "dirty"
-      : "saved";
+    : !configExists
+      ? "new"
+      : hasUnsavedChanges
+        ? "dirty"
+        : "saved";
   async function rotateInstallUrl(): Promise<string | null> {
     const current = configId?.trim();
     if (!current || !origin) return "Save the profile first.";
@@ -1029,6 +1036,7 @@ export function SetupWorkspace(props: {
       {tab === "catalogs" ? (
         <SetupCatalogsPanel
           defaultCount={defaultCatalogSelection.length}
+          isDefaultSelection={isDefaultCatalogSelection}
           hasMdblist={hasCatalogMdblist}
           hasTmdb={hasCatalogTmdb}
           mdblistApiKey={browserArtworkKeys.mdblistApiKey}

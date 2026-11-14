@@ -6,7 +6,7 @@ import { CopyButton } from "@/components/copy-button";
 import { SetupDialog, SetupDialogCancel } from "@/components/setup/setup-dialog";
 import { PatternRow } from "@/components/setup/setup-ui";
 
-export type SetupSaveStatus = "dirty" | "saved" | "saving";
+export type SetupSaveStatus = "new" | "dirty" | "saved" | "saving";
 
 const HTTPS_SCHEME = /^https:\/\//i;
 const STREMIO_WEB_ADDONS_URL = "https://web.stremio.com/#/addons?addon=";
@@ -16,12 +16,14 @@ function stremioDeepLink(installUrl: string): string | null {
 }
 
 const STATUS_LABEL: Record<SetupSaveStatus, string> = {
+  new: "Not saved yet",
   dirty: "Unsaved changes",
   saved: "Saved",
   saving: "Saving",
 };
 
 const STATUS_DOT: Record<SetupSaveStatus, string> = {
+  new: "bg-zinc-500",
   dirty: "bg-amber-400",
   saved: "bg-emerald-400",
   saving: "bg-zinc-400 motion-safe:animate-pulse",
