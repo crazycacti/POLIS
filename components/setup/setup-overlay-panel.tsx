@@ -43,6 +43,7 @@ import {
 } from "@/lib/poster-text-size";
 import {
   MAX_RATING_BADGE_CHOICES,
+  MAX_RATING_BADGES,
   parseRatingBadgeSources,
   type RatingBadgeSource,
   type RatingBadgePosition,
@@ -172,8 +173,15 @@ function ratingSummary(overlay: PosterOverlayQuery, classic: boolean): string {
   if (!overlay.rating) return OFF_SUMMARY;
   const badges = parseRatingBadgeSources(overlay.ratingBadges);
   if (badges.length > 0) {
-    const names = badges.map((b) => RATING_BADGE_OPTIONS.find((o) => o.value === b)?.label ?? b);
-    return `${names.join(", ")} badges`;
+    const names = badges
+      .slice(0, MAX_RATING_BADGES)
+      .map((b) => RATING_BADGE_OPTIONS.find((o) => o.value === b)?.label ?? b);
+    const extras = [
+      badges.length > MAX_RATING_BADGES ? `${badges.length - MAX_RATING_BADGES} more as fallback` : null,
+      overlay.ratingBadgeScale === "ten" ? "out of 10" : null,
+      overlay.ratingBadgePosition === "top" ? "top right" : null,
+    ].filter((part): part is string => part != null);
+    return [names.join(", "), ...extras].join(", ");
   }
   const source = RATING_SOURCES.find((option) => option.value === overlay.ratingSource)?.label ?? overlay.ratingSource;
   return `${source}, ${classic ? "star pill" : "circle"}`;
