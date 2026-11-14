@@ -1,7 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
 import { parseCustomBadges } from "@/lib/custom-badges";
-import { cornerWidthLimit, placeCustomBadges, type CustomBadgeBox } from "@/lib/render-custom-badges";
+import { softFontAvailable } from "@/lib/poster-soft-font";
+import {
+  cornerWidthLimit,
+  customBadgeNaturalWidth,
+  placeCustomBadges,
+  type CustomBadgeBox,
+} from "@/lib/render-custom-badges";
 
 const box = (corner: CustomBadgeBox["corner"], height = 40): CustomBadgeBox => ({
   corner,
@@ -27,14 +33,32 @@ describe("placeCustomBadges", () => {
 });
 
 describe("cornerWidthLimit", () => {
-  it("halves the width only when the opposite corner on the same edge is used", () => {
+  const badge = (text: string, corner: string) => ({ text, corner, color: "#ffffff", background: "#000000" });
+
+  it("lets a badge use the room its opposite corner leaves and shares fairly when both are wide", () => {
+    if (!softFontAvailable()) return;
     const badges = parseCustomBadges([
-      { text: "A", corner: "top-left", color: "#ffffff", background: "#000000" },
-      { text: "B", corner: "top-right", color: "#ffffff", background: "#000000" },
-      { text: "C", corner: "bottom-left", color: "#ffffff", background: "#000000" },
+      badge("Family night", "top-left"),
+      badge("A", "top-right"),
+      badge("A very long label", "bottom-left"),
+      badge("Another long one", "bottom-right"),
     ]) ?? [];
-    const limit = cornerWidthLimit(badges, 420, 20, 0.85);
-    expect(limit("top-left")).toBe(200);
-    expect(limit("bottom-left")).toBe(357);
+    const limit = cornerWidthLimit({ badges, fs: 29, innerWidth: 420, gap: 20, soloShare: 0.85 });
+    const at = (index: number) => {
+      const target = badges[index];
+      if (!target) throw new Error("missing badge");
+      return target;
+    };
+    const natural = (index: number) => customBadgeNaturalWidth(at(index), 29);
+    const drawn = (index: number) => Math.min(natural(index), limit(at(index).corner));
+    expect(drawn(0)).toBe(natural(0));
+    expect(drawn(0) + drawn(1)).toBeLessThanOrEqual(400);
+    expect(drawn(2) + drawn(3)).toBeLessThanOrEqual(400);
+    expect(drawn(2)).toBeLessThan(natural(2));
+  });
+
+  it("gives a lone corner most of the width", () => {
+    const badges = parseCustomBadges([badge("Solo", "bottom-left")]) ?? [];
+    expect(cornerWidthLimit({ badges, fs: 29, innerWidth: 420, gap: 20, soloShare: 0.85 })("bottom-left")).toBe(357);
   });
 });

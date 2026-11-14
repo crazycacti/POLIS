@@ -76,10 +76,32 @@ const OPPOSITE_CORNER: Record<CustomBadgeCorner, CustomBadgeCorner> = {
   "bottom-right": "bottom-left",
 };
 
-export function cornerWidthLimit(badges: CustomBadge[], innerWidth: number, gap: number, soloShare: number) {
-  const used = new Set(badges.map((badge) => badge.corner));
-  return (corner: CustomBadgeCorner): number =>
-    used.has(OPPOSITE_CORNER[corner]) ? Math.floor((innerWidth - gap) / 2) : Math.floor(innerWidth * soloShare);
+export function customBadgeNaturalWidth(badge: CustomBadge, fs: number): number {
+  const iconWidth = badge.icon ? Math.round(fs * ICON_SIZE) + (badge.text ? Math.round(fs * ICON_TEXT_GAP) : 0) : 0;
+  const textWidth = badge.text ? measureSoftText(badge.text, fs, TEXT_WEIGHT) : 0;
+  return Math.round(fs * CAPSULE_PAD_X) * 2 + iconWidth + textWidth;
+}
+
+export function cornerWidthLimit(params: {
+  badges: CustomBadge[];
+  fs: number;
+  innerWidth: number;
+  gap: number;
+  soloShare: number;
+}) {
+  const solo = Math.floor(params.innerWidth * params.soloShare);
+  const widest = new Map<CustomBadgeCorner, number>();
+  for (const badge of params.badges) {
+    widest.set(badge.corner, Math.max(widest.get(badge.corner) ?? 0, customBadgeNaturalWidth(badge, params.fs)));
+  }
+  return (corner: CustomBadgeCorner): number => {
+    const mine = widest.get(corner) ?? 0;
+    const theirs = widest.get(OPPOSITE_CORNER[corner]) ?? 0;
+    if (theirs === 0) return solo;
+    const room = params.innerWidth - params.gap;
+    if (mine + theirs <= room) return Math.min(solo, room - theirs);
+    return Math.floor((room * mine) / (mine + theirs));
+  };
 }
 
 export type CornerBounds = { top: number; bottom: number; left: number; right: number; gap: number };

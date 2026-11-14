@@ -744,7 +744,13 @@ export async function renderSoftPoster(params: {
       badges: params.customBadges,
       fs: trendFs,
       alpha: pillOpacity(overlay),
-      maxWidth: cornerWidthLimit(params.customBadges, w - padX * 2, gap, CUSTOM_BADGE_SOLO_SHARE),
+      maxWidth: cornerWidthLimit({
+        badges: params.customBadges,
+        fs: trendFs,
+        innerWidth: w - padX * 2,
+        gap,
+        soloShare: CUSTOM_BADGE_SOLO_SHARE,
+      }),
     });
     const reach = Math.round(h * CUSTOM_BADGE_REACH);
     const below = (bottom: number) => (bottom > 0 ? bottom + gap : padTop);
