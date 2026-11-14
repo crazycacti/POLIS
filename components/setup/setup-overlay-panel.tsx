@@ -119,6 +119,7 @@ const SHADES: { value: ShadeLevel; label: string }[] = [
 const QUALITY_BADGE_LABEL = "4K, HDR and Dolby";
 const AGE_BADGE_LABEL = "Age rating";
 const OFF_SUMMARY = "Off";
+const ON_SUMMARY = "On";
 const LABEL_RANGE_MIN = TEXT_SIZE_MIN;
 const LABEL_RANGE_MAX = TEXT_SIZE_MAX;
 const LANDSCAPE_ARTWORK_NOTE = "Landscape uses TMDB backdrops.";
@@ -501,7 +502,7 @@ export function SetupOverlayPanel(props: {
         onToggle={toggle("trend")}
         open={openPart === "trend"}
         part="trend"
-        summary={overlay.trendTags ? `${overlay.trendFontSize}px` : OFF_SUMMARY}
+        summary={overlay.trendTags ? ON_SUMMARY : OFF_SUMMARY}
       >
         <SetupOverlayRange
           label="Font size"
@@ -513,13 +514,13 @@ export function SetupOverlayPanel(props: {
       </PosterPartRow>
 
       <PosterPartRow
-        name="Badges"
+        name="Quality and age"
         onToggle={toggle("badges")}
         open={openPart === "badges"}
         part="badges"
         summary={badgesSummary(overlay)}
       >
-        <div aria-label="Badges" className="flex flex-wrap gap-2 sm:col-span-2" role="group">
+        <div aria-label="Quality and age" className="flex flex-wrap gap-2 sm:col-span-2" role="group">
           <ChipToggle
             label={QUALITY_BADGE_LABEL}
             onChange={(qualityTags) => setOverlay((o) => ({ ...o, qualityTags }))}
@@ -533,7 +534,7 @@ export function SetupOverlayPanel(props: {
         </div>
         {overlay.qualityTags || overlay.ageRating ? (
           <SetupOverlayRange
-            label="Badge size"
+            label="Size"
             max={LABEL_RANGE_MAX}
             min={LABEL_RANGE_MIN}
             onChange={(qualityMarkSize) => setOverlay((o) => ({ ...o, qualityMarkSize }))}

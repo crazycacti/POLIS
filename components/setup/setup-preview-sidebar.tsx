@@ -13,7 +13,8 @@ import {
 import { DEMO_TITLES } from "@/lib/demo-catalog";
 import { demoPosterThumbPath, resolveSetupDemoPosterSrc } from "@/lib/demo-poster-urls";
 import { overlayQueryStringFromRaw } from "@/lib/demo-poster-query";
-import type { PosterShape } from "@/lib/poster-query";
+import { parsePosterOverlayQuery, type PosterShape } from "@/lib/poster-query";
+import { parseRatingBadgeSources } from "@/lib/ratings";
 import { PREVIEW_SMALL_THUMB_WIDTH, previewThumbSrcSet } from "@/lib/preview-sizes";
 import type { PreviewTitle } from "@/lib/preview-title-list";
 
@@ -62,7 +63,7 @@ type Hotspot = { part: PosterPart; label: string; className: string };
 
 const PORTRAIT_HOTSPOTS: Hotspot[] = [
   { part: "trend", label: "Edit trend tag", className: "left-[28%] top-[2%] h-[11%] w-[44%]" },
-  { part: "badges", label: "Edit badges", className: "right-[2%] top-[2%] h-[11%] w-[24%]" },
+  { part: "badges", label: "Edit quality and age", className: "right-[2%] top-[2%] h-[11%] w-[24%]" },
   { part: "logo", label: "Edit title logo", className: "left-[8%] top-[60%] h-[24%] w-[62%]" },
   { part: "rating", label: "Edit rating", className: "bottom-[2%] right-[2%] h-[17%] w-[27%]" },
 ];
@@ -71,11 +72,20 @@ const LANDSCAPE_HOTSPOTS: Hotspot[] = [
   { part: "logo", label: "Edit title logo", className: "left-[2%] top-[44%] h-[30%] w-[42%]" },
   { part: "rating", label: "Edit rating", className: "bottom-[4%] left-[2%] h-[20%] w-[11%]" },
   { part: "trend", label: "Edit trend tag", className: "bottom-[4%] left-[13%] h-[20%] w-[24%]" },
-  { part: "badges", label: "Edit badges", className: "bottom-[4%] left-[37%] h-[20%] w-[33%]" },
+  { part: "badges", label: "Edit quality and age", className: "bottom-[4%] left-[37%] h-[20%] w-[33%]" },
 ];
 
-function PosterHotspots(props: { landscape: boolean; onEditPart: (part: PosterPart) => void }) {
-  const hotspots = props.landscape ? LANDSCAPE_HOTSPOTS : PORTRAIT_HOTSPOTS;
+const RATING_ON_TOP_HOTSPOT: Record<"portrait" | "landscape", Hotspot> = {
+  portrait: { part: "rating", label: "Edit rating", className: "right-[2%] top-[13%] h-[22%] w-[30%]" },
+  landscape: { part: "rating", label: "Edit rating", className: "right-[2%] top-[4%] h-[30%] w-[22%]" },
+};
+
+function PosterHotspots(props: { landscape: boolean; ratingOnTop: boolean; onEditPart: (part: PosterPart) => void }) {
+  const base = props.landscape ? LANDSCAPE_HOTSPOTS : PORTRAIT_HOTSPOTS;
+  const ratingSpot = RATING_ON_TOP_HOTSPOT[props.landscape ? "landscape" : "portrait"];
+  const hotspots = props.ratingOnTop
+    ? base.map((hotspot) => (hotspot.part === "rating" ? ratingSpot : hotspot))
+    : base;
   return (
     <>
       {hotspots.map((hotspot) => (
@@ -109,6 +119,10 @@ export function SetupPreviewSidebar(props: {
   onEditPart: (part: PosterPart) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const ratingOnTop = useMemo(() => {
+    const overlay = parsePosterOverlayQuery(new URLSearchParams(props.overlayQueryString));
+    return overlay.ratingBadgePosition === "top" && parseRatingBadgeSources(overlay.ratingBadges).length > 0;
+  }, [props.overlayQueryString]);
   const { stateFor, reportError } = usePreviewFallbacks();
 
   const { liveTitles, previewForImdb, overlayQueryString, showcaseQueryString } = props;
@@ -177,7 +191,11 @@ export function SetupPreviewSidebar(props: {
                 src={displaySrc!}
                 width={320}
               />
-              <PosterHotspots landscape={props.landscape} onEditPart={props.onEditPart} />
+              <PosterHotspots
+                landscape={props.landscape}
+                onEditPart={props.onEditPart}
+                ratingOnTop={ratingOnTop}
+              />
               {isLoading ? (
                 <div
                   aria-hidden
