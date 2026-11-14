@@ -47,12 +47,13 @@ export async function renderBackdropJpegCached(
 ): Promise<Buffer | null> {
   const cacheKey = backdropCacheKey(imdbId, language, configId);
   const scope = polisCacheScope(configId);
-  const diskPath = await resolvePolisDiskCachePath("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
-  if (diskPath) return readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
+  const ttlMs = polisArtworkDiskTtlMs();
+  const cached = await readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg", ttlMs);
+  if (cached) return cached;
 
   return polisSingleflight(`backdrop:${scope}:${cacheKey}`, async () => {
-    const racedPath = await resolvePolisDiskCachePath("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
-    if (racedPath) return readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg", polisArtworkDiskTtlMs());
+    const raced = await readPolisDiskBytes("backdrop", scope, cacheKey, ".jpg", ttlMs);
+    if (raced) return raced;
 
     const jpeg = await renderBackdropJpeg(backdropPath, withPolisRenderLimit);
     if (!jpeg) return null;
@@ -69,12 +70,13 @@ export async function renderLogoPngCached(
 ): Promise<Buffer | null> {
   const cacheKey = logoCacheKey(imdbId, language, configId);
   const scope = polisCacheScope(configId);
-  const diskPath = await resolvePolisDiskCachePath("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
-  if (diskPath) return readPolisDiskBytes("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
+  const ttlMs = polisArtworkDiskTtlMs();
+  const cached = await readPolisDiskBytes("logo", scope, cacheKey, ".png", ttlMs);
+  if (cached) return cached;
 
   return polisSingleflight(`logo:${scope}:${cacheKey}`, async () => {
-    const racedPath = await resolvePolisDiskCachePath("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
-    if (racedPath) return readPolisDiskBytes("logo", scope, cacheKey, ".png", polisArtworkDiskTtlMs());
+    const raced = await readPolisDiskBytes("logo", scope, cacheKey, ".png", ttlMs);
+    if (raced) return raced;
 
     const png = await renderLogoPng(logoPath, "original", withPolisRenderLimit);
     if (!png) return null;
