@@ -1,3 +1,4 @@
+import { posterQueryWithBadgeVersion } from "@/lib/custom-badges-fingerprint";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -107,7 +108,7 @@ async function handleStremioMetaRequestInner(
   const publicBase = polisPublicBaseFromRequest(request);
   const useConfigScopedArt = Boolean(config?.id);
   const artworkAuth = useConfigScopedArt ? undefined : artworkAuthParamsForPolis(integrator);
-  const posterQuery = config?.posterQuery;
+  const posterQuery = config ? posterQueryWithBadgeVersion(config.posterQuery, config.customBadges) : undefined;
 
   const metaCacheKey = stremioMetaCacheKey({
     configId: config?.id ?? null,
@@ -190,7 +191,7 @@ async function handleStremioCatalogRequestInner(
     skip,
     language,
     publicBase,
-    posterQueryString: config?.posterQuery,
+    posterQueryString: config ? posterQueryWithBadgeVersion(config.posterQuery, config.customBadges) : undefined,
     catalogs: config?.catalogs,
     credentialFingerprint: stremioCredentialFingerprint(
       integrator.tmdb?.credential,
@@ -212,7 +213,7 @@ async function handleStremioCatalogRequestInner(
           language,
           publicBase,
           extra,
-          posterQueryString: config?.posterQuery,
+          posterQueryString: config ? posterQueryWithBadgeVersion(config.posterQuery, config.customBadges) : undefined,
           catalogDefinitions: config?.catalogs,
           configId: config?.id,
           onIncomplete: () => {

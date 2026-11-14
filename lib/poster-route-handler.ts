@@ -1,3 +1,4 @@
+import { CUSTOM_BADGES_PARAM, decodeCustomBadgesParam, type CustomBadge } from "@/lib/custom-badges";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -27,6 +28,12 @@ export async function handlePosterDefaultRequest(
   configId: string | null,
 ): Promise<NextResponse> {
   return handlePosterDefaultRequestInner(request, imdbId, configId);
+}
+
+function badgesForRequest(request: NextRequest, saved: CustomBadge[] | null): CustomBadge[] {
+  if (saved == null) return [];
+  const draft = request.nextUrl.searchParams.get(CUSTOM_BADGES_PARAM);
+  return draft == null ? saved : decodeCustomBadgesParam(draft);
 }
 
 async function handlePosterDefaultRequestInner(
@@ -68,7 +75,7 @@ async function handlePosterDefaultRequestInner(
       fanartApiKey,
       tvdbCredentials,
       configId,
-      customBadges: config?.customBadges ?? [],
+      customBadges: badgesForRequest(request, config?.customBadges ?? null),
       admitRender: renderAdmissionFor(posterRendersPerClient, proxyClientKey(request)),
     });
   } catch (error) {

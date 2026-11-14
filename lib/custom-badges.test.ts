@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { customBadgesFingerprint } from "@/lib/custom-badges-fingerprint";
+import { customBadgesFingerprint, posterQueryWithBadgeVersion } from "@/lib/custom-badges-fingerprint";
 import {
   customBadgesForTitle,
   decodeCustomBadgesParam,
@@ -71,5 +71,14 @@ describe("custom badges", () => {
     expect(customBadgesForTitle(badges, { stremioType: "series", ratingValueTen: 8 })).toHaveLength(0);
     expect(customBadgesForTitle(badges, { stremioType: "movie", ratingValueTen: 6 })).toHaveLength(0);
     expect(customBadgesForTitle(badges, { stremioType: "movie", ratingValueTen: null })).toHaveLength(0);
+  });
+
+  it("changes a profile's poster URLs when its badges change, and leaves them alone without badges", () => {
+    const one = parseCustomBadges([valid]) ?? [];
+    const two = parseCustomBadges([{ ...valid, text: "Date night" }]) ?? [];
+    expect(posterQueryWithBadgeVersion("rating=1", [])).toBe("rating=1");
+    expect(posterQueryWithBadgeVersion("rating=1", one)).toMatch(/^rating=1&cbv=[0-9a-f]{16}$/);
+    expect(posterQueryWithBadgeVersion("rating=1", one)).not.toBe(posterQueryWithBadgeVersion("rating=1", two));
+    expect(posterQueryWithBadgeVersion("rating=1", one)).not.toContain("Family");
   });
 });
