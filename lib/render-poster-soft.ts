@@ -704,6 +704,7 @@ export async function renderSoftPoster(params: {
   const stackParts: string[] = [];
   const stackGlyphs: OverlayOptions[] = [];
   let stackBottom = 0;
+  let stackWidest = 0;
   if (badgesOnTop) {
     const gap = Math.round(w * RATING_BADGE_GAP);
     const boxes = await buildBadgeBoxes({
@@ -720,6 +721,7 @@ export async function renderSoftPoster(params: {
       stackParts.push(...drawn.parts);
       stackGlyphs.push(...drawn.glyphs);
       stackBottom = top + box.height;
+      stackWidest = Math.max(stackWidest, box.width);
       top = stackBottom + gap;
     }
     if (shade > 0 && stackBottom > 0) {
@@ -744,13 +746,18 @@ export async function renderSoftPoster(params: {
       badges: params.customBadges,
       fs: trendFs,
       alpha: pillOpacity(overlay),
-      maxWidth: cornerWidthLimit({
-        badges: params.customBadges,
-        fs: trendFs,
-        innerWidth: w - padX * 2,
-        gap,
-        soloShare: CUSTOM_BADGE_SOLO_SHARE,
-      }),
+      maxWidth: (corner) => {
+        const shared = cornerWidthLimit({
+          badges: params.customBadges ?? [],
+          fs: trendFs,
+          innerWidth: w - padX * 2,
+          gap,
+          soloShare: CUSTOM_BADGE_SOLO_SHARE,
+        })(corner);
+        return corner === "top-left" && stackWidest > 0
+          ? Math.min(shared, w - padX * 2 - stackWidest - gap)
+          : shared;
+      },
     });
     const reach = Math.round(h * CUSTOM_BADGE_REACH);
     const below = (bottom: number) => (bottom > 0 ? bottom + gap : padTop);

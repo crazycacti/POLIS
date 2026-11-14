@@ -282,13 +282,29 @@ export async function renderLandscapeSoft(params: {
     });
     const reach = Math.round(h * CUSTOM_BADGE_REACH);
     const rowTop = hasRow ? Math.round(rowCenterY - rowH / 2) - gap : h - padBottom;
-    const placed = placeCustomBadges(boxes, {
-      "top-left": { top: padBottom, bottom: reach, left: padX, right: w - padX, gap },
-      "top-right": { top: stackBottom > 0 ? stackBottom + gap : padBottom, bottom: reach, left: padX, right: w - padX, gap },
-      "bottom-left": { top: reach, bottom: logoTop != null ? logoTop - gap : rowTop, left: padX, right: w - padX, gap },
-      "bottom-right": { top: reach, bottom: rowTop, left: padX, right: w - padX, gap },
-    });
-    if (placed.svg) svgParts.push(placed.svg);
+    const leftBottom = logoTop != null ? logoTop - gap : rowTop;
+    const topLeftLimit = Math.min(reach, leftBottom);
+    const upper = placeCustomBadges(
+      boxes.filter((box) => box.corner.startsWith("top")),
+      {
+        "top-left": { top: padBottom, bottom: topLeftLimit, left: padX, right: w - padX, gap },
+        "top-right": { top: stackBottom > 0 ? stackBottom + gap : padBottom, bottom: reach, left: padX, right: w - padX, gap },
+        "bottom-left": { top: 0, bottom: 0, left: padX, right: w - padX, gap },
+        "bottom-right": { top: 0, bottom: 0, left: padX, right: w - padX, gap },
+      },
+    );
+    const leftFloor = upper.topBottom > 0 ? upper.topBottom + gap : padBottom;
+    const lower = placeCustomBadges(
+      boxes.filter((box) => box.corner.startsWith("bottom")),
+      {
+        "top-left": { top: 0, bottom: 0, left: padX, right: w - padX, gap },
+        "top-right": { top: 0, bottom: 0, left: padX, right: w - padX, gap },
+        "bottom-left": { top: leftFloor, bottom: leftBottom, left: padX, right: w - padX, gap },
+        "bottom-right": { top: reach, bottom: rowTop, left: padX, right: w - padX, gap },
+      },
+    );
+    if (upper.svg) svgParts.push(upper.svg);
+    if (lower.svg) svgParts.push(lower.svg);
   }
 
   const layers: OverlayOptions[] = [];
