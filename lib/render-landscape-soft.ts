@@ -132,13 +132,16 @@ export async function renderLandscapeSoft(params: {
   const trendText = overlay.trendTags ? (params.trendBadges[0]?.text ?? null) : null;
   const ageLabel = overlay.ageRating ? (params.ageBadge?.text ?? null) : null;
   const markIds = overlay.qualityTags ? normalizeQualityMarkIds(params.qualityMarkIds) : [];
-  const markItems = await buildTopItems(markIds, ageLabel, trendFs);
+  const markFs = labelTextPx(sizeRef, overlay, "qualityMarkSize");
+  const markPillH = Math.round(markFs * CAPSULE_HEIGHT);
+  const markItems = await buildTopItems(markIds, ageLabel, markFs);
 
   const badgeFs = Math.round(scoreFs * RATING_BADGE_SCALE);
   const badgeH = Math.round(badgeFs * CAPSULE_HEIGHT);
   const rowH = Math.max(
     showRing ? ringD : rowBadges.length > 0 ? badgeH : 0,
-    trendText || markItems.length > 0 ? pillH : 0,
+    trendText ? pillH : 0,
+    markItems.length > 0 ? markPillH : 0,
   );
   const hasRow = rowH > 0;
   const rowCenterY = h - padBottom - rowH / 2;
@@ -205,19 +208,19 @@ export async function renderLandscapeSoft(params: {
   }
 
   let items = markItems;
-  while (items.length > 0 && cursor + itemsCapsuleWidth(items, 1, trendFs) > rowMaxRight) {
+  while (items.length > 0 && cursor + itemsCapsuleWidth(items, 1, markFs) > rowMaxRight) {
     items = items.slice(0, -1);
   }
   if (items.length > 0) {
     const drawn = await marksCapsuleSvg(baseBuf, {
       rect: {
         left: cursor,
-        top: Math.round(rowCenterY - pillH / 2),
-        width: itemsCapsuleWidth(items, 1, trendFs),
-        height: pillH,
+        top: Math.round(rowCenterY - markPillH / 2),
+        width: itemsCapsuleWidth(items, 1, markFs),
+        height: markPillH,
       },
       items,
-      fs: trendFs,
+      fs: markFs,
     }, pillOpacity(overlay));
     svgParts.push(...drawn.parts);
     glyphLayers.push(...drawn.glyphs);

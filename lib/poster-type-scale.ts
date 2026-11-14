@@ -8,7 +8,7 @@ export const LOGO_GAP_SHARE = 0.035;
 const MIN_SIZE_FACTOR = 0.6;
 const MAX_SIZE_FACTOR = 1.6;
 
-type FontSetting = "trendFontSize" | "genreFontSize" | "ratingFontSize";
+type FontSetting = "trendFontSize" | "genreFontSize" | "ratingFontSize" | "qualityMarkSize";
 
 export function textSizeFactor(overlay: Pick<PosterOverlayQuery, FontSetting>, setting: FontSetting): number {
   const ratio = overlay[setting] / POSTER_OVERLAY_DEFAULTS[setting];
@@ -18,7 +18,7 @@ export function textSizeFactor(overlay: Pick<PosterOverlayQuery, FontSetting>, s
 export function labelTextPx(
   canvasW: number,
   overlay: Pick<PosterOverlayQuery, FontSetting>,
-  setting: "trendFontSize" | "genreFontSize",
+  setting: "trendFontSize" | "genreFontSize" | "qualityMarkSize",
 ): number {
   return Math.round(canvasW * LABEL_TEXT_SHARE * textSizeFactor(overlay, setting));
 }

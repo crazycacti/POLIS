@@ -53,6 +53,31 @@ describe("renderSoftPoster", () => {
     }
   });
 
+  test("the quality mark size setting changes the marks", async () => {
+    if (!softFontAvailable()) return;
+    const art = await sharp({ create: { width: 500, height: 750, channels: 3, background: "#556677" } })
+      .png()
+      .toBuffer();
+    const render = (query: string) =>
+      renderSoftPoster({
+        imageBuffer: art,
+        artTextless: true,
+        overlay: parsePosterOverlayQuery(new URLSearchParams(query)),
+        genreNames: [],
+        ratingValueTen: null,
+        ratingColorSource: null,
+        trendBadges: [],
+        qualityMarkIds: ["4k"],
+        ageBadge: { text: "PG-13", kind: "age" },
+        logoPath: null,
+      });
+    const small = await render("quality=1&age=1&rating=0&mark_font=30");
+    const large = await render("quality=1&age=1&rating=0&mark_font=72");
+    expect(small).not.toBeNull();
+    expect(large).not.toBeNull();
+    expect(small?.equals(large ?? Buffer.alloc(0))).toBe(false);
+  });
+
   test("top right rating badges leave the bottom of the poster as it is without badges", async () => {
     if (!softFontAvailable()) return;
     const art = await sharp({ create: { width: 500, height: 750, channels: 3, background: "#7a8899" } })

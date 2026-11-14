@@ -470,16 +470,18 @@ export function fitTopRow(params: {
   label: string | null;
   items: TopItem[];
   fs: number;
+  itemsFs?: number;
   w: number;
   padX: number;
-}): { label: string | null; items: TopItem[]; fs: number; itemsWidth: number } {
+}): { label: string | null; items: TopItem[]; fs: number; itemsFs: number; itemsWidth: number } {
+  const itemsFs = params.itemsFs ?? params.fs;
   const available = params.w - params.padX * 2;
   const separation = Math.round(params.w * FOOTER_GAP);
   const labelWidth = (fs: number) =>
     params.label ? measureSoftText(params.label, fs, 600) + fs * CAPSULE_PAD_X * 2 : 0;
   const rowWidth = (items: TopItem[], scale: number) => {
     const fs = params.fs * scale;
-    const right = itemsCapsuleWidth(items, scale, params.fs);
+    const right = itemsCapsuleWidth(items, scale, itemsFs);
     if (!params.label) return right;
     return right > 0 ? labelWidth(fs) + separation + right : labelWidth(fs);
   };
@@ -492,12 +494,19 @@ export function fitTopRow(params: {
           label: params.label,
           items: items.map((item) => scaleTopItem(item, scale)),
           fs: Math.round(params.fs * scale),
-          itemsWidth: itemsCapsuleWidth(items, scale, params.fs),
+          itemsFs: Math.round(itemsFs * scale),
+          itemsWidth: itemsCapsuleWidth(items, scale, itemsFs),
         };
       }
     }
     if (items.length === 0) {
-      return { label: params.label, items: [], fs: Math.round(params.fs * TOP_ROW_MIN_SCALE), itemsWidth: 0 };
+      return {
+        label: params.label,
+        items: [],
+        fs: Math.round(params.fs * TOP_ROW_MIN_SCALE),
+        itemsFs: Math.round(itemsFs * TOP_ROW_MIN_SCALE),
+        itemsWidth: 0,
+      };
     }
     items = items.slice(0, -1);
   }
@@ -652,8 +661,9 @@ export async function renderSoftPoster(params: {
   }
 
   const markIds = overlay.qualityTags ? normalizeQualityMarkIds(params.qualityMarkIds) : [];
-  const topItems = await buildTopItems(markIds, ageLabel, trendFs);
-  const topRow = fitTopRow({ label: trendText, items: topItems, fs: trendFs, w, padX });
+  const markFs = labelTextPx(w, overlay, "qualityMarkSize");
+  const topItems = await buildTopItems(markIds, ageLabel, markFs);
+  const topRow = fitTopRow({ label: trendText, items: topItems, fs: trendFs, itemsFs: markFs, w, padX });
   const trendCapsule = !topRow.label
     ? null
     : topRow.items.length === 0
@@ -666,10 +676,10 @@ export async function renderSoftPoster(params: {
             left: w - padX - topRow.itemsWidth,
             top: padTop,
             width: topRow.itemsWidth,
-            height: Math.round(topRow.fs * CAPSULE_HEIGHT),
+            height: Math.round(topRow.itemsFs * CAPSULE_HEIGHT),
           },
           items: topRow.items,
-          fs: topRow.fs,
+          fs: topRow.itemsFs,
         }
       : null;
   const topRowBottom = Math.max(
