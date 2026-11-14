@@ -1,4 +1,4 @@
-import { POSTER_OVERLAY_DEFAULTS, type PosterOverlayQuery } from "@/lib/poster-query";
+import { FONT_SIZE_MAX, FONT_SIZE_MIN, POSTER_OVERLAY_DEFAULTS, type PosterOverlayQuery } from "@/lib/poster-query";
 
 export type TextSizePreset = "small" | "medium" | "large" | "tv";
 
@@ -11,8 +11,8 @@ export const TEXT_SIZE_PRESETS: readonly { value: TextSizePreset; label: string 
 
 const TEXT_SIZE_FACTOR: Record<TextSizePreset, number> = { small: 0.85, medium: 1, large: 1.2, tv: 1.6 };
 
-export const TEXT_SIZE_MIN = 16;
-export const TEXT_SIZE_MAX = 72;
+export const TEXT_SIZE_MIN = FONT_SIZE_MIN;
+export const TEXT_SIZE_MAX = FONT_SIZE_MAX;
 
 const TEXT_SIZE_KEYS = ["genreFontSize", "ratingFontSize", "trendFontSize", "qualityMarkSize"] as const;
 

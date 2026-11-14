@@ -90,6 +90,9 @@ export type PosterOverlayQuery = {
   trendRank: number | null;
 };
 
+export const FONT_SIZE_MIN = 16;
+export const FONT_SIZE_MAX = 72;
+
 export const FOOTER_PAD_Y_MIN = 12;
 export const FOOTER_PAD_Y_MAX = 85;
 
@@ -188,7 +191,7 @@ function parseFontParam(
   legacyFont: number | null,
   fallback: number,
 ): number {
-  const raw = parseIntParam(searchParams, key, 16, 72);
+  const raw = parseIntParam(searchParams, key, FONT_SIZE_MIN, FONT_SIZE_MAX);
   if (raw != null) return raw;
   if (legacyFont != null) return legacyFont;
   return fallback;

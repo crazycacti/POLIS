@@ -234,8 +234,12 @@ function ScoreStyleSample(props: { look: PosterLook }) {
   );
 }
 
+const TEXT_SIZE_FALLBACK_INDEX = 1;
+
 function TextSizePicker(props: { value: TextSizePreset | null; onChange: (preset: TextSizePreset) => void }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const selectedIndex = TEXT_SIZE_PRESETS.findIndex((option) => option.value === props.value);
+  const focusIndex = selectedIndex >= 0 ? selectedIndex : TEXT_SIZE_FALLBACK_INDEX;
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const step =
@@ -246,9 +250,10 @@ function TextSizePicker(props: { value: TextSizePreset | null; onChange: (preset
           : 0;
     if (step === 0) return;
     event.preventDefault();
-    const current = Math.max(0, TEXT_SIZE_PRESETS.findIndex((option) => option.value === props.value));
-    const next = (current + step + TEXT_SIZE_PRESETS.length) % TEXT_SIZE_PRESETS.length;
-    props.onChange(TEXT_SIZE_PRESETS[next]!.value);
+    const next = (focusIndex + step + TEXT_SIZE_PRESETS.length) % TEXT_SIZE_PRESETS.length;
+    const option = TEXT_SIZE_PRESETS[next];
+    if (!option) return;
+    props.onChange(option.value);
     refs.current[next]?.focus();
   }
 
@@ -273,7 +278,7 @@ function TextSizePicker(props: { value: TextSizePreset | null; onChange: (preset
               refs.current[index] = el;
             }}
             role="radio"
-            tabIndex={selected || (props.value == null && index === 1) ? 0 : -1}
+            tabIndex={index === focusIndex ? 0 : -1}
             type="button"
           >
             {option.label}
