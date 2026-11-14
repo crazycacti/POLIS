@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { CUSTOM_BADGE_ICON_NAMES, type CustomBadgeIcon } from "@/lib/custom-badge-icons";
 
 export const CUSTOM_BADGE_CORNERS = ["top-left", "top-right", "bottom-left", "bottom-right"] as const;
@@ -23,7 +21,6 @@ export const MAX_CUSTOM_BADGE_TEXT = 20;
 export const MAX_CUSTOM_BADGES_PARAM_LENGTH = 1536;
 export const CUSTOM_BADGES_PARAM = "cb";
 const MIN_RATING_LIMIT = 10;
-const FINGERPRINT_LENGTH = 16;
 const HEX_COLOR = /^#[0-9a-f]{6}$/;
 const UNPRINTABLE = /[\p{C}]/gu;
 
@@ -109,19 +106,25 @@ export function serializeCustomBadges(badges: CustomBadge[]): string {
   );
 }
 
-export function customBadgesFingerprint(badges: CustomBadge[]): string {
-  if (badges.length === 0) return "";
-  return createHash("sha256").update(serializeCustomBadges(badges)).digest("hex").slice(0, FINGERPRINT_LENGTH);
+function toBase64Url(text: string): string {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(raw: string): string {
+  const binary = atob(raw.replace(/-/g, "+").replace(/_/g, "/"));
+  return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(binary, (ch) => ch.charCodeAt(0)));
 }
 
 export function encodeCustomBadgesParam(badges: CustomBadge[]): string {
-  return badges.length === 0 ? "" : Buffer.from(serializeCustomBadges(badges), "utf8").toString("base64url");
+  return badges.length === 0 ? "" : toBase64Url(serializeCustomBadges(badges));
 }
 
 export function decodeCustomBadgesParam(raw: string | null): CustomBadge[] {
   if (!raw || raw.length > MAX_CUSTOM_BADGES_PARAM_LENGTH) return [];
   try {
-    return parseCustomBadges(JSON.parse(Buffer.from(raw, "base64url").toString("utf8"))) ?? [];
+    return parseCustomBadges(JSON.parse(fromBase64Url(raw))) ?? [];
   } catch {
     return [];
   }

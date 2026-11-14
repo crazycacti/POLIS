@@ -1,4 +1,5 @@
-import { customBadgesFingerprint, type CustomBadge } from "@/lib/custom-badges";
+import type { CustomBadge } from "@/lib/custom-badges";
+import { customBadgesFingerprint } from "@/lib/custom-badges-fingerprint";
 import { posterContentType, posterDiskExtension } from "@/lib/poster-output-format";
 import { POLIS_RENDERER_REVISION } from "@/lib/polis-renderer";
 import { polisSingleflight } from "@/lib/polis-singleflight";

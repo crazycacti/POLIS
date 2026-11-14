@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
+import { customBadgesFingerprint } from "@/lib/custom-badges-fingerprint";
 import {
-  customBadgesFingerprint,
   customBadgesForTitle,
   decodeCustomBadgesParam,
   encodeCustomBadgesParam,
@@ -53,6 +53,8 @@ describe("custom badges", () => {
     const badges = parseCustomBadges([valid]) ?? [];
     expect(decodeCustomBadgesParam(encodeCustomBadgesParam(badges))).toEqual(badges);
     expect(decodeCustomBadgesParam("not-base64-json")).toEqual([]);
+    const accented = parseCustomBadges([{ ...valid, text: "Ciné 🎬 öffnen" }]) ?? [];
+    expect(decodeCustomBadgesParam(encodeCustomBadgesParam(accented))[0]?.text).toBe("Ciné 🎬 öffnen");
     expect(decodeCustomBadgesParam("x".repeat(5000))).toEqual([]);
   });
 
