@@ -77,8 +77,10 @@ describe("renderSoftPoster", () => {
         ageBadge: null,
         logoPath: null,
       });
-    const bottomHalf = async (buf: Buffer | null) =>
-      sharp(buf!).extract({ left: 0, top: 375, width: 500, height: 375 }).raw().toBuffer();
+    const bottomHalf = async (buf: Buffer | null) => {
+      if (!buf) throw new Error("poster did not render");
+      return sharp(buf).extract({ left: 0, top: 375, width: 500, height: 375 }).raw().toBuffer();
+    };
     const top = await render("trend=0&rating_badges=imdb,tomatoes&rating_position=top", true);
     const bottom = await render("trend=0&rating_badges=imdb,tomatoes", true);
     const none = await render("trend=0&rating=0", false);

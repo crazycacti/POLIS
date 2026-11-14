@@ -76,6 +76,8 @@ const RATING_BADGE_GAP = 0.02;
 const RATING_BADGE_ROW_SHARE_WITH_GENRE = 0.72;
 const RATING_BADGE_STACK_MAX_SHARE = 0.6;
 const TOP_SCRIM_BAND = 0.26;
+const TOP_SCRIM_STRENGTH = 0.55;
+const TOP_SCRIM_STOPS: [number, number][] = [[0, 0], [0.5, 0.22], [1, 0.5]];
 const RATING_LOGO_HEIGHT = 0.95;
 
 export type BadgeBox = {
@@ -547,6 +549,7 @@ function logoRect(params: {
   padX: number;
   padTop: number;
   bottomLimit: number;
+  middleMinTop: number;
 }): Rect {
   const row = Math.floor(params.gridCell / 3);
   const col = params.gridCell % 3;
@@ -557,7 +560,7 @@ function logoRect(params: {
 
   let top: number;
   if (row === 0) top = params.padTop;
-  else if (row === 1) top = Math.round((params.h - params.logoH) / 2);
+  else if (row === 1) top = Math.max(params.middleMinTop, Math.round((params.h - params.logoH) / 2));
   else top = params.bottomLimit - params.logoH;
 
   return {
@@ -696,9 +699,13 @@ export async function renderSoftPoster(params: {
       top = stackBottom + gap;
     }
     if (shade > 0 && stackBottom > 0) {
-      const strength = 0.55 * shade;
+      const strength = TOP_SCRIM_STRENGTH * shade;
       layers.push({
-        input: gradientSvg(w, Math.round(h * TOP_SCRIM_BAND), [[0, 0], [0.5, 0.22 * strength], [1, 0.5 * strength]]),
+        input: gradientSvg(
+          w,
+          Math.round(h * TOP_SCRIM_BAND),
+          TOP_SCRIM_STOPS.map(([offset, alpha]) => [offset, alpha * strength]),
+        ),
         top: 0,
         left: 0,
       });
@@ -719,7 +726,17 @@ export async function renderSoftPoster(params: {
       const scale = Math.min(1, maxLogoW / raster.width, maxLogoH / raster.height);
       const logoW = Math.max(1, Math.min(w, Math.round(raster.width * scale)));
       const logoH = Math.max(1, Math.min(h, Math.round(raster.height * scale)));
-      const placed = logoRect({ w, h, logoW, logoH, gridCell: overlay.gridCell, padX, padTop: logoPadTop, bottomLimit });
+      const placed = logoRect({
+        w,
+        h,
+        logoW,
+        logoH,
+        gridCell: overlay.gridCell,
+        padX,
+        padTop: logoPadTop,
+        bottomLimit,
+        middleMinTop: stackBottom > 0 ? logoPadTop : 0,
+      });
       const rect = {
         ...placed,
         left: Math.min(placed.left, w - logoW),
