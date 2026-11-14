@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import sharp from "sharp";
 
+import { parseCustomBadges } from "@/lib/custom-badges";
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import { softFontAvailable } from "@/lib/poster-soft-font";
 import { fitTopRow, logoLegibleShare, logoScrimAlpha, ratingCapsuleAt, renderSoftPoster } from "@/lib/render-poster-soft";
@@ -53,8 +54,7 @@ describe("renderSoftPoster", () => {
     }
   });
 
-  test("the quality mark size setting changes the marks", async () => {
-    if (!softFontAvailable()) return;
+  test.skipIf(!softFontAvailable())("the quality mark size setting changes the marks", async () => {
     const art = await sharp({ create: { width: 500, height: 750, channels: 3, background: "#556677" } })
       .png()
       .toBuffer();
@@ -86,8 +86,45 @@ describe("renderSoftPoster", () => {
     expect(large).toBeGreaterThan(small);
   });
 
-  test("top right rating badges leave the bottom of the poster as it is without badges", async () => {
-    if (!softFontAvailable()) return;
+  test.skipIf(!softFontAvailable())("draws a top right custom badge below the top right rating badges", async () => {
+    const art = await sharp({ create: { width: 500, height: 750, channels: 3, background: "#6a7a8a" } })
+      .png()
+      .toBuffer();
+    const customBadges =
+      parseCustomBadges([{ text: "Rewatch", icon: "heart", corner: "top-right", color: "#111111", background: "#fbbf24" }]) ?? [];
+    const render = (withCustom: boolean) =>
+      renderSoftPoster({
+        imageBuffer: art,
+        artTextless: true,
+        overlay: parsePosterOverlayQuery(new URLSearchParams("trend=0&rating_badges=imdb&rating_position=top")),
+        genreNames: [],
+        ratingValueTen: 8.6,
+        ratingColorSource: "imdb",
+        ratingBadges: [{ source: "imdb", text: "IMDb 8.6", value: "8.6" }],
+        customBadges: withCustom ? customBadges : [],
+        trendBadges: [],
+        qualityMarkIds: [],
+        ageBadge: null,
+        logoPath: null,
+      });
+    const raw = async (buf: Buffer | null, top: number, height: number) => {
+      if (!buf) throw new Error("poster did not render");
+      return sharp(buf).extract({ left: 250, top, width: 250, height }).raw().toBuffer();
+    };
+    const meanDifference = (a: Buffer, b: Buffer) => {
+      let total = 0;
+      for (let i = 0; i < a.length; i += 1) total += Math.abs((a[i] ?? 0) - (b[i] ?? 0));
+      return total / a.length;
+    };
+    const without = await render(false);
+    const withCustom = await render(true);
+    const ratingArea = meanDifference(await raw(withCustom, 0, 60), await raw(without, 0, 60));
+    const belowArea = meanDifference(await raw(withCustom, 72, 110), await raw(without, 72, 110));
+    expect(ratingArea).toBeLessThan(1);
+    expect(belowArea).toBeGreaterThan(5);
+  });
+
+  test.skipIf(!softFontAvailable())("top right rating badges leave the bottom of the poster as it is without badges", async () => {
     const art = await sharp({ create: { width: 500, height: 750, channels: 3, background: "#7a8899" } })
       .png()
       .toBuffer();
@@ -211,8 +248,7 @@ describe("fitTopRow", () => {
     expect(row.itemsWidth).toBeLessThanOrEqual(500 - 80);
   });
 
-  test("sizes the marks on their own and shrinks both sizes together when the row is too wide", () => {
-    if (!softFontAvailable()) return;
+  test.skipIf(!softFontAvailable())("sizes the marks on their own and shrinks both sizes together when the row is too wide", () => {
     const fits = fitTopRow({ label: "New", items: [text(20)], fs: 20, itemsFs: 40, w: 500, padX: 40 });
     expect(fits.fs).toBe(20);
     expect(fits.itemsFs).toBe(40);
