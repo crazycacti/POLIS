@@ -158,8 +158,10 @@ export async function renderLandscapeSoft(params: {
     alpha: pillOpacity(overlay),
     maxWidth: rowMaxRight - cursor,
   });
-  for (const box of badgeBoxes) {
-    if (cursor + box.width > rowMaxRight) break;
+  const trendWidth = trendText ? (capsuleAt(trendText, trendFs, 0, 0, rowMaxRight)?.rect.width ?? 0) : 0;
+  const badgeRight = trendWidth > 0 ? rowMaxRight - trendWidth - gap : rowMaxRight;
+  for (const [index, box] of badgeBoxes.entries()) {
+    if (cursor + box.width > (index === 0 ? rowMaxRight : badgeRight)) break;
     const drawn = await box.draw(cursor, rowCenterY);
     svgParts.push(...drawn.parts);
     glyphLayers.push(...drawn.glyphs);
