@@ -1,4 +1,4 @@
-import { fetchArtworkBytes } from "@/lib/artwork-url-allow";
+import { fetchArtworkBytes, readArtworkResponseBytes } from "@/lib/artwork-url-allow";
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import { readPolisDiskBytes, writePolisDiskBytes } from "@/lib/polis-disk-cache";
 import { type CpuStage, runWithoutRenderLimit } from "@/lib/polis-render-limit";
@@ -37,7 +37,8 @@ async function fetchLogoBytes(logoRef: string, size: TmdbLogoSize): Promise<Buff
       await res.body?.cancel();
       return null;
     }
-    const bytes = Buffer.from(await res.arrayBuffer());
+    const bytes = await readArtworkResponseBytes(res);
+    if (!bytes) return null;
     void writePolisDiskBytes(TMDB_LOGO_NAMESPACE, TMDB_LOGO_SCOPE, cacheKey, TMDB_LOGO_EXT, bytes).catch(
       (error: unknown) => console.warn(`[polis] logo cache write failed for ${logoRef}`, error),
     );

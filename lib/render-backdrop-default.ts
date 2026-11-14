@@ -1,3 +1,4 @@
+import { readArtworkResponseBytes } from "@/lib/artwork-url-allow";
 import { type CpuStage, runWithoutRenderLimit } from "@/lib/polis-render-limit";
 import { ensurePolisSharpConfigured } from "@/lib/polis-sharp-config";
 import { fetchUpstream, IMAGE_FETCH_TIMEOUT_MS } from "@/lib/upstream-fetch";
@@ -21,7 +22,8 @@ export async function renderBackdropJpeg(
     await res.body?.cancel();
     return null;
   }
-  const buf = Buffer.from(await res.arrayBuffer());
+  const buf = await readArtworkResponseBytes(res);
+  if (!buf) return null;
   return cpuStage(() =>
     sharp(buf)
       .resize({
