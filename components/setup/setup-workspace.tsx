@@ -445,10 +445,13 @@ export function SetupWorkspace(props: {
     defaultCatalogSelection,
   ]);
 
-  const isDefaultCatalogSelection = useMemo(
-    () => JSON.stringify(selectedCatalogs) === JSON.stringify(defaultCatalogSelection),
-    [defaultCatalogSelection, selectedCatalogs],
-  );
+  const isDefaultCatalogSelection = useMemo(() => {
+    const rowKey = (def: PolisCatalogDefinition) => `${def.type}:${def.id}:${def.name}:${def.home !== false}`;
+    return (
+      selectedCatalogs.length === defaultCatalogSelection.length &&
+      selectedCatalogs.every((def, index) => rowKey(def) === rowKey(defaultCatalogSelection[index]!))
+    );
+  }, [defaultCatalogSelection, selectedCatalogs]);
 
   function applyDefaultCatalogs() {
     setSelectedCatalogs(defaultCatalogSelection);
