@@ -24,6 +24,20 @@ describe("rating badges", () => {
     expect(parseRatingBadgeSources("average")).toEqual([]);
   });
 
+  it("shows every site out of 10 when asked", () => {
+    expect(ratingBadgeText("tomatoes", 9.2, "ten")).toBe("RT 9.2");
+    expect(ratingBadgeText("letterboxd", 7.8, "ten")).toBe("LB 7.8");
+    expect(buildRatingBadges(["metacritic"], { metacritic: 7.8 }, "ten")[0]?.value).toBe("7.8");
+  });
+
+  it("keeps the out of 10 scale in the poster URL only when badges are on", () => {
+    const withScale = serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, ratingBadges: "imdb", ratingBadgeScale: "ten" });
+    expect(withScale).toContain("rating_scale=10");
+    expect(parsePosterOverlayQuery(new URLSearchParams(withScale)).ratingBadgeScale).toBe("ten");
+    expect(serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, ratingBadgeScale: "ten" })).not.toContain("rating_scale");
+    expect(serializePosterQuery(POSTER_OVERLAY_DEFAULTS)).not.toContain("rating_scale");
+  });
+
   it("skips sources with no score", () => {
     expect(buildRatingBadges(["imdb", "tomatoes"], { tomatoes: 9 })).toEqual([
       { source: "tomatoes", text: "RT 90%", value: "90%" },

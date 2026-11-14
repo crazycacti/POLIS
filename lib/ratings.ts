@@ -236,9 +236,16 @@ export function parseRatingBadgeSources(raw: string | null | undefined): RatingB
   return out;
 }
 
-export function ratingBadgeText(source: RatingBadgeSource, valueTen: number): string {
+export type RatingBadgeScale = "own" | "ten";
+
+export function parseRatingBadgeScale(raw: string | null | undefined): RatingBadgeScale {
+  return raw?.trim() === "10" ? "ten" : "own";
+}
+
+export function ratingBadgeText(source: RatingBadgeSource, valueTen: number, scale: RatingBadgeScale = "own"): string {
   const value = clampTen(valueTen);
   const prefix = RATING_BADGE_PREFIX[source];
+  if (scale === "ten") return `${prefix} ${value.toFixed(1)}`;
   if (PERCENT_SOURCES.has(source)) {
     const percent = Math.round(value * 10);
     return source === "metacritic" || source === "mdblist" ? `${prefix} ${percent}` : `${prefix} ${percent}%`;
@@ -255,12 +262,16 @@ export function parseRatingBadgeStyle(raw: string | null | undefined): RatingBad
   return raw?.trim().toLowerCase() === "logo" ? "logo" : "text";
 }
 
-export function buildRatingBadges(sources: RatingBadgeSource[], scores: RatingScores): RatingBadge[] {
+export function buildRatingBadges(
+  sources: RatingBadgeSource[],
+  scores: RatingScores,
+  scale: RatingBadgeScale = "own",
+): RatingBadge[] {
   const out: RatingBadge[] = [];
   for (const source of sources) {
     const value = scores[source];
     if (value == null || !Number.isFinite(value)) continue;
-    const text = ratingBadgeText(source, value);
+    const text = ratingBadgeText(source, value, scale);
     out.push({ source, text, value: text.slice(RATING_BADGE_PREFIX[source].length + 1) });
     if (out.length === MAX_RATING_BADGES) break;
   }

@@ -122,7 +122,7 @@ export async function renderPosterForImdb(params: {
   const ratingValueTen = ratingResolved?.valueTen ?? null;
   const ratingColorSource = ratingResolved?.colorSource ?? null;
   const ratingBadges = params.overlay.rating
-    ? buildRatingBadges(parseRatingBadgeSources(params.overlay.ratingBadges), scores)
+    ? buildRatingBadges(parseRatingBadgeSources(params.overlay.ratingBadges), scores, params.overlay.ratingBadgeScale)
     : [];
 
   const trendBadges = params.overlay.trendTags
