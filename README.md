@@ -21,8 +21,10 @@ Poster overlays for Stremio, Aurora Media Center and AIOMetadata: ratings, trend
 ## What it does
 
 - **Renders posters on demand:** give it an IMDb id and it returns the poster with your overlays, as WebP by default. Results are cached on disk.
-- **Shows ratings:** an average or a single source (IMDb, TMDB, Rotten Tomatoes, Metacritic, Trakt, Letterboxd, MDBList) as a ring or a star pill with optional score colors, or up to three sites side by side as badges on their own scales ("IMDb 8.4", "RT 92%", "LB 3.9").
+- **Shows ratings:** an average or a single source (IMDb, TMDB, Rotten Tomatoes, Metacritic, Trakt, Letterboxd, MDBList) as a ring or a star pill with optional score colors, or rating badges: pick up to six sites in order and the first three with a score are shown, on each site's own scale ("IMDb 8.4", "RT 92%", "LB 3.9") or out of 10, along the bottom or stacked in the top right corner.
 - **Adds labels:** trend tags for trending titles, 4K, HDR and Dolby marks, age ratings and genres.
+- **Your own badges:** each profile can add up to four badges with short text, an icon, colors and a corner, shown on all titles, only movies or series, or above a rating.
+- **Text size:** Small, Medium, Large or TV sets every label size at once, and each size can still be tuned on its own.
 - **Places title logos:** from TMDB, Fanart.tv or TheTVDB, on a 3 by 3 grid, with a shadow and a scrim when the art behind is too bright.
 - **Picks artwork:** TMDB, Fanart.tv, TheTVDB, MetaHub, AniList, Kitsu or MyAnimeList, with a fallback source.
 - **Does landscape too:** backdrops with logo, score and trend tag for clients that show wide art.
