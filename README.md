@@ -190,6 +190,8 @@ Then open `http://localhost:3050/configure`.
 | `bun run start` | Production server on port 3050 |
 | `bun run test` | Tests, with no live API calls |
 | `bun run typecheck` | TypeScript check |
+| `bun run sync:fonts` | Copies installed DejaVu Sans fonts into `assets/fonts` for poster text |
+| `bun run fetch:fonts` | Downloads DejaVu Sans into `assets/fonts` when it is not installed |
 
 ## Credits
 

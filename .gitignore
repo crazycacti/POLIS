@@ -1,13 +1,14 @@
 .cursor/
 
 node_modules
-scripts/
+scripts/*
+!scripts/fetch-overlay-fonts.sh
+!scripts/sync-overlay-fonts.sh
 *.tsbuildinfo
 .next
 out
 dist
-.env
-.env*.local
+.env*
 *.log
 .DS_Store
 .cache/
