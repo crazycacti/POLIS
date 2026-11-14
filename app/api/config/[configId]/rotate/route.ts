@@ -4,21 +4,9 @@ import { isConfigureSessionValid, issueConfigureSessionToken } from "@/lib/polis
 import { configureSessionCookieHeader } from "@/lib/polis-config-auth";
 import { isValidPolisConfigId } from "@/lib/polis-config-id";
 import { getPolisConfig, rotatePolisConfigId } from "@/lib/polis-config-store";
+import { isSameOriginRequest } from "@/lib/same-origin-request";
 
 export const runtime = "nodejs";
-
-// SameSite=Lax still sends the session from sibling subdomains, so a bodyless POST must prove it came from POLIS itself.
-function isSameOriginRequest(request: Request): boolean {
-  const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite && fetchSite !== "same-origin") return false;
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    return new URL(origin).host === (request.headers.get("host") ?? new URL(request.url).host);
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(
   request: Request,

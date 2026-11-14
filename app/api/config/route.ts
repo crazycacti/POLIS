@@ -25,6 +25,8 @@ import {
 } from "@/lib/polis-profile-create-limit";
 import { parsePosterOverlayQuery, serializePosterQuery } from "@/lib/poster-query";
 import type { PosterOverlayQuery } from "@/lib/poster-query";
+import { isSameOriginRequest } from "@/lib/same-origin-request";
+import { isSealedSecret } from "@/lib/stored-secret";
 
 export const runtime = "nodejs";
 
@@ -79,17 +81,21 @@ function catalogsFromBody(body: ConfigBody): PolisCatalogDefinition[] | undefine
   return out;
 }
 
+function isPlainSecretInput(value: unknown): value is string {
+  return typeof value === "string" && !isSealedSecret(value.trim());
+}
+
 function integratorFromBody(body: ConfigBody): PolisConfigIntegratorPatch | undefined | null {
   if (!body.integrator || typeof body.integrator !== "object") return undefined;
   const patch: PolisConfigIntegratorPatch = {};
   if (body.integrator.tmdbSecret !== undefined) {
-    if (body.integrator.tmdbSecret !== null && typeof body.integrator.tmdbSecret !== "string") {
+    if (body.integrator.tmdbSecret !== null && !isPlainSecretInput(body.integrator.tmdbSecret)) {
       return null;
     }
     patch.tmdbSecret = body.integrator.tmdbSecret;
   }
   if (body.integrator.mdblistApiKey !== undefined) {
-    if (body.integrator.mdblistApiKey !== null && typeof body.integrator.mdblistApiKey !== "string") {
+    if (body.integrator.mdblistApiKey !== null && !isPlainSecretInput(body.integrator.mdblistApiKey)) {
       return null;
     }
     patch.mdblistApiKey = body.integrator.mdblistApiKey;
@@ -113,6 +119,9 @@ function configResponse(config: StoredPolisConfig) {
 }
 
 export async function POST(request: Request) {
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const parsed = await readJsonBody(request, CONFIG_JSON_BODY_MAX_BYTES);
   if (!parsed.ok) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: parsed.status });
@@ -194,8 +203,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const passwordHash = await hashConfigPassword(pair.password);
   recordProfileCreated(clientKey);
+  const passwordHash = await hashConfigPassword(pair.password);
   const created = createPolisConfig({
     overlay,
     catalogs,

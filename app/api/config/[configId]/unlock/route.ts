@@ -5,6 +5,7 @@ import { configureSessionCookieHeader } from "@/lib/polis-config-auth";
 import { isValidPolisConfigId } from "@/lib/polis-config-id";
 import { getPolisConfig } from "@/lib/polis-config-store";
 import { readJsonBody, SMALL_JSON_BODY_MAX_BYTES } from "@/lib/request-json-body";
+import { isSameOriginRequest } from "@/lib/same-origin-request";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,9 @@ export async function POST(
   { params }: { params: Promise<{ configId: string }> },
 ) {
   const { configId } = await params;
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   if (!isValidPolisConfigId(configId)) {
     return NextResponse.json({ error: "Invalid config id" }, { status: 400 });
   }
