@@ -52,6 +52,39 @@ describe("renderSoftPoster", () => {
       expect(meta.height).toBe(750);
     }
   });
+
+  test("top right rating badges leave the bottom of the poster as it is without badges", async () => {
+    if (!softFontAvailable()) return;
+    const art = await sharp({ create: { width: 500, height: 750, channels: 3, background: "#7a8899" } })
+      .png()
+      .toBuffer();
+    const render = (query: string, withBadges: boolean) =>
+      renderSoftPoster({
+        imageBuffer: art,
+        artTextless: true,
+        overlay: parsePosterOverlayQuery(new URLSearchParams(query)),
+        genreNames: [],
+        ratingValueTen: 8.6,
+        ratingColorSource: "imdb",
+        ratingBadges: withBadges
+          ? [
+              { source: "imdb", text: "IMDb 8.6", value: "8.6" },
+              { source: "tomatoes", text: "RT 99%", value: "99%" },
+            ]
+          : [],
+        trendBadges: [],
+        qualityMarkIds: [],
+        ageBadge: null,
+        logoPath: null,
+      });
+    const bottomHalf = async (buf: Buffer | null) =>
+      sharp(buf!).extract({ left: 0, top: 375, width: 500, height: 375 }).raw().toBuffer();
+    const top = await render("trend=0&rating_badges=imdb,tomatoes&rating_position=top", true);
+    const bottom = await render("trend=0&rating_badges=imdb,tomatoes", true);
+    const none = await render("trend=0&rating=0", false);
+    expect((await bottomHalf(top)).equals(await bottomHalf(none))).toBe(true);
+    expect((await bottomHalf(bottom)).equals(await bottomHalf(none))).toBe(false);
+  });
 });
 
 describe("logoScrimAlpha", () => {

@@ -37,6 +37,7 @@ import {
   MAX_RATING_BADGE_CHOICES,
   parseRatingBadgeSources,
   type RatingBadgeSource,
+  type RatingBadgePosition,
   type RatingBadgeScale,
   type RatingBadgeStyle,
   type RatingSource,
@@ -519,6 +520,20 @@ export function SetupOverlayPanel(props: {
             >
               <option value="own">Each site's own</option>
               <option value="ten">Out of 10</option>
+            </select>
+          </SetupOverlayField>
+        ) : null}
+        {badgeMode ? (
+          <SetupOverlayField label="Position">
+            <select
+              className="polis-select w-full"
+              onChange={(e) =>
+                setOverlay((o) => ({ ...o, ratingBadgePosition: e.target.value as RatingBadgePosition }))
+              }
+              value={overlay.ratingBadgePosition}
+            >
+              <option value="bottom">Bottom</option>
+              <option value="top">Top right</option>
             </select>
           </SetupOverlayField>
         ) : null}

@@ -238,6 +238,12 @@ export function parseRatingBadgeSources(raw: string | null | undefined): RatingB
 
 export type RatingBadgeScale = "own" | "ten";
 
+export type RatingBadgePosition = "bottom" | "top";
+
+export function parseRatingBadgePosition(raw: string | null | undefined): RatingBadgePosition {
+  return raw?.trim().toLowerCase() === "top" ? "top" : "bottom";
+}
+
 export function parseRatingBadgeScale(raw: string | null | undefined): RatingBadgeScale {
   return raw?.trim() === "10" ? "ten" : "own";
 }

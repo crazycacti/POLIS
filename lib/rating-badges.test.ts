@@ -38,6 +38,14 @@ describe("rating badges", () => {
     expect(serializePosterQuery(POSTER_OVERLAY_DEFAULTS)).not.toContain("rating_scale");
   });
 
+  it("keeps the top right position in the poster URL only when badges are on", () => {
+    const top = serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, ratingBadges: "imdb", ratingBadgePosition: "top" });
+    expect(top).toContain("rating_position=top");
+    expect(parsePosterOverlayQuery(new URLSearchParams(top)).ratingBadgePosition).toBe("top");
+    expect(parsePosterOverlayQuery(new URLSearchParams("rating_position=left")).ratingBadgePosition).toBe("bottom");
+    expect(serializePosterQuery({ ...POSTER_OVERLAY_DEFAULTS, ratingBadgePosition: "top" })).not.toContain("rating_position");
+  });
+
   it("skips sources with no score", () => {
     expect(buildRatingBadges(["imdb", "tomatoes"], { tomatoes: 9 })).toEqual([
       { source: "tomatoes", text: "RT 90%", value: "90%" },

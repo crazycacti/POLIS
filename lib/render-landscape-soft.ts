@@ -48,6 +48,9 @@ const BOTTOM_SCRIM_HEIGHT = 0.6;
 const SIDE_SCRIM_STOPS: [number, number][] = [[0, 0.72], [0.45, 0.38], [1, 0]];
 const BOTTOM_SCRIM_STOPS: [number, number][] = [[0, 0.62], [0.5, 0.22], [1, 0]];
 const ROW_ONLY_SCRIM_STRENGTH = 0.7;
+const TOP_SCRIM_HEIGHT = 0.42;
+const TOP_SCRIM_STOPS: [number, number][] = [[0, 0], [0.5, 0.2], [1, 0.5]];
+const BADGE_STACK_MAX_WIDTH = 0.3;
 export const LANDSCAPE_BYTE_BUDGET = 80 * 1024;
 
 function linearScrim(w: number, h: number, horizontal: boolean, stops: [number, number][], strength: number): Buffer {
@@ -116,6 +119,8 @@ export async function renderLandscapeSoft(params: {
 
   const valueTen = overlay.rating ? params.ratingValueTen : null;
   const badgeTexts = overlay.rating ? (params.ratingBadges ?? []) : [];
+  const badgesOnTop = badgeTexts.length > 0 && overlay.ratingBadgePosition === "top";
+  const rowBadges = badgesOnTop ? [] : badgeTexts;
   const showRing = badgeTexts.length === 0 && valueTen != null && Number.isFinite(valueTen);
   const ringScale = textSizeFactor(overlay, "ratingFontSize");
   const ringD = Math.round(sizeRef * RING_DIAMETER * ringScale);
@@ -132,7 +137,7 @@ export async function renderLandscapeSoft(params: {
   const badgeFs = Math.round(scoreFs * RATING_BADGE_SCALE);
   const badgeH = Math.round(badgeFs * CAPSULE_HEIGHT);
   const rowH = Math.max(
-    showRing ? ringD : badgeTexts.length > 0 ? badgeH : 0,
+    showRing ? ringD : rowBadges.length > 0 ? badgeH : 0,
     trendText || markItems.length > 0 ? pillH : 0,
   );
   const hasRow = rowH > 0;
@@ -144,7 +149,7 @@ export async function renderLandscapeSoft(params: {
 
   const badgeBoxes = await buildBadgeBoxes({
     base: baseBuf,
-    badges: badgeTexts,
+    badges: rowBadges,
     style: overlay.ratingBadgeStyle,
     fs: badgeFs,
     alpha: pillOpacity(overlay),
@@ -171,6 +176,26 @@ export async function renderLandscapeSoft(params: {
       }),
     );
     cursor += ringD + gap;
+  }
+
+  let stackBottom = 0;
+  if (badgesOnTop) {
+    const stackBoxes = await buildBadgeBoxes({
+      base: baseBuf,
+      badges: badgeTexts,
+      style: overlay.ratingBadgeStyle,
+      fs: badgeFs,
+      alpha: pillOpacity(overlay),
+      maxWidth: Math.round(w * BADGE_STACK_MAX_WIDTH),
+    });
+    let top = padBottom;
+    for (const box of stackBoxes) {
+      const drawn = await box.draw(w - padX - box.width, top + box.height / 2);
+      svgParts.push(...drawn.parts);
+      glyphLayers.push(...drawn.glyphs);
+      stackBottom = top + box.height;
+      top = stackBottom + gap;
+    }
   }
 
   const trendCapsule = trendText ? capsuleAt(trendText, trendFs, cursor, rowCenterY, rowMaxRight - cursor) : null;
@@ -247,6 +272,13 @@ export async function renderLandscapeSoft(params: {
       { input: linearScrim(sideW, h, true, SIDE_SCRIM_STOPS, strength), top: 0, left: 0 },
       { input: linearScrim(w, bottomH, false, BOTTOM_SCRIM_STOPS, strength), top: h - bottomH, left: 0 },
     );
+  }
+  if (stackBottom > 0 && shade > 0) {
+    layers.push({
+      input: linearScrim(w, Math.round(h * TOP_SCRIM_HEIGHT), false, TOP_SCRIM_STOPS, shade),
+      top: 0,
+      left: 0,
+    });
   }
   layers.push(...logoLayers);
   if (svgParts.length > 0) {

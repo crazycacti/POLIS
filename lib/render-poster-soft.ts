@@ -74,6 +74,8 @@ const TEXT_PRIMARY = "#ffffff";
 export const RATING_BADGE_SCALE = 0.72;
 const RATING_BADGE_GAP = 0.02;
 const RATING_BADGE_ROW_SHARE_WITH_GENRE = 0.72;
+const RATING_BADGE_STACK_MAX_SHARE = 0.6;
+const TOP_SCRIM_BAND = 0.26;
 const RATING_LOGO_HEIGHT = 0.95;
 
 export type BadgeBox = {
@@ -605,6 +607,7 @@ export async function renderSoftPoster(params: {
   const valueTen = overlay.rating ? params.ratingValueTen : null;
   const badgeTexts = overlay.rating ? (params.ratingBadges ?? []) : [];
   const showBadges = badgeTexts.length > 0;
+  const badgesOnTop = showBadges && overlay.ratingBadgePosition === "top";
   const showRing = !showBadges && valueTen != null && Number.isFinite(valueTen);
   const ringD = Math.round(w * RING_DIAMETER * ringScale);
   const ringStroke = Math.max(2, w * RING_STROKE * ringScale);
@@ -618,7 +621,7 @@ export async function renderSoftPoster(params: {
   const badgeFs = Math.round(scoreFs * RATING_BADGE_SCALE);
   const badgeH = Math.round(badgeFs * CAPSULE_HEIGHT);
   const footerH = Math.max(
-    showRing ? ratingH : showBadges ? badgeH : 0,
+    showRing ? ratingH : showBadges && !badgesOnTop ? badgeH : 0,
     genreRaw ? Math.round(genreFs * CAPSULE_HEIGHT) : 0,
   );
   const hasFooter = footerH > 0;
@@ -666,10 +669,42 @@ export async function renderSoftPoster(params: {
           fs: topRow.fs,
         }
       : null;
-  const topBandBottom = Math.max(
+  const topRowBottom = Math.max(
     trendCapsule ? trendCapsule.rect.top + trendCapsule.rect.height : 0,
     marksCapsule ? marksCapsule.rect.top + marksCapsule.rect.height : 0,
   );
+
+  const stackParts: string[] = [];
+  const stackGlyphs: OverlayOptions[] = [];
+  let stackBottom = 0;
+  if (badgesOnTop) {
+    const gap = Math.round(w * RATING_BADGE_GAP);
+    const boxes = await buildBadgeBoxes({
+      base: baseBuf,
+      badges: badgeTexts,
+      style: overlay.ratingBadgeStyle,
+      fs: badgeFs,
+      alpha: pillOpacity(overlay),
+      maxWidth: Math.round((w - padX * 2) * RATING_BADGE_STACK_MAX_SHARE),
+    });
+    let top = topRowBottom > 0 ? topRowBottom + gap : padTop;
+    for (const box of boxes) {
+      const drawn = await box.draw(w - padX - box.width, top + box.height / 2);
+      stackParts.push(...drawn.parts);
+      stackGlyphs.push(...drawn.glyphs);
+      stackBottom = top + box.height;
+      top = stackBottom + gap;
+    }
+    if (shade > 0 && stackBottom > 0) {
+      const strength = 0.55 * shade;
+      layers.push({
+        input: gradientSvg(w, Math.round(h * TOP_SCRIM_BAND), [[0, 0], [0.5, 0.22 * strength], [1, 0.5 * strength]]),
+        top: 0,
+        left: 0,
+      });
+    }
+  }
+  const topBandBottom = Math.max(topRowBottom, stackBottom);
 
   if (drawLogo && params.logoPath) {
     const { maxW: maxLogoW, maxH: maxLogoH } = logoMaxBox(w, h, overlay.logoSize);
@@ -729,8 +764,9 @@ export async function renderSoftPoster(params: {
   const svgParts: string[] = [];
   let genreRight = w - padX;
   const ratingColorValue = valueTen != null ? ringColor(overlay, valueTen, params.ratingColorSource) : TEXT_PRIMARY;
-  const badgeGlyphs: OverlayOptions[] = [];
-  if (showBadges) {
+  const badgeGlyphs: OverlayOptions[] = [...stackGlyphs];
+  svgParts.push(...stackParts);
+  if (showBadges && !badgesOnTop) {
     const gap = Math.round(w * RATING_BADGE_GAP);
     const rowMax = Math.round((w - padX * 2) * (genreRaw ? RATING_BADGE_ROW_SHARE_WITH_GENRE : 1));
     const boxes = fitBadgeRow(
