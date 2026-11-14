@@ -35,8 +35,7 @@ describe("placeCustomBadges", () => {
 describe("cornerWidthLimit", () => {
   const badge = (text: string, corner: string) => ({ text, corner, color: "#ffffff", background: "#000000" });
 
-  it("lets a badge use the room its opposite corner leaves and shares fairly when both are wide", () => {
-    if (!softFontAvailable()) return;
+  it.skipIf(!softFontAvailable())("lets a badge use the room its opposite corner leaves and shares fairly when both are wide", () => {
     const badges = parseCustomBadges([
       badge("Family night", "top-left"),
       badge("A", "top-right"),

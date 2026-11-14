@@ -89,7 +89,16 @@ export function SetupCustomBadgesPanel(props: {
       ) : (
         <ol className="border-t border-white/5">
           {badges.map((badge, index) => (
-            <li className="grid gap-4 border-b border-white/5 py-5 sm:grid-cols-2" key={index}>
+            <li
+              aria-label={`Badge ${index + 1}`}
+              className="grid gap-4 border-b border-white/5 py-5 sm:grid-cols-2"
+              key={index}
+            >
+              {!badge.text.trim() && !badge.icon ? (
+                <p className="text-sm text-amber-200/95 sm:col-span-2" role="alert">
+                  Add text or an icon, or this badge is not saved.
+                </p>
+              ) : null}
               <SetupOverlayField label="Text">
                 <input
                   className="polis-input w-full"
