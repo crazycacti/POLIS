@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
 import { getPolisDb } from "@/lib/db";
-import { createPolisConfig, getPolisConfig } from "@/lib/polis-config-store";
+import { createPolisConfig, getPolisConfig, updatePolisConfig } from "@/lib/polis-config-store";
 import { parsePosterOverlayQuery } from "@/lib/poster-query";
 import { isSealedSecret, openSecret, sealSecret } from "@/lib/stored-secret";
 
@@ -65,5 +65,25 @@ describe("stored api keys", () => {
     db.query("UPDATE user_configs SET mdblist_integrator_key = ? WHERE id = ?").run("legacy-plain-mdblist", created.id);
     expect(getPolisConfig(created.id)?.mdblistIntegratorKey).toBe("legacy-plain-mdblist");
     expect(isSealedSecret(raw().m)).toBe(true);
+  });
+
+  it("keeps a key it cannot decrypt when a save does not change that key", () => {
+    process.env.POLIS_DATA_KEY = "first-data-key-for-wipe-test";
+    const overlay = parsePosterOverlayQuery(new URLSearchParams());
+    const created = createPolisConfig({
+      overlay,
+      integrator: { tmdbSecret: "tmdb-survives-key-change", mdblistApiKey: "mdblist-survives-key-change" },
+      passwordHash: "scrypt:a:b",
+    });
+    process.env.POLIS_DATA_KEY = "second-data-key-for-wipe-test";
+    const realWarn = console.warn;
+    console.warn = () => {};
+    try {
+      updatePolisConfig(created.id, { overlay, integrator: { mdblistApiKey: "mdblist-replaced" } });
+    } finally {
+      console.warn = realWarn;
+    }
+    process.env.POLIS_DATA_KEY = "first-data-key-for-wipe-test";
+    expect(getPolisConfig(created.id)?.tmdbIntegratorSecret).toBe("tmdb-survives-key-change");
   });
 });

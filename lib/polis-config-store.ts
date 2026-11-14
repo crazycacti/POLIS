@@ -200,6 +200,20 @@ export function updatePolisConfig(
     },
     params.integrator,
   );
+  const storedKeys = getPolisDb()
+    .query<Pick<Row, "tmdb_integrator_secret" | "mdblist_integrator_key">, [string]>(
+      "SELECT tmdb_integrator_secret, mdblist_integrator_key FROM user_configs WHERE id = ?",
+    )
+    .get(configId);
+  // Keys this save does not touch keep their stored bytes, so a key that cannot be decrypted right now is not wiped.
+  const tmdbColumn =
+    params.integrator?.tmdbSecret !== undefined
+      ? sealSecret(integrator.tmdb)
+      : (storedKeys?.tmdb_integrator_secret ?? null);
+  const mdblistColumn =
+    params.integrator?.mdblistApiKey !== undefined
+      ? sealSecret(integrator.mdblist)
+      : (storedKeys?.mdblist_integrator_key ?? null);
   const label =
     params.label !== undefined
       ? normalizeConfigLabel(params.label) ?? existing.label
@@ -221,8 +235,8 @@ export function updatePolisConfig(
         posterQuery,
         manifestKind,
         catalogsJson,
-        sealSecret(integrator.tmdb),
-        sealSecret(integrator.mdblist),
+        tmdbColumn,
+        mdblistColumn,
         passwordHash,
         now,
         configId,
@@ -241,8 +255,8 @@ export function updatePolisConfig(
         posterQuery,
         manifestKind,
         catalogsJson,
-        sealSecret(integrator.tmdb),
-        sealSecret(integrator.mdblist),
+        tmdbColumn,
+        mdblistColumn,
         now,
         configId,
       );
