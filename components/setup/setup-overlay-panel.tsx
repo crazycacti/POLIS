@@ -34,6 +34,14 @@ import type {
 } from "@/lib/poster-query";
 import { LOGO_SOURCES_AUTO, PILL_ALPHA_MAX, PILL_ALPHA_MIN } from "@/lib/poster-query";
 import {
+  TEXT_SIZE_MAX,
+  TEXT_SIZE_MIN,
+  TEXT_SIZE_PRESETS,
+  textSizeFields,
+  textSizePresetOf,
+  type TextSizePreset,
+} from "@/lib/poster-text-size";
+import {
   MAX_RATING_BADGE_CHOICES,
   parseRatingBadgeSources,
   type RatingBadgeSource,
@@ -111,8 +119,8 @@ const SHADES: { value: ShadeLevel; label: string }[] = [
 const QUALITY_BADGE_LABEL = "4K, HDR and Dolby";
 const AGE_BADGE_LABEL = "Age rating";
 const OFF_SUMMARY = "Off";
-const LABEL_RANGE_MIN = 16;
-const LABEL_RANGE_MAX = 72;
+const LABEL_RANGE_MIN = TEXT_SIZE_MIN;
+const LABEL_RANGE_MAX = TEXT_SIZE_MAX;
 const LANDSCAPE_ARTWORK_NOTE = "Landscape uses TMDB backdrops.";
 
 function lowerFirst(label: string): string {
@@ -223,6 +231,56 @@ function ScoreStyleSample(props: { look: PosterLook }) {
     <span aria-hidden className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-emerald-400 bg-black/70 text-xs font-semibold text-white">
       {SCORE_SAMPLE}
     </span>
+  );
+}
+
+function TextSizePicker(props: { value: TextSizePreset | null; onChange: (preset: TextSizePreset) => void }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const current = Math.max(0, TEXT_SIZE_PRESETS.findIndex((option) => option.value === props.value));
+    const next = (current + step + TEXT_SIZE_PRESETS.length) % TEXT_SIZE_PRESETS.length;
+    props.onChange(TEXT_SIZE_PRESETS[next]!.value);
+    refs.current[next]?.focus();
+  }
+
+  return (
+    <div
+      aria-label="Text size"
+      className="flex w-full max-w-md rounded-lg bg-zinc-900 p-0.5 sm:col-span-2"
+      onKeyDown={onKeyDown}
+      role="radiogroup"
+    >
+      {TEXT_SIZE_PRESETS.map((option, index) => {
+        const selected = props.value === option.value;
+        return (
+          <button
+            aria-checked={selected}
+            className={`polis-focus min-h-10 flex-1 rounded-md text-sm transition-colors pointer-coarse:min-h-11 ${
+              selected ? "bg-zinc-700 text-white" : "text-zinc-400 hover:text-white"
+            }`}
+            key={option.value}
+            onClick={() => props.onChange(option.value)}
+            ref={(el) => {
+              refs.current[index] = el;
+            }}
+            role="radio"
+            tabIndex={selected || (props.value == null && index === 1) ? 0 : -1}
+            type="button"
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -348,9 +406,23 @@ export function SetupOverlayPanel(props: {
   const classic = overlay.look === "classic" && !landscape;
   const badgeMode = parseRatingBadgeSources(overlay.ratingBadges).length > 0;
   const toggle = (part: PosterPart) => () => onOpenPartChange(openPart === part ? null : part);
+  const sizePreset = textSizePresetOf(overlay);
 
   return (
     <ul aria-label="Poster parts" className="mb-10">
+      <PosterPartRow
+        name="Text size"
+        onToggle={toggle("size")}
+        open={openPart === "size"}
+        part="size"
+        summary={TEXT_SIZE_PRESETS.find((option) => option.value === sizePreset)?.label ?? "Custom"}
+      >
+        <TextSizePicker
+          onChange={(preset) => setOverlay((o) => ({ ...o, ...textSizeFields(preset) }))}
+          value={sizePreset}
+        />
+      </PosterPartRow>
+
       <PosterPartRow
         name="Artwork"
         onToggle={toggle("artwork")}
