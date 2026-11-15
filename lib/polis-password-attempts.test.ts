@@ -34,6 +34,14 @@ describe("password attempt limiter", () => {
     expect(passwordAttemptRetryAfterSeconds(id, "203.0.113.99", start)).not.toBeNull();
   });
 
+  test("guesses on other profiles from many addresses cannot reset a profile's ceiling", () => {
+    const id = "limiter-evict-config";
+    const start = 4_000_000;
+    for (let i = 0; i < 100; i += 1) recordPasswordFailure(id, `198.51.100.${i}`, start);
+    for (let i = 0; i < 25_000; i += 1) recordPasswordFailure(`limiter-flood-${i % 200}`, `2001:db8::${i}`, start);
+    expect(passwordAttemptRetryAfterSeconds(id, "203.0.113.77", start)).not.toBeNull();
+  });
+
   test("a successful unlock clears that client's failures", () => {
     const id = "limiter-clear-config";
     for (let i = 0; i < 10; i += 1) recordPasswordFailure(id, "203.0.113.5");

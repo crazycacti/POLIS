@@ -13,6 +13,7 @@ import {
 } from "@/lib/polis-password-attempts";
 
 export const TOO_MANY_PASSWORD_ATTEMPTS = "Too many attempts. Try again later.";
+const FULL_TRACKER_RETRY_SECONDS = 60;
 
 export type PasswordCheckResult =
   | { ok: true }
@@ -29,7 +30,9 @@ export async function checkConfigPassword(
     return { ok: false, status: 429, error: TOO_MANY_PASSWORD_ATTEMPTS, retryAfterSeconds };
   }
   // Count the attempt before the slow verify so parallel guesses cannot all pass the check.
-  recordPasswordFailure(configId, client);
+  if (!recordPasswordFailure(configId, client)) {
+    return { ok: false, status: 429, error: TOO_MANY_PASSWORD_ATTEMPTS, retryAfterSeconds: FULL_TRACKER_RETRY_SECONDS };
+  }
   const valid = await verifyConfigPassword(password, getConfigPasswordHash(configId));
   if (!valid) {
     return { ok: false, status: 401, error: "Invalid password." };
