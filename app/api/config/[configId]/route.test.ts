@@ -63,3 +63,41 @@ describe("GET /api/config/[configId]", () => {
     expect((await get(sessionCookie)).status).toBe(401);
   });
 });
+
+describe("DELETE /api/config/[configId]", () => {
+  async function remove(configId: string, headers: Record<string, string>) {
+    const { DELETE } = await import("@/app/api/config/[configId]/route");
+    return DELETE(new Request(`http://polis.test/api/config/${configId}`, { method: "DELETE", headers }), {
+      params: Promise.resolve({ configId }),
+    });
+  }
+
+  test("deletes a password profile with its session and ends that session", async () => {
+    const { config, sessionCookie, store } = await setup();
+    const response = await remove(config.id, { cookie: sessionCookie, "sec-fetch-site": "same-origin" });
+    expect(response.status).toBe(200);
+    expect(store.getPolisConfig(config.id)).toBeNull();
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+  });
+
+  test("keeps the profile without its session", async () => {
+    const { config, store } = await setup();
+    expect((await remove(config.id, { "sec-fetch-site": "same-origin" })).status).toBe(401);
+    expect(store.getPolisConfig(config.id)).not.toBeNull();
+  });
+
+  test("refuses a delete sent from another site even with the session", async () => {
+    const { config, sessionCookie, store } = await setup();
+    const response = await remove(config.id, { cookie: sessionCookie, "sec-fetch-site": "same-site" });
+    expect(response.status).toBe(403);
+    expect(store.getPolisConfig(config.id)).not.toBeNull();
+  });
+
+  test("refuses to delete a profile that has no password", async () => {
+    const { store } = await setup();
+    const { parsePosterOverlayQuery } = await import("@/lib/poster-query");
+    const open = store.createPolisConfig({ overlay: parsePosterOverlayQuery(new URLSearchParams()), passwordHash: "" });
+    expect((await remove(open.id, { "sec-fetch-site": "same-origin" })).status).toBe(403);
+    expect(store.getPolisConfig(open.id)).not.toBeNull();
+  });
+});

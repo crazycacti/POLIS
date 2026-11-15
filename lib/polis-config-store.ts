@@ -276,6 +276,15 @@ export function updatePolisConfig(
   return getPolisConfig(configId);
 }
 
+export function deletePolisConfig(configId: string): boolean {
+  if (!isValidPolisConfigId(configId)) return false;
+  const result = getPolisDb().query(`DELETE FROM user_configs WHERE id = ?`).run(configId);
+  if (result.changes === 0) return false;
+  void purgePolisConfigDiskCache(configId).catch(() => {});
+  purgePosterMemoryCacheForConfig(configId);
+  return true;
+}
+
 export function rotatePolisConfigId(configId: string): StoredPolisConfig | null {
   if (!getPolisConfig(configId)) return null;
   const nextId = generatePolisConfigId();

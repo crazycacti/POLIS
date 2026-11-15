@@ -41,8 +41,19 @@ export function SetupSaveBar(props: {
   saving: boolean;
   onSave: () => void;
   onNewInstallUrl?: () => Promise<string | null>;
+  onDeleteProfile?: () => Promise<string | null>;
 }) {
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<"idle" | "confirm" | "working">("idle");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDeleteProfile() {
+    if (!props.onDeleteProfile) return;
+    setDeleteStep("working");
+    const error = await props.onDeleteProfile();
+    setDeleteError(error);
+    if (error) setDeleteStep("idle");
+  }
   const [rotateStep, setRotateStep] = useState<"idle" | "confirm" | "working">("idle");
   const [rotateError, setRotateError] = useState<string | null>(null);
 
@@ -191,6 +202,44 @@ export function SetupSaveBar(props: {
               {rotateError ? (
                 <p className="text-sm text-amber-200/95" role="alert">
                   {rotateError}
+                </p>
+              ) : null}
+              {props.onDeleteProfile ? (
+                deleteStep === "idle" ? (
+                  <button
+                    className="polis-btn-secondary self-start text-red-300 hover:text-red-200"
+                    onClick={() => setDeleteStep("confirm")}
+                    type="button"
+                  >
+                    Delete profile
+                  </button>
+                ) : (
+                  <div aria-label="Delete profile" className="flex flex-wrap items-center gap-3" role="group">
+                    <p className="text-sm text-amber-100/95">
+                      This deletes the profile and its saved keys. The install URL stops working.
+                    </p>
+                    <button
+                      className="polis-btn-secondary"
+                      disabled={deleteStep === "working"}
+                      onClick={() => setDeleteStep("idle")}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="polis-btn bg-red-600/90 text-white hover:bg-red-500"
+                      disabled={deleteStep === "working"}
+                      onClick={() => void confirmDeleteProfile()}
+                      type="button"
+                    >
+                      {deleteStep === "working" ? "Deleting…" : "Delete profile"}
+                    </button>
+                  </div>
+                )
+              ) : null}
+              {deleteError ? (
+                <p className="text-sm text-amber-200/95" role="alert">
+                  {deleteError}
                 </p>
               ) : null}
             </div>

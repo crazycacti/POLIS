@@ -714,6 +714,26 @@ export function SetupWorkspace(props: {
     }
   }
 
+  async function deleteProfile(): Promise<string | null> {
+    const current = configId?.trim();
+    if (!current) return "Save the profile first.";
+    try {
+      const res = await fetch(`/api/config/${encodeURIComponent(current)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        return data.error ?? "Could not delete the profile.";
+      }
+      clearStoredConfigId(current);
+      window.location.replace("/configure");
+      return null;
+    } catch {
+      return "Network error. Try again.";
+    }
+  }
+
   function handleSaveClick() {
     if (lockReason) return;
     if (!origin) {
@@ -1085,6 +1105,7 @@ export function SetupWorkspace(props: {
         lockReason={lockReason}
         onSave={handleSaveClick}
         onNewInstallUrl={configExists && configHasPassword && saveStatus === "saved" ? rotateInstallUrl : undefined}
+        onDeleteProfile={configExists && configHasPassword ? deleteProfile : undefined}
         landscapePattern={patterns?.landscapePattern ?? null}
         posterPattern={patterns?.posterPattern ?? null}
         saveLabel={configId ? "Save" : "Create profile"}
