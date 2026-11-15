@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { proxyClientKey } from "@/lib/client-request-context";
 import { checkConfigPassword, issueConfigureSessionToken } from "@/lib/polis-config-api-auth";
 import { configureSessionCookieHeader } from "@/lib/polis-config-auth";
 import { isValidPolisConfigId } from "@/lib/polis-config-id";
@@ -47,7 +48,7 @@ export async function POST(
     return NextResponse.json({ error: "Password is required." }, { status: 400 });
   }
 
-  const check = await checkConfigPassword(configId, password);
+  const check = await checkConfigPassword(configId, password, proxyClientKey(request));
   if (!check.ok) {
     const headers: HeadersInit =
       check.status === 429 ? { "Retry-After": String(check.retryAfterSeconds) } : {};

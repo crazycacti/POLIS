@@ -1,3 +1,4 @@
+import { proxyClientKey } from "@/lib/client-request-context";
 import {
   createConfigureSessionToken,
   parseConfigureSessionCookie,
@@ -21,18 +22,19 @@ export type PasswordCheckResult =
 export async function checkConfigPassword(
   configId: string,
   password: string,
+  client: string,
 ): Promise<PasswordCheckResult> {
-  const retryAfterSeconds = passwordAttemptRetryAfterSeconds(configId);
+  const retryAfterSeconds = passwordAttemptRetryAfterSeconds(configId, client);
   if (retryAfterSeconds != null) {
     return { ok: false, status: 429, error: TOO_MANY_PASSWORD_ATTEMPTS, retryAfterSeconds };
   }
   // Count the attempt before the slow verify so parallel guesses cannot all pass the check.
-  recordPasswordFailure(configId);
+  recordPasswordFailure(configId, client);
   const valid = await verifyConfigPassword(password, getConfigPasswordHash(configId));
   if (!valid) {
     return { ok: false, status: 401, error: "Invalid password." };
   }
-  clearPasswordFailures(configId);
+  clearPasswordFailures(configId, client);
   return { ok: true };
 }
 
@@ -65,7 +67,7 @@ export async function authorizeConfigWrite(
   }
 
   if (typeof password === "string" && password.trim()) {
-    const check = await checkConfigPassword(configId, password.trim());
+    const check = await checkConfigPassword(configId, password.trim(), proxyClientKey(request));
     if (check.ok) {
       return { ok: true };
     }
