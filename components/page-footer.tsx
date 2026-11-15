@@ -27,6 +27,11 @@ export function PageFooter() {
           </a>
           .
         </p>
+        <p className="mt-2">
+          <a className={linkClass} href="/privacy">
+            Privacy
+          </a>
+        </p>
       </div>
     </footer>
   );
